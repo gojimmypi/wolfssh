@@ -19,8 +19,8 @@
  */
 
 #include "ssh_server.h"
-
-#ifndef NO_WOLFSSH_SERVER
+#define DEBUG_WOLFSSL
+#define DEBUG_WOLFSSH
 
 static const char serverBanner[] = "wolfSSH Example Server\n";
 
@@ -61,6 +61,7 @@ static byte find_char(const byte* str, const byte* buf, word32 bufSz) {
 
 
 static int dump_stats(thread_ctx_t* ctx) {
+    WOLFSSL_ERROR_MSG("dumpstats");
     char stats[1024];
     word32 statsSz;
     word32 txCount, rxCount, seq, peerSeq;
@@ -97,9 +98,9 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     while (ret != WS_SUCCESS &&
             (error == WS_WANT_READ || error == WS_WANT_WRITE)) {
         if (error == WS_WANT_READ)
-            printf("... client would read block\n");
+            WOLFSSL_ERROR_MSG("... client would read block\n");
         else if (error == WS_WANT_WRITE)
-            printf("... client would write block\n");
+            WOLFSSL_ERROR_MSG("... client would write block\n");
 
 //        select_ret = tcp_select(sockfd, 1);
 //        if (select_ret == WS_SELECT_RECV_READY  ||
@@ -218,8 +219,9 @@ static void server_worker(void* vArgs) {
         free(buf);
     }
     else if (ret == WS_SCP_COMPLETE) {
-        printf("scp file transfer completed\n");
+        WOLFSSL_ERROR_MSG("scp file transfer completed\n");
 #if defined(WOLFSSH_SCP) && defined(NO_FILESYSTEM)
+        WOLFSSL_ERROR_MSG("scp");
         if (scpBufferRecv.fileSz > 0) {
             word32 z;
 
@@ -236,7 +238,7 @@ static void server_worker(void* vArgs) {
 #endif
     }
     else if (ret == WS_SFTP_COMPLETE) {
-        printf("Use example/echoserver/echoserver for SFTP\n");
+        WOLFSSL_ERROR_MSG("Use example/echoserver/echoserver for SFTP\n");
     }
     wolfSSH_stream_exit(threadCtx->ssh, 0);
     // WCLOSESOCKET(threadCtx->fd);
@@ -674,7 +676,7 @@ static int wsUserAuth(byte authType,
     byte authHash[WC_SHA256_DIGEST_SIZE];
 
     if (ctx == NULL) {
-        fprintf(stderr, "wsUserAuth: ctx not set");
+        WOLFSSL_ERROR_MSG("wsUserAuth: ctx not set");
         return WOLFSSH_USERAUTH_FAILURE;
     }
 
@@ -756,7 +758,7 @@ void server_test() {
 #ifdef HAVE_SIGNAL
     signal(SIGINT, sig_handler);
 #endif
-
+    wolfSSH_Debugging_ON();
 #ifdef DEBUG_WOLFSSL
     wolfSSL_Debugging_ON();
     WOLFSSL_MSG("Debug ON v0.2b");
@@ -1077,13 +1079,13 @@ void server_test() {
 #endif
 
     if (wolfSSH_Init() != WS_SUCCESS) {
-        // fprintf(stderr, "Couldn't initialize wolfSSH.\n");
+        WOLFSSL_ERROR_MSG("Couldn't initialize wolfSSH.\n");
         exit(EXIT_FAILURE);
     }
 
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_SERVER, NULL);
     if (ctx == NULL) {
-        // fprintf(stderr, "Couldn't allocate SSH CTX data.\n");
+        WOLFSSL_ERROR_MSG("Couldn't allocate SSH CTX data.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -1099,14 +1101,14 @@ void server_test() {
 
         bufSz = load_key(useEcc, buf, SCRATCH_BUFFER_SZ);
         if (bufSz == 0) {
-            fprintf(stderr, "Couldn't load key.\n");
+            WOLFSSL_ERROR_MSG( "Couldn't load key.\n");
             exit(EXIT_FAILURE);
         }
         if (wolfSSH_CTX_UsePrivateKey_buffer(ctx,
             buf,
             bufSz,
             WOLFSSH_FORMAT_ASN1) < 0) {
-            fprintf(stderr, "Couldn't use key buffer.\n");
+            WOLFSSL_ERROR_MSG("Couldn't use key buffer.\n");
             exit(EXIT_FAILURE);
         }
 
@@ -1135,13 +1137,13 @@ void server_test() {
 
         threadCtx = (thread_ctx_t*)malloc(sizeof(thread_ctx_t));
         if (threadCtx == NULL) {
-            // fprintf(stderr, "Couldn't allocate thread context data.\n");
+            WOLFSSL_ERROR_MSG("Couldn't allocate thread context data.\n");
             exit(EXIT_FAILURE);
         }
 
         ssh = wolfSSH_new(ctx);
         if (ssh == NULL) {
-            fprintf(stderr, "Couldn't allocate SSH data.\n");
+            WOLFSSL_ERROR_MSG("Couldn't allocate SSH data.\n");
             exit(EXIT_FAILURE);
         }
         wolfSSH_SetUserAuthCtx(ssh, &pwMapList);
@@ -1176,7 +1178,7 @@ void server_test() {
     PwMapListDelete(&pwMapList);
     wolfSSH_CTX_free(ctx);
     if (wolfSSH_Cleanup() != WS_SUCCESS) {
-        // fprintf(stderr, "Couldn't clean up wolfSSH.\n");
+        WOLFSSL_ERROR_MSG("Couldn't clean up wolfSSH.\n");
         exit(EXIT_FAILURE);
     }
 #if defined(HAVE_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
@@ -1186,7 +1188,7 @@ void server_test() {
     return;
 }
 
-#endif /* NO_WOLFSSH_SERVER */
+
 
 
 //#ifndef NO_MAIN_DRIVER
