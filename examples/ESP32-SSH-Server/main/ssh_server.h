@@ -40,15 +40,24 @@
 #include <wolfssl/options.h>
 #endif
 
+/* wolfSSL */
+#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
+#include <wolfssl/ssl.h>
+
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/coding.h>
+#include <wolfssl/wolfcrypt/logging.h>
+
 #include <wolfssh/ssh.h>
-#include <wolfssh/test.h>
 #include <wolfssl/wolfcrypt/ecc.h>
+/* socket includes */
+#include "lwip/netdb.h"
+#include "lwip/sockets.h"
+
 
 
 #ifdef NO_FILESYSTEM
-#include <wolfssh/certs_test.h>
+// #include <wolfssh/certs_test.h>
 #ifdef WOLFSSH_SCP
 #include <wolfssh/wolfscp.h>
 #endif
@@ -56,7 +65,7 @@
 
 
 
-THREAD_RETURN WOLFSSH_THREAD server_test();
+void server_test();
 
 
 #endif /* _WOLFSSH_EXAMPLES_SERVER_H_ */

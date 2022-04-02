@@ -28,6 +28,10 @@
 #define DEBUG_WOLFSSH
 #define WOLFSSH_TEST_THREADING
 #define NO_FILESYSTEM
+/* wolfSSL */
+#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
+#include <wolfssl/ssl.h>
+
 
 #include "ssh_server.h"
 static const char *TAG = "eth_example";
@@ -181,22 +185,31 @@ int init_ENC28J60() {
 
 void app_main(void)
 {
-    init_ENC28J60();
-    
-    WSTARTTCP();
-
-    // ChangeToWolfSshRoot();
 
 #ifdef DEBUG_WOLFSSH
     wolfSSH_Debugging_ON();
 #endif
+
+    
+#ifdef DEBUG_WOLFSSL
+    WOLFSSL_MSG("Debug ON");
+    wolfSSL_Debugging_ON();
+    //ShowCiphers();
+#endif
+
+
+    init_ENC28J60();
+    
+    WOLFSSL_MSG("inet_pton");
+    
+
 
     wolfSSH_Init();
 
 #ifdef NO_WOLFSSH_SERVER
 
 #else
-//    server_test();
+    server_test();
 #endif
 
     wolfSSH_Cleanup();
