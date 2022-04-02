@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31729.503
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{803FD0C6-D64E-4E16-9DC3-1DAEC859A3D2}") = "ESP32-SSH-Server", "ESP32-SSH-Server.vgdbproj", "{728C8318-BF85-4301-B284-65C18C401679}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|VisualGDB = Debug|VisualGDB
+		Release|VisualGDB = Release|VisualGDB
+		Tests (Debug)|VisualGDB = Tests (Debug)|VisualGDB
+		Tests (Release)|VisualGDB = Tests (Release)|VisualGDB
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{728C8318-BF85-4301-B284-65C18C401679}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Release|VisualGDB.Build.0 = Release|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Tests (Debug)|VisualGDB.ActiveCfg = Tests (Debug)|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Tests (Debug)|VisualGDB.Build.0 = Tests (Debug)|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Tests (Release)|VisualGDB.ActiveCfg = Tests (Release)|VisualGDB
+		{728C8318-BF85-4301-B284-65C18C401679}.Tests (Release)|VisualGDB.Build.0 = Tests (Release)|VisualGDB
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B966C21F-D281-4250-A450-1915EC531B0A}
+	EndGlobalSection
+EndGlobal
