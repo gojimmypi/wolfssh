@@ -1,7 +1,12 @@
+# user sensitive config files
+**/my_private_config.h
+
 # Object files
 *.o
 *.ko
 *.lo
+*.obj
+*.elf
 
 # Libraries
 *.lib
@@ -18,6 +23,13 @@
 *.exe
 *.out
 *.app
+*.i*86
+*.x86_64
+*.hex
+*app
+
+# IDE Temp Files
+**/*.swp
 
 # autoconf misc
 aclocal.m4
@@ -74,3 +86,35 @@ Debug
 Release
 DLL Debug
 DLL Release
+
+# vscode user directories
+**/.vs/*
+
+# Visual Studio / VisualGDB
+
+**/.visualgdb/*
+**/*/Makefile.old
+**/*/debug.mak.old
+**/*/release.mak.old
+**/*.vgdbsettings.*.user
+**/*.vgdbproj.*.user
+
+**/*/Debug/*
+**/*/Release/*
+**/*/x64/Debug
+**/*/x64/Release
+**/out/build/x64-Debug
+**/out/build/x64-Release
+**/build/VisualGDB/Debug
+**/build/VisualGDB/Release
+
+# VisualGDB auto-generated files
+**/*/gcc_Debug.h
+**/*/gcc_Release.h
+**/*/*.vcxproj.filters
+**/*/*.vcxproj.user
+
+# EDP-IDF 
+**/main/build/CMakeFiles/*
+**/build/*
+
