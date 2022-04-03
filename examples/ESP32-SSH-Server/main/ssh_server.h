@@ -28,11 +28,12 @@
 #include <config.h>
 #endif
 
+#define DEBUG_WOLFSSL
+#define DEBUG_WOLFSSH
+
 #define NO_FILESYSTEM
 #define WOLFSSH_TEST_SERVER
 #define WOLFSSH_TEST_THREADING
-
-#undef  WOLFSSL_USER_SETTINGS
 
 #ifdef WOLFSSL_USER_SETTINGS
 #include <wolfssl/wolfcrypt/settings.h>
@@ -41,14 +42,38 @@
 #endif
 
 /* wolfSSL */
-#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
-#include <wolfssl/ssl.h>
+//#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
+//#include <wolfssl/ssl.h>
+#include <pthread.h>
+#ifdef SINGLE_THREADED
+typedef unsigned int  THREAD_RETURN;
+typedef void* THREAD_TYPE;
+#define WOLFSSH_THREAD
+#else
+#if defined(_POSIX_THREADS) && !defined(__MINGW32__)
+typedef void* THREAD_RETURN;
+typedef pthread_t     THREAD_TYPE;
+#define WOLFSSH_THREAD
+#define INFINITE -1
+#define WAIT_OBJECT_0 0L
+#elif defined(WOLFSSL_NUCLEUS) || defined(FREESCALE_MQX)
+typedef unsigned int  THREAD_RETURN;
+typedef intptr_t      THREAD_TYPE;
+#define WOLFSSH_THREAD
+#else
+typedef unsigned int  THREAD_RETURN;
+typedef intptr_t      THREAD_TYPE;
+#define WOLFSSH_THREAD __stdcall
+#endif
+#endif
 
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/coding.h>
 #include <wolfssl/wolfcrypt/logging.h>
 
+#include <wolfssl/ssl.h>
 #include <wolfssh/ssh.h>
+// #include <wolfssh/test.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 /* socket includes */
 #include "lwip/netdb.h"
@@ -57,7 +82,7 @@
 
 
 #ifdef NO_FILESYSTEM
-// #include <wolfssh/certs_test.h>
+#include <wolfssh/certs_test.h>
 #ifdef WOLFSSH_SCP
 #include <wolfssh/wolfscp.h>
 #endif
@@ -65,7 +90,7 @@
 
 
 
-void server_test();
+THREAD_RETURN WOLFSSH_THREAD  server_test();
 
 
 #endif /* _WOLFSSH_EXAMPLES_SERVER_H_ */
