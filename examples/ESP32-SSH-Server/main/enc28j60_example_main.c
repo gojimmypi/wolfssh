@@ -6,6 +6,8 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+#define DEBUG_WOLFSSL
+#define DEBUG_WOLFSSH
 
 #define WOLFSSL_ESPIDF
 #define WOLFSSL_ESPWROOM32
@@ -25,7 +27,6 @@
 #include "esp_eth_enc28j60.h"
 #include "driver/spi_master.h"
 
-#define DEBUG_WOLFSSH
 #define WOLFSSH_TEST_THREADING
 #define NO_FILESYSTEM
 /* wolfSSL */
@@ -34,6 +35,11 @@
 
 
 #include "ssh_server.h"
+
+/* time */
+#include  <lwip/apps/sntp.h>
+
+
 static const char *TAG = "eth_example";
 
 
@@ -62,7 +68,7 @@ const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
 
-TickType_t DelayTicks = 5000 / portTICK_PERIOD_MS;
+TickType_t DelayTicks = 500000 / portTICK_PERIOD_MS;
 /**
  ******************************************************************************
  ******************************************************************************
@@ -71,6 +77,7 @@ TickType_t DelayTicks = 5000 / portTICK_PERIOD_MS;
  ******************************************************************************
  **/
   
+volatile bool EthernetReady = 0;
 
 /** Event handler for Ethernet events */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
@@ -89,12 +96,14 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
         break;
     case ETHERNET_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "Ethernet Link Down");
+        EthernetReady = 0;
         break;
     case ETHERNET_EVENT_START:
         ESP_LOGI(TAG, "Ethernet Started");
         break;
     case ETHERNET_EVENT_STOP:
         ESP_LOGI(TAG, "Ethernet Stopped");
+        EthernetReady = 0;
         break;
     default:
         break;
@@ -114,6 +123,7 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
+    EthernetReady = 1;
 }
 
 
@@ -183,6 +193,48 @@ int init_ENC28J60() {
     return 0;
 }
 
+int set_time() {
+    /* we'll also return a result code of zero */
+    int res = 0;
+
+    //*ideally, we'd like to set time from network, but let's set a default time, just in case */
+    struct tm timeinfo;
+    timeinfo.tm_year = 2022 - 1900;
+    timeinfo.tm_mon = 3;
+    timeinfo.tm_mday = 15;
+    timeinfo.tm_hour = 8;
+    timeinfo.tm_min = 03;
+    timeinfo.tm_sec = 10;
+    time_t t;
+    t = mktime(&timeinfo);
+
+    struct timeval now = { .tv_sec = t };
+    settimeofday(&now, NULL);
+
+    /* set timezone */
+    setenv("TZ", TIME_ZONE, 1);
+    tzset();
+
+    /* next, let's setup NTP time servers
+     *
+     * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html#sntp-time-synchronization
+    */
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+
+    int i = 0;
+    for (i = 0; i < NTP_SERVER_COUNT; i++) {
+        const char* thisServer = ntpServerList[i];
+        if (strncmp(thisServer, "\x00", 1)) {
+            /* just in case we run out of NTP servers */
+            break;
+        }
+        sntp_setservername(i, thisServer);
+    }
+    sntp_init();
+    return res;
+}
+
+
 void app_main(void)
 {
 
@@ -200,18 +252,33 @@ void app_main(void)
 
     init_ENC28J60();
     
+    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
+    while (EthernetReady == 0)
+    {
+        WOLFSSL_MSG("Waiting for ethernet...");
+        vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
+    }
+    
+    // one of the most important aspects of security is the time and date values
+    set_time();
+
     WOLFSSL_MSG("inet_pton");
     
-
-
     wolfSSH_Init();
+
+	for (;;) {
+    	WOLFSSL_MSG("main loop!");
 
 #ifdef NO_WOLFSSH_SERVER
 
 #else
-    server_test();
+		server_test();
 #endif
+    	WOLFSSL_MSG("server test done!");
+    	vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
 
+	}
+// todo this is unreachable
     wolfSSH_Cleanup();
 
 }
