@@ -1,6 +1,13 @@
 # ENC28J60 Example
 (See the README.md file in the upper level 'examples' directory for more information about examples.)
 
+THIS particular example utilizes the sample application for the wired ENC28J60 Ethernet and includes
+the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/).
+
+See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20&t=SuiFcn672jlhXtCVh0lRRw).
+
+The code is operational, but yes: also pretty messy at the moment. Cleanup and PR coming soon!
+
 ## Overview
 
 ENC28J60 is a standalone Ethernet controller with a standard SPI interface. This example demonstrates how to drive this controller as an SPI device and then attach to TCP/IP stack.
