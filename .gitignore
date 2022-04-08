@@ -118,3 +118,7 @@ DLL Release
 **/main/build/CMakeFiles/*
 **/build/*
 
+# install script backup files
+user_settings_h*.bak
+config_h_*.bak
+
