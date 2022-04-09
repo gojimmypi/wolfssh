@@ -241,7 +241,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
         WOLFSSL_ERROR_MSG("Use example/echoserver/echoserver for SFTP\n");
     }
     wolfSSH_stream_exit(threadCtx->ssh, 0);
-    // WCLOSESOCKET(threadCtx->fd);
+    // TODO check if open before closing
+    close(threadCtx->fd);
     wolfSSH_free(threadCtx->ssh);
     free(threadCtx);
 
@@ -824,7 +825,7 @@ static INLINE void ThreadDetach(THREAD_TYPE thread) {
 
 int wolfSshPort = 22222;
 
-THREAD_RETURN WOLFSSH_THREAD server_test() {
+void server_test(void *arg) {
     int DEFAULT_PORT = wolfSshPort;
     int ret = WOLFSSL_SUCCESS; /* assume success until proven wrong */
     int sockfd = 0; /* the socket that will carry our secure connection */
@@ -844,7 +845,7 @@ THREAD_RETURN WOLFSSH_THREAD server_test() {
 #ifdef HAVE_SIGNAL
     signal(SIGINT, sig_handler);
 #endif
-    wolfSSH_Debugging_ON();
+    
 #ifdef DEBUG_WOLFSSL
     wolfSSL_Debugging_ON();
     WOLFSSL_MSG("Debug ON v0.2b");
@@ -1282,6 +1283,27 @@ THREAD_RETURN WOLFSSH_THREAD server_test() {
     wc_ecc_fp_free(); /* free per thread cache */
 #endif
 
+    WOLFSSL_MSG("server test done!");
+
+    /* Cleanup and return */
+//    if (ctx->ssh)
+//        wolfSSH_free(ssl); /* Free the wolfSSL object              */
+
+    if (mConnd != SOCKET_INVALID) {
+        WOLFSSL_MSG("Close mConnd socket");
+        close(mConnd); /* Close the connection to the client   */
+        mConnd = SOCKET_INVALID;
+    }
+    if (sockfd != SOCKET_INVALID) {
+        WOLFSSL_MSG("Close sockfd socket");
+        close(sockfd); /* Close the socket listening for clients   */
+        sockfd = SOCKET_INVALID;
+    }
+//    if (ctx) {
+//        WOLFSSL_MSG("wolfSSH_CTX_free");
+//        wolfSSH_CTX_free(ctx); /* Free the wolfSSL context object          */
+//        WOLFSSL_MSG("wolfSSH_CTX_free done");
+//    }
     return;
 }
 

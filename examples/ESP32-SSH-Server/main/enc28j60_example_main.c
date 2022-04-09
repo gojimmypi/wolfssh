@@ -46,8 +46,8 @@ static const char *TAG = "eth_example";
 /* UART pins and config */
 #include "uart_helper.h"
 // static const int RX_BUF_SIZE = 1024;
-#define TXD_PIN (GPIO_NUM_1)
-#define RXD_PIN (GPIO_NUM_3)
+#define TXD_PIN (GPIO_NUM_17)
+#define RXD_PIN (GPIO_NUM_16)
 
 
 /* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
@@ -74,7 +74,7 @@ const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
 
-TickType_t DelayTicks = 500000 / portTICK_PERIOD_MS;
+TickType_t DelayTicks = 5000 / portTICK_PERIOD_MS;
 /**
  ******************************************************************************
  ******************************************************************************
@@ -266,6 +266,14 @@ void init_UART(void) {
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
+void server_session(void* args)
+{
+    while (1)
+    {
+        server_test(args);
+        vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
+    }
+}
 
 void init() {
 #ifdef DEBUG_WOLFSSH
@@ -301,18 +309,14 @@ void app_main(void) {
     init();
 
     xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES, NULL);
+    
     xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
 
+    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
 
     for (;;) {
         WOLFSSL_MSG("main loop!");
 
-#ifdef NO_WOLFSSH_SERVER
-
-#else
-        server_test();
-#endif
-        WOLFSSL_MSG("server test done!");
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
 
     }

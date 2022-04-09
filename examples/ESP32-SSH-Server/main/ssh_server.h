@@ -91,7 +91,7 @@
 
 
 
-THREAD_RETURN WOLFSSH_THREAD  server_test();
+void server_test(void *arg);
 
 
 #endif /* _WOLFSSH_EXAMPLES_SERVER_H_ */
