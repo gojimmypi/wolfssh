@@ -1,4 +1,4 @@
-set(srcs "enc28j60_example_main.c" ssh_server.c)
+set(srcs "enc28j60_example_main.c" ssh_server.c uart_helper.c uart_helper.c)
 
 idf_component_register(
                        SRCS "${srcs}"
