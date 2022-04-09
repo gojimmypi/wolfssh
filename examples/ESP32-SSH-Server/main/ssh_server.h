@@ -55,25 +55,25 @@
 
 #include <pthread.h>
 #ifdef SINGLE_THREADED
-typedef unsigned int  THREAD_RETURN;
-typedef void* THREAD_TYPE;
-#define WOLFSSH_THREAD
+    typedef unsigned int  THREAD_RETURN;
+    typedef void* THREAD_TYPE;
+    #define WOLFSSH_THREAD
 #else
-#if defined(_POSIX_THREADS) && !defined(__MINGW32__)
-typedef void* THREAD_RETURN;
-typedef pthread_t     THREAD_TYPE;
-#define WOLFSSH_THREAD
-#define INFINITE -1
-#define WAIT_OBJECT_0 0L
-#elif defined(WOLFSSL_NUCLEUS) || defined(FREESCALE_MQX)
-typedef unsigned int  THREAD_RETURN;
-typedef intptr_t      THREAD_TYPE;
-#define WOLFSSH_THREAD
-#else
-typedef unsigned int  THREAD_RETURN;
-typedef intptr_t      THREAD_TYPE;
-#define WOLFSSH_THREAD __stdcall
-#endif
+    #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
+        typedef void* THREAD_RETURN;
+        typedef pthread_t     THREAD_TYPE;
+        #define WOLFSSH_THREAD
+        #define INFINITE -1
+        #define WAIT_OBJECT_0 0L
+    #elif defined(WOLFSSL_NUCLEUS) || defined(FREESCALE_MQX)
+        typedef unsigned int  THREAD_RETURN;
+        typedef intptr_t      THREAD_TYPE;
+        #define WOLFSSH_THREAD
+    #else
+        typedef unsigned int  THREAD_RETURN;
+        typedef intptr_t      THREAD_TYPE;
+        #define WOLFSSH_THREAD __stdcall
+    #endif
 #endif
 
 /* socket includes */
@@ -83,10 +83,10 @@ typedef intptr_t      THREAD_TYPE;
 
 
 #ifdef NO_FILESYSTEM
-#include <wolfssh/certs_test.h>
-#ifdef WOLFSSH_SCP
-#include <wolfssh/wolfscp.h>
-#endif
+    #include <wolfssh/certs_test.h>
+    #ifdef WOLFSSH_SCP
+        #include <wolfssh/wolfscp.h>
+    #endif
 #endif
 
 
