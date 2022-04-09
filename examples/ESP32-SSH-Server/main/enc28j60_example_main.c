@@ -81,10 +81,11 @@ TickType_t DelayTicks = 500000 / portTICK_PERIOD_MS;
 volatile bool EthernetReady = 0;
 
 /** Event handler for Ethernet events */
-static void eth_event_handler(void *arg, esp_event_base_t event_base,
-                              int32_t event_id, void *event_data)
-{
-    uint8_t mac_addr[6] = {0};
+static void eth_event_handler(void *arg,
+    esp_event_base_t event_base,
+    int32_t event_id,
+    void *event_data) {
+    uint8_t mac_addr[6] = { 0 };
     /* we can get the ethernet driver handle from event data */
     esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
 
@@ -92,8 +93,14 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
     case ETHERNET_EVENT_CONNECTED:
         esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
         ESP_LOGI(TAG, "Ethernet Link Up");
-        ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
-                 mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+        ESP_LOGI(TAG,
+            "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
+            mac_addr[0],
+            mac_addr[1],
+            mac_addr[2],
+            mac_addr[3],
+            mac_addr[4],
+            mac_addr[5]);
         break;
     case ETHERNET_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "Ethernet Link Down");
@@ -112,9 +119,10 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
 }
 
 /** Event handler for IP_EVENT_ETH_GOT_IP */
-static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
-                                 int32_t event_id, void *event_data)
-{
+static void got_ip_event_handler(void *arg,
+    esp_event_base_t event_base,
+    int32_t event_id,
+    void *event_data) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
     const esp_netif_ip_info_t *ip_info = &event->ip_info;
 
@@ -235,9 +243,10 @@ int set_time() {
     return res;
 }
 
+void init() {
+}
 
-void app_main(void)
-{
+void app_main(void) {
 
 #ifdef DEBUG_WOLFSSH
     wolfSSH_Debugging_ON();
@@ -254,8 +263,7 @@ void app_main(void)
     init_ENC28J60();
     
     TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
-    while (EthernetReady == 0)
-    {
+    while (EthernetReady == 0) {
         WOLFSSL_MSG("Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
@@ -267,19 +275,19 @@ void app_main(void)
     
     wolfSSH_Init();
 
-	for (;;) {
-    	WOLFSSL_MSG("main loop!");
+    for (;;) {
+        WOLFSSL_MSG("main loop!");
 
 #ifdef NO_WOLFSSH_SERVER
 
 #else
-		server_test();
+        server_test();
 #endif
-    	WOLFSSL_MSG("server test done!");
-    	vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
+        WOLFSSL_MSG("server test done!");
+        vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
 
-	}
-// todo this is unreachable
+    }
+    // todo this is unreachable
     wolfSSH_Cleanup();
 
 }
