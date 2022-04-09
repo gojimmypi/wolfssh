@@ -8,6 +8,10 @@ See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20
 
 The code is operational, but yes: also pretty messy at the moment. Cleanup and PR coming soon!
 
+There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
+
+See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
+
 ## Overview
 
 ENC28J60 is a standalone Ethernet controller with a standard SPI interface. This example demonstrates how to drive this controller as an SPI device and then attach to TCP/IP stack.
