@@ -31,6 +31,7 @@
 #define NO_FILESYSTEM
 /* wolfSSL */
 #include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
+#include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
 
