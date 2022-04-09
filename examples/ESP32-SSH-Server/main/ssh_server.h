@@ -42,8 +42,17 @@
 #endif
 
 /* wolfSSL */
-//#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
-//#include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/settings.h> // make sure this appears before any other wolfSSL headers
+#include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#include <wolfssl/wolfcrypt/sha256.h>
+#include <wolfssl/wolfcrypt/coding.h>
+
+#include <wolfssh/ssh.h>
+// #include <wolfssh/test.h>
+#include <wolfssl/wolfcrypt/ecc.h>
+
+
 #include <pthread.h>
 #ifdef SINGLE_THREADED
 typedef unsigned int  THREAD_RETURN;
@@ -67,14 +76,6 @@ typedef intptr_t      THREAD_TYPE;
 #endif
 #endif
 
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/coding.h>
-#include <wolfssl/wolfcrypt/logging.h>
-
-#include <wolfssl/ssl.h>
-#include <wolfssh/ssh.h>
-// #include <wolfssh/test.h>
-#include <wolfssl/wolfcrypt/ecc.h>
 /* socket includes */
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"

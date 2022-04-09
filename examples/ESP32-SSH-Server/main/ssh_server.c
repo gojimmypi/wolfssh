@@ -18,7 +18,9 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define DEBUG_WOLFSSL
 #include "ssh_server.h"
+#include <wolfssl/wolfcrypt/logging.h>
 
 static const char serverBanner[] = "wolfSSH Example Server\n";
 
