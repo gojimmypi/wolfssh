@@ -4,7 +4,7 @@ REM Expect the script at /path/to/wolfssh/IDE/Espressif/ESP-IDF/
 ::******************************************************************************************************
 ::******************************************************************************************************
 echo;
-echo wolfSSH (Secure Shell) Windows Setup. Version 0.1a
+echo wolfSSH (Secure Shell) Windows Setup. Version 0.1b
 echo;
 echo This utility will copy a static snapshot of wolfSSH files to the ESP32-IDF component directory.
 echo;
@@ -235,6 +235,12 @@ echo Copying files to %WOLFSSHLIB_TRG_DIR%\wolfssh\
 xcopy %BASEDIR%\wolfssh\*.h                                  %WOLFSSHLIB_TRG_DIR%\wolfssh\                    /S /E /Q /Y
 if %errorlevel% NEQ 0 SET COPYERROR=true
 
+:: TODO do we really need to replicate the entire wolfssl directory here?
+echo;
+echo Replicating  %WOLFSSLLIB_TRG_DIR%\wolfssl\  to  %WOLFSSHLIB_TRG_DIR%\wolfssl\
+if not EXIST %WOLFSSHLIB_TRG_DIR%\wolfssl\   mkdir   %WOLFSSHLIB_TRG_DIR%\wolfssl\
+xcopy  %WOLFSSLLIB_TRG_DIR%\wolfssl\*.*              %WOLFSSHLIB_TRG_DIR%\wolfssl\ /s /e
+
 ::******************************************************************************************************
 :: user_settings and config defaults
 ::******************************************************************************************************
@@ -294,15 +300,17 @@ if EXIST user_settings_h_%FileStamp%.bak (
     xcopy user_settings_h_%FileStamp%.bak    %WOLFSSHLIB_TRG_DIR%\include\user_settings.h /Y
     if %errorlevel% NEQ 0 SET COPYERROR=true
 
+    :: TODO do we really need to replicate the user_settings.h here?
+    xcopy user_settings_h_%FileStamp%.bak    %WOLFSSHLIB_TRG_DIR%\wolfssl\include\user_settings.h /Y
+    if %errorlevel% NEQ 0 SET COPYERROR=true
 ) else (
     echo;
-    echo Prior user_settings.h not found. NOT Using default file.
-    echo;
+    :: TODO do we really need to replicate the user_settings.h here?
+    echo Prior user_settings.h not found.  Using file:  %WOLFSSLLIB_TRG_DIR%\include\user_settings.h
+    echo new file >                                     %WOLFSSHLIB_TRG_DIR%\include\user_settings.h
+    xcopy %WOLFSSLLIB_TRG_DIR%\include\user_settings.h  %WOLFSSHLIB_TRG_DIR%\include\user_settings.h  /Y
 
-::    echo new config                                            > %WOLFSSHLIB_TRG_DIR%\include\user_settings.h
-::    call;
-::    xcopy %WOLFSSH_ESPIDFDIR%\user_settings.h                    %WOLFSSHLIB_TRG_DIR%\include\user_settings.h      /F /Y
-::    if %errorlevel% NEQ 0 SET COPYERROR=true
+    echo;
 )
 
 ::******************************************************************************************************
@@ -320,6 +328,23 @@ echo Copying component.mk to %WOLFSSHLIB_TRG_DIR%\
 xcopy %WOLFSSH_ESPIDFDIR%\libs\component.mk                  %WOLFSSHLIB_TRG_DIR%\                             /F
 if %errorlevel% NEQ 0 GOTO :COPYERR
 
+:: TODO determine what happened to ssl x509_str.c (we get a compile error when this is missing):
+if not exist %WOLFSSHLIB_TRG_DIR%\src\x509_str.c (
+    echo;
+    echo # > %WOLFSSHLIB_TRG_DIR%\src\x509_str.c
+    echo Copied  placeholder %WOLFSSHLIB_TRG_DIR%\src\x509_str.c
+)
+:: echo C:/Users/gojimmypi/Desktop/esp-idf/components/wolfssl/src/x509_str.c
+:: echo %WOLFSSHLIB_TRG_DIR%\src\x509_str.c
+
+:: TODO determine what happened to ssh x509_str.c (we get a compile error when this is missing):
+if not exist %WOLFSSLLIB_TRG_DIR%\src\x509_str.c (
+    echo;
+    echo # > %WOLFSSLLIB_TRG_DIR%\src\x509_str.c
+    echo Created placeholder %WOLFSSLLIB_TRG_DIR%\src\x509_str.c
+)
+:: echo C:/Users/gojimmypi/Desktop/esp-idf/components/wolfssl/src/x509_str.c
+:: echo %WOLFSSLLIB_TRG_DIR%\src\x509_str.c
 goto :DONE
 
 :: error during copy encountered
