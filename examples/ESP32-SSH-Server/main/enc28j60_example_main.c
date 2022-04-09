@@ -244,10 +244,6 @@ int set_time() {
 }
 
 void init() {
-}
-
-void app_main(void) {
-
 #ifdef DEBUG_WOLFSSH
     wolfSSH_Debugging_ON();
 #endif
@@ -273,7 +269,12 @@ void app_main(void) {
 
     WOLFSSL_MSG("inet_pton");
     
-    wolfSSH_Init();
+    wolfSSH_Init(); 
+}
+
+void app_main(void) {
+    init();
+
 
     for (;;) {
         WOLFSSL_MSG("main loop!");
