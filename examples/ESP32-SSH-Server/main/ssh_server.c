@@ -118,9 +118,44 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     return ret;
 }
 
+volatile static char __attribute__((optimize("O0"))) _ExternalReceiveBuffer[255];
+volatile static char __attribute__((optimize("O0"))) _ExternalTransmitBuffer[255];
+volatile static int _ExternalReceiveBufferSz;
+volatile static int _ExternaTransmitBufferSz;
+volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer()
+{
+    return _ExternalReceiveBuffer;
+}
+
+volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer() {
+    return _ExternalTransmitBuffer;
+}
+
+int ExternalReceiveBufferSz()
+{
+    return _ExternalReceiveBufferSz;
+}
+
+int ExternalTransmitBufferSz() {
+    return _ExternaTransmitBufferSz;
+}
+
+int Set_ExternalTransmitBufferSz(int n)
+{
+    _ExternaTransmitBufferSz = n;
+    return 0; /* TODO some sort of diagnostic */
+}
+
+int Set_ExternalReceiveBufferSz(int n)
+{
+    _ExternalReceiveBufferSz = n;
+    return 0; /* TODO some sort of diagnostic */
+}
 
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     int ret;
+    _ExternalReceiveBufferSz = 0;
+    
     thread_ctx_t* threadCtx = (thread_ctx_t*)vArgs;
 
 #if defined(WOLFSSH_SCP) && defined(NO_FILESYSTEM)
@@ -172,7 +207,29 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         rxSz = wolfSSH_get_error(threadCtx->ssh);
                 } while (rxSz == WS_WANT_READ || rxSz == WS_WANT_WRITE);
 
+                WOLFSSH* s = 0;
+                if (ExternalTransmitBufferSz() > 0) {
+                    WOLFSSL_MSG("Tx UART!");
+                    if ((threadCtx->ssh) == NULL) {
+                        WOLFSSL_MSG("ERROR: threadCtx->ssh is null");
+                    }
+                    else
+                    {
+                        if (threadCtx)
+                        {
+                            struct  WOLFSSH* thisPtr =  (threadCtx->ssh);
+                            //(thisPtr)->outputBuffer.length = ExternalTransmitBufferSz();
+                        }
+                        //(threadCtx->ssh)->outputBuffer).length = ExternalTransmitBufferSz();
+                    }
+                    s = threadCtx->ssh;
+                }
+                
                 if (rxSz > 0) {
+                    /* save external data, for something such as UART forwarding */
+                    memcpy(&_ExternalReceiveBuffer[_ExternalReceiveBufferSz], buf, rxSz);
+                    _ExternalReceiveBufferSz = rxSz;
+                    
                     backlogSz += rxSz;
                     txSum = 0;
                     txSz = 0;
@@ -187,24 +244,32 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                             const byte matches[] = { 0x03, 0x05, 0x06, 0x00 };
 
                             c = find_char(matches, buf + txSum, txSz);
+                            
                             switch (c) {
+                                
                             case 0x03:
                                 stop = 1;
                                 break;
+                                
                             case 0x06:
                                 if (wolfSSH_TriggerKeyExchange(threadCtx->ssh)
-                                        != WS_SUCCESS)
+                                        != WS_SUCCESS) {
                                     stop = 1;
+                                }
                                 break;
+                                
                             case 0x05:
-                                if (dump_stats(threadCtx) <= 0)
+                                if (dump_stats(threadCtx) <= 0) {
                                     stop = 1;
+                                }
                                 break;
                             }
+                            
                             txSum += txSz;
                         }
-                        else if (txSz != WS_REKEYING)
+                        else if (txSz != WS_REKEYING) {
                             stop = 1;
+                        }
                     }
 
                     if (txSum < backlogSz)
@@ -241,12 +306,16 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
         WOLFSSL_ERROR_MSG("Use example/echoserver/echoserver for SFTP\n");
     }
     wolfSSH_stream_exit(threadCtx->ssh, 0);
-    // TODO check if open before closing
-    close(threadCtx->fd);
+
+    // check if open before closing
+    if (threadCtx->fd != SOCKET_INVALID) {
+        WOLFSSL_MSG("Close sockfd socket");
+        close(threadCtx->fd);
+    }
     wolfSSH_free(threadCtx->ssh);
     free(threadCtx);
 
-    return;
+    return 0;
 }
 
 #ifndef NO_FILESYSTEM
@@ -1286,8 +1355,6 @@ void server_test(void *arg) {
     WOLFSSL_MSG("server test done!");
 
     /* Cleanup and return */
-//    if (ctx->ssh)
-//        wolfSSH_free(ssl); /* Free the wolfSSL object              */
 
     if (mConnd != SOCKET_INVALID) {
         WOLFSSL_MSG("Close mConnd socket");
@@ -1299,48 +1366,10 @@ void server_test(void *arg) {
         close(sockfd); /* Close the socket listening for clients   */
         sockfd = SOCKET_INVALID;
     }
-//    if (ctx) {
-//        WOLFSSL_MSG("wolfSSH_CTX_free");
-//        wolfSSH_CTX_free(ctx); /* Free the wolfSSL context object          */
-//        WOLFSSL_MSG("wolfSSH_CTX_free done");
-//    }
+
     return;
 }
 
 
 
 
-//#ifndef NO_MAIN_DRIVER
-//
-//int main(int argc, char** argv) {
-//    func_args args;
-//
-//    args.argc = argc;
-//    args.argv = argv;
-//    args.return_code = 0;
-//
-//    WSTARTTCP();
-//
-//    ChangeToWolfSshRoot();
-//#ifdef DEBUG_WOLFSSH
-//    wolfSSH_Debugging_ON();
-//#endif
-//
-//    wolfSSH_Init();
-//
-//#ifndef NO_WOLFSSH_SERVER
-//    server_test(&args);
-//#else
-//    printf("wolfSSH compiled without server support\n");
-//#endif
-//
-//    wolfSSH_Cleanup();
-//
-//    return args.return_code;
-//}
-//
-//
-//int myoptind = 0;
-//char* myoptarg = NULL;
-//
-//#endif /* NO_MAIN_DRIVER */

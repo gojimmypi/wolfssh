@@ -92,6 +92,12 @@
 
 
 void server_test(void *arg);
+volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer();
+volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer();
+int ExternalTransmitBufferSz();
+int ExternalReceiveBufferSz();
 
+int Set_ExternalTransmitBufferSz(int n);
+int Set_ExternalReceiveBufferSz(int n);
 
 #endif /* _WOLFSSH_EXAMPLES_SERVER_H_ */

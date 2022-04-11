@@ -40,14 +40,23 @@
 /* time */
 #include  <lwip/apps/sntp.h>
 
-
+/**
+ ******************************************************************************
+ ******************************************************************************
+ ** USER SETTINGS END
+ ******************************************************************************
+ ******************************************************************************
+ **/
 static const char *TAG = "eth_example";
 
 /* UART pins and config */
 #include "uart_helper.h"
 // static const int RX_BUF_SIZE = 1024;
-#define TXD_PIN (GPIO_NUM_17)
-#define RXD_PIN (GPIO_NUM_16)
+#define TXD_PIN (GPIO_NUM_17) /* orange */
+#define RXD_PIN (GPIO_NUM_16) /* yellow */
+
+/* Edgerouter is 57600, others are typically 115200 */
+#define BAUD_RATE (57600)
 
 
 /* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
@@ -253,7 +262,7 @@ int set_time() {
 
 void init_UART(void) {
     const uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -314,9 +323,14 @@ void app_main(void) {
 
     xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
 
+    volatile char __attribute__((optimize("O0"))) *thisBuf;
+    const char __attribute__((optimize("O0"))) str[255];
     for (;;) {
         WOLFSSL_MSG("main loop!");
-
+        thisBuf = ExternalReceiveBuffer();
+        memcpy(str,  thisBuf, 255);
+        WOLFSSL_MSG(str);
+        WOLFSSL_MSG(thisBuf);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
 
     }
