@@ -1,11 +1,28 @@
-/* ENC28J60 Example
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
+/* ssh_server.h
+ *
+ * Copyright (C) 2014-2022 wolfSSL Inc.
+ *
+ * This file is part of wolfSSH.
+ *
+ * wolfSSH is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * wolfSSH is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * Adapted from Public Domain Expressif ENC28J60 Example
+ * 
+ * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
+ */
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 
@@ -83,7 +100,7 @@ const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
 
-TickType_t DelayTicks = 5000 / portTICK_PERIOD_MS;
+TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
 /**
  ******************************************************************************
  ******************************************************************************
@@ -323,18 +340,12 @@ void app_main(void) {
 
     xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
 
-    volatile char __attribute__((optimize("O0"))) *thisBuf;
-    const char __attribute__((optimize("O0"))) str[255];
     for (;;) {
+        /* we're not actually doing anything here, other than a heartbeat message */
         WOLFSSL_MSG("main loop!");
-        thisBuf = ExternalReceiveBuffer();
-        memcpy(str,  thisBuf, 255);
-        WOLFSSL_MSG(str);
-        WOLFSSL_MSG(thisBuf);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
-
     }
-    // todo this is unreachable
-    wolfSSH_Cleanup();
 
+    // todo this is unreachable with RTOS threads 
+    wolfSSH_Cleanup();
 }
