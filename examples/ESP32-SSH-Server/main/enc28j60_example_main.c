@@ -1,3 +1,4 @@
+#include <esp_task_wdt.h>
 
 /* ssh_server.h
  *
@@ -44,6 +45,8 @@
 #include "esp_eth_enc28j60.h"
 #include "driver/spi_master.h"
 
+#include "ssh_server_config.h"
+
 #define WOLFSSH_TEST_THREADING
 #define NO_FILESYSTEM
 /* wolfSSL */
@@ -51,65 +54,12 @@
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
-
+#include "wifi.h"
 #include "ssh_server.h"
 
 /* time */
 #include  <lwip/apps/sntp.h>
 
-/**
- ******************************************************************************
- ******************************************************************************
- ** USER SETTINGS END
- ******************************************************************************
- ******************************************************************************
- **/
-static const char *TAG = "eth_example";
-
-/* UART pins and config */
-#include "uart_helper.h"
-// static const int RX_BUF_SIZE = 1024;
-#define TXD_PIN (GPIO_NUM_17) /* orange */
-#define RXD_PIN (GPIO_NUM_16) /* yellow */
-
-/* Edgerouter is 57600, others are typically 115200 */
-#define BAUD_RATE (57600)
-
-
-/* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
-   02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
-*/
-uint8_t myMacAddress[] = {
-    0x02,
-    0x00,
-    0x00,
-    0x12,
-    0x34,
-    0x56
-};
-
-// see https://tf.nist.gov/tf-cgi/servers.cgi
-const int NTP_SERVER_COUNT = 3;
-const char* ntpServerList[] = {
-    "pool.ntp.org",
-    "time.nist.gov",
-    "utcnist.colorado.edu"
-};
-const char * TIME_ZONE = "PST-8";
-const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 3600;
-
-
-TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
-/**
- ******************************************************************************
- ******************************************************************************
- ** USER SETTINGS END
- ******************************************************************************
- ******************************************************************************
- **/
-  
-volatile bool EthernetReady = 0;
 
 /** Event handler for Ethernet events */
 static void eth_event_handler(void *arg,
@@ -315,10 +265,24 @@ void init() {
 
     init_UART();
     
+#undef  USE_ENC28J60
+#define USE_ENC28J60    
+#ifdef USE_ENC28J60
     init_ENC28J60();
+#else
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    
+    wifi_init_sta();
+#endif
+
     
     TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
-    while (EthernetReady == 0) {
+    while (EthernetReady == 0 && (wifi_ready() == 0)) {
         WOLFSSL_MSG("Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
@@ -344,6 +308,7 @@ void app_main(void) {
         /* we're not actually doing anything here, other than a heartbeat message */
         WOLFSSL_MSG("main loop!");
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
+        esp_task_wdt_reset();
     }
 
     // todo this is unreachable with RTOS threads 

@@ -1,3 +1,4 @@
+#include <esp_task_wdt.h>
 /* ssh_server.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -18,42 +19,11 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-int wolfSshPort = 22222;
-
-#define SINGLE_THREADED
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
-
+#include "ssh_server_config.h"
 #include "ssh_server.h"
 #include <wolfssl/wolfcrypt/logging.h>
 
-static const char serverBanner[] = "wolfSSH Example Server\n";
 
-#undef  SO_REUSEPORT
-
-char nonBlock = 1;
-int echo = 0;
-
-#ifndef EXAMPLE_HIGHWATER_MARK
-    #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
-#endif
-#ifndef EXAMPLE_BUFFER_SZ
-    #define EXAMPLE_BUFFER_SZ 4096
-#endif
-#define SCRATCH_BUFFER_SZ 1200
-
-
-#ifdef WOLFSSL_NUCLEUS
-    #define WFD_SET_TYPE FD_SET
-    #define WFD_SET NU_FD_Set
-    #define WFD_ZERO NU_FD_Init
-    #define WFD_ISSET NU_FD_Check
-#else
-    #define WFD_SET_TYPE fd_set
-    #define WFD_SET FD_SET
-    #define WFD_ZERO FD_ZERO
-    #define WFD_ISSET FD_ISSET
-#endif
 
 
 typedef struct {
@@ -195,7 +165,9 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
             error = WS_FATAL_ERROR;
 
         /* RTOS yield */
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        /* TODO WDT problem when value set to 10 ? */        
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        esp_task_wdt_reset();
     }
     WOLFSSL_MSG("Exit NonBlockSSH_accept");
 
@@ -400,6 +372,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         else if (txSz != WS_REKEYING) {
                             stop = 1;
                         }
+                        esp_task_wdt_reset();
                     }
 
                     if (txSum < backlogSz)
@@ -413,6 +386,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     }
                 }
             }
+            
+            esp_task_wdt_reset();
         } while (!stop);
 
         free(buf);

@@ -1,3 +1,4 @@
+#include <esp_task_wdt.h>
 /* uart_hlper.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -85,7 +86,9 @@ void uart_tx_task(void *arg) {
         }
         
         /* yield */
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        /* TODO WDT problem when value set to 10 ? */        
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        esp_task_wdt_reset();
     }
 }
 
@@ -122,7 +125,9 @@ void uart_rx_task(void *arg) {
         }
         
         /* yield */
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        /* TODO WDT problem when value set to 10 ? */        
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        esp_task_wdt_reset();
     }
     
     // we never actually get here

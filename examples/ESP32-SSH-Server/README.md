@@ -1,8 +1,10 @@
-# ENC28J60 Example
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+# ESP32 SSH Server
 
-THIS particular example utilizes the sample application for the wired ENC28J60 Ethernet and includes
-the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/).
+Connect to Tx/Rx pins on ESP32 UART via remote SSH.
+
+This particular example utilizes the sample application for the [Espressif Wired ENC28J60 Ethernet](https://github.com/espressif/esp-idf/tree/master/examples/ethernet/enc28j60) 
+as well as the [Getting Started - Wi-Fi Station Example](https://github.com/espressif/esp-idf/tree/master/examples/wifi/getting_started/station)
+and includes the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/).
 
 See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20&t=SuiFcn672jlhXtCVh0lRRw).
 
@@ -11,6 +13,14 @@ The code is operational, but yes: also pretty messy at the moment. Cleanup and P
 There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
 
 See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
+
+## Configuration
+
+See the [ssh_server_config.h](./main/ssh_server.h) files for various configuration settings.
+
+
+# ENC28J60 Example
+(See the README.md file in the upper level 'examples' [directory](https://github.com/espressif/esp-idf/tree/master/examples) for more information about examples.)
 
 ## Overview
 
