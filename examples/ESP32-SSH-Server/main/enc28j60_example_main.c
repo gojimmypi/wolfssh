@@ -248,6 +248,7 @@ void server_session(void* args)
     {
         server_test(args);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
+        esp_task_wdt_reset();
     }
 }
 
@@ -297,16 +298,20 @@ void init() {
 
 void app_main(void) {
     init();
-
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES, NULL);
+        
+    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 3, NULL);
     
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
+    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
 
+    // Start the real time scheduler.
+    vTaskStartScheduler();
+    
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
-        WOLFSSL_MSG("main loop!");
+//        WOLFSSL_MSG("main loop!");
+        taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
         esp_task_wdt_reset();
     }

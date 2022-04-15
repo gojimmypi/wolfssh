@@ -174,9 +174,59 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     return ret;
 }
 
+#define ByteExternalReceiveBufferSz 2047
+#define ByteExternalTransmitBufferSz 2047
+
+static SemaphoreHandle_t _xExternalReceiveBufferSz_Semaphore = NULL;
+static SemaphoreHandle_t _xExternalTransmitBufferSz_Semaphore = NULL;
+
+static SemaphoreHandle_t _xExternalReceiveBuffer_Semaphore = NULL;
+static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
+
+
+//SemaphoreHandle_t ExternalReceive_Semaphore()
+//{
+//    return _xExternalReceiveBufferSz_Semaphore;
+//}
+//SemaphoreHandle_t ExternalTransmit_Semaphore() {
+//    return _xExternalTransmitBufferSz_Semaphore;
+//}
+
+
+void InitReceiveSemaphore() {
+    if (_xExternalReceiveBufferSz_Semaphore == NULL) {
+        _xExternalReceiveBufferSz_Semaphore = xSemaphoreCreateMutex();
+
+#ifdef configUSE_RECURSIVE_MUTEXES
+        /* see semphr.h */
+        WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+#endif
+    }
+    
+    if (_xExternalReceiveBuffer_Semaphore == NULL) {
+        _xExternalReceiveBuffer_Semaphore =  xSemaphoreCreateMutex();
+    }
+}
+
+void InitTransmitSemaphore() {
+    if (_xExternalTransmitBufferSz_Semaphore == NULL) {
+        _xExternalTransmitBufferSz_Semaphore = xSemaphoreCreateMutex();
+
+#ifdef configUSE_RECURSIVE_MUTEXES
+        /* see semphr.h */
+        WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+#endif
+    }
+
+    if (_xExternalTransmitBuffer_Semaphore == NULL) {
+        _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
+    }
+
+}
+
 /* TODO define size and check when assigning */
-volatile static char __attribute__((optimize("O0"))) _ExternalReceiveBuffer[2055];
-volatile static char __attribute__((optimize("O0"))) _ExternalTransmitBuffer[2055];
+volatile static char __attribute__((optimize("O0"))) _ExternalReceiveBuffer[ByteExternalReceiveBufferSz];
+volatile static char __attribute__((optimize("O0"))) _ExternalTransmitBuffer[ByteExternalTransmitBufferSz];
 volatile static int _ExternalReceiveBufferSz;
 volatile static int _ExternalTransmitBufferSz;
 volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer()
@@ -190,25 +240,185 @@ volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer() {
 
 int ExternalReceiveBufferSz()
 {
-    return _ExternalReceiveBufferSz;
+    int ret = 0;
+    
+    InitReceiveSemaphore();
+    if (xSemaphoreTake(_xExternalReceiveBufferSz_Semaphore, (TickType_t) 10) == pdTRUE) {
+        
+        /* the entire thread-safety wrapper is for this code statement */
+        {
+            ret = _ExternalReceiveBufferSz;
+        }    
+        xSemaphoreGive(_xExternalReceiveBufferSz_Semaphore);
+    }
+    else {
+        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        ret = 0;
+    }
+    
+    return ret;
 }
 
 int ExternalTransmitBufferSz() {
-    return _ExternalTransmitBufferSz;
+    int ret = _ExternalTransmitBufferSz;
+    
+    InitTransmitSemaphore();
+    if(xSemaphoreTake(_xExternalTransmitBufferSz_Semaphore, (TickType_t) 10) == pdTRUE) {
+        
+        /* the entire thread-safety wrapper is for this code statement */
+        {
+            ret = _ExternalTransmitBufferSz;
+        }
+        
+        xSemaphoreGive(_xExternalTransmitBufferSz_Semaphore);
+    }
+    else {
+        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        ret = 0;
+    }
+    
+    return ret;
 }
 
-int Set_ExternalTransmitBufferSz(int n)
-{
-    _ExternalTransmitBufferSz = n;
-    return 0; /* TODO some sort of diagnostic */
-}
-
+/*
+ * returns zero if ExternalReceiveBufferSz successfully assigned
+ */
 int Set_ExternalReceiveBufferSz(int n)
 {
-    _ExternalReceiveBufferSz = n;
-    return 0; /* TODO some sort of diagnostic */
+    int ret = 0; /* we assume success unless proven otherwise */
+    
+    InitReceiveSemaphore();
+    if((n >= 0) || (n <= ByteExternalReceiveBufferSz)) {
+        /* only assign valid buffer sizes */
+        if (xSemaphoreTake(_xExternalReceiveBufferSz_Semaphore, (TickType_t) 10) == pdTRUE) {
+            
+            /* the entire thread-safety wrapper is for this code statement */
+            {
+                _ExternalReceiveBufferSz = n;
+            }
+            
+            xSemaphoreGive(_xExternalReceiveBufferSz_Semaphore);
+        }
+        else {
+            /* we could not get the semaphore to update the value! */
+            ret = 1;
+        }
+    }
+    else { 
+        /* the new length must be betwwen zero and maximum length! */
+        ret = 1;
+    }
+    return ret;
 }
 
+/*
+ * returns zero if ExternalTransmitBufferSz successfully assigned
+ */
+int Set_ExternalTransmitBufferSz(int n) {
+    int ret = 0; /* we assume success unless proven otherwise */
+
+    InitTransmitSemaphore();
+    if ((n >= 0) || (n <= ByteExternalTransmitBufferSz)) {
+        /* only assign valid buffer sizes */
+        if (xSemaphoreTake(_xExternalTransmitBufferSz_Semaphore, (TickType_t) 10) == pdTRUE) {
+            
+            /* the entire thread-safety wrapper is for this code statement */
+            {
+                _ExternalTransmitBufferSz = n;
+            }
+            
+            xSemaphoreGive(_xExternalTransmitBufferSz_Semaphore);
+        }
+        else {
+            /* we could not get the semaphore to update the value! */
+            ret = 1;
+        }
+    }
+    else { 
+        /* the new length must be betwwen zero and maximum length! */
+        ret = 1;
+    }
+    return ret;
+}
+
+
+int Set_ExternalReceiveBuffer(byte *FromData, int sz)
+{
+    int ret = 0; /* we assume success unless proven otherwise */
+    
+    if (sz < 0 || sz > ByteExternalReceiveBufferSz) {
+        /* we'll only do a copy for valid sizes, otherwise return an error */
+        ret = 1;
+    }
+    else {
+        InitReceiveSemaphore();
+        if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+        
+            /* the entire thread-safety wrapper is for this code statement.
+             * in a multi-threaded environment, a different thread may be reading
+             * or writing from the data. we need to ensure it is static at the 
+             * time of copy.
+             */
+            {
+                memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz], 
+                    FromData, 
+                    sz);
+    
+                Set_ExternalReceiveBufferSz(sz);
+            }    
+            xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
+        }
+        else {
+            /* we could not get the semaphore to update the value! TODO how to handle this? */
+            ret = 1;
+        }
+    }
+
+    return ret;
+}
+
+/*
+ * thread safe populate ToData with the contents of _ExternalTransmitBuffer
+ * returns the size of the data, negative values are errors.
+ **/
+int Get_ExternalTransmitBuffer(byte **ToData)
+{
+    int ret = 0;
+    InitTransmitSemaphore();
+
+    if(xSemaphoreTake(_xExternalTransmitBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+
+        int thisSize = ExternalTransmitBufferSz();
+        if (thisSize == 0) {
+            /* nothing to do */
+            WOLFSSL_MSG("Get_ExternalTransmitBuffer size is zero");
+        }
+        else {
+            if (*ToData == NULL) {
+                /* we could not allocate memory, so fail */
+                ret = -1;
+                WOLFSSL_MSG("Get_ExternalTransmitBuffer *ToData == NULL");
+            }
+            else {
+                memcpy(*ToData, 
+                       (byte*)_ExternalTransmitBuffer, 
+                       thisSize
+                       );   
+                
+                Set_ExternalTransmitBufferSz(0);
+                ret = thisSize;
+            }
+        }
+        xSemaphoreGive(_xExternalTransmitBuffer_Semaphore);
+    }
+    else {
+        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        ret = -1;
+        WOLFSSL_ERROR_MSG("ERROR: Get_ExternalTransmitBuffer SemaphoreTake _xExternalTransmitBuffer_Semaphore failed.");
+    }
+    
+    return ret;
+}
 static char startupMessage[] = "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\rYou are now connected to UART Tx GPIO 17, Rx GPIO 16.\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n";
 
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
@@ -247,6 +457,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
     if (ret == WS_SUCCESS) {
         byte* buf = NULL;
+        
         byte* tmpBuf;
         int bufSz, backlogSz = 0, rxSz, txSz, stop = 0, txSum;
 
@@ -267,7 +478,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
         do {
             bufSz = EXAMPLE_BUFFER_SZ + backlogSz;
 
-            tmpBuf = (byte*)realloc(buf, bufSz);
+            tmpBuf = (byte*)realloc(buf, bufSz); /* reminder If ptr is NULL, the behavior is the same as calling malloc(new_size). */
             if (tmpBuf == NULL)
                 stop = 1;
             else
@@ -296,6 +507,9 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                             WOLFSSL_MSG("wolfSSH_stream_read error!");
                         }
                     }
+                    taskYIELD();
+                    esp_task_wdt_reset();
+                    
                 } while ((nonBlock == 0) /* well wait only when not using non-blocking socket */
                          &&
                          (rxSz == WS_WANT_READ || rxSz == WS_WANT_WRITE));
@@ -305,11 +519,28 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                  * we'll send that to the SSH client
                  */
                 if (ExternalTransmitBufferSz() > 0) {
-                    WOLFSSL_MSG("Tx UART!");
-                    wolfSSH_stream_send(threadCtx->ssh,
-                                       (byte*)_ExternalTransmitBuffer,
-                                        _ExternalTransmitBufferSz);
-                    Set_ExternalTransmitBufferSz(0);
+                    // WOLFSSL_MSG("Tx UART!");
+
+                    byte n[_ExternalTransmitBufferSz];
+                    byte* ssbuf = (byte*)&n;
+                    
+                    /* we'll get a copy of the buffer and set _ExternalTransmitBufferSz to zero*/
+                    int thisSize = Get_ExternalTransmitBuffer(&ssbuf); 
+                        
+                    if (ssbuf == NULL)
+                        stop = 1;
+                    else {
+                        
+                        wolfSSH_stream_send(threadCtx->ssh,
+                            ssbuf,
+                            thisSize);
+                        
+//                        wolfSSH_stream_send(threadCtx->ssh,
+//                            (byte*)_ExternalTransmitBuffer,
+//                            _ExternalTransmitBufferSz);
+//                        Set_ExternalTransmitBufferSz(0);
+
+                    }
                 }
                     
                 /*
@@ -320,11 +551,14 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     /* append external data, for something such as UART forwarding 
                      * note any prior data saved in the buffer was _ExternalReceiveBufferSz
                      * 
+                     * Here we perform the thread-safe equvalent of:
+                     * 
+                        memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz], 
+                               buf, 
+                               rxSz);
+                        _ExternalReceiveBufferSz = rxSz;
                      */
-                    memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz], 
-                           buf, 
-                           rxSz);
-                    _ExternalReceiveBufferSz = rxSz;
+                    Set_ExternalReceiveBuffer(buf, rxSz);
 
                     backlogSz += rxSz;
                     txSum = 0;
@@ -372,6 +606,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         else if (txSz != WS_REKEYING) {
                             stop = 1;
                         }
+                        taskYIELD();
                         esp_task_wdt_reset();
                     }
 
@@ -387,6 +622,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                 }
             }
             
+        taskYIELD();
+        vTaskDelay(pdMS_TO_TICKS(10));
             esp_task_wdt_reset();
         } while (!stop);
 

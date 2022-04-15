@@ -87,9 +87,25 @@ void uart_tx_task(void *arg) {
         
         /* yield */
         /* TODO WDT problem when value set to 10 ? */        
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-        esp_task_wdt_reset();
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        //taskYIELD();
+        //vTaskDelay(pdMS_TO_TICKS(10));
+        //esp_task_wdt_reset();
     }
+}
+
+
+static SemaphoreHandle_t xUART_Semaphore = NULL;
+
+void InitSemaphore() 
+{
+    if (xUART_Semaphore == NULL) {
+        xUART_Semaphore = xSemaphoreCreateMutex();
+    }
+#ifdef configUSE_RECURSIVE_MUTEXES
+    /* see semphr.h */
+    WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+#endif
 }
 
 /*
@@ -97,6 +113,7 @@ void uart_tx_task(void *arg) {
  * buffer to SEND (typically out to the SSH client)
  */
 void uart_rx_task(void *arg) {
+    InitSemaphore();
     /* 
      * when we receive chars from UART, we'll send them out SSH
     */
@@ -112,6 +129,7 @@ void uart_rx_task(void *arg) {
         if (rxBytes > 0) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
+            
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
             
@@ -126,8 +144,10 @@ void uart_rx_task(void *arg) {
         
         /* yield */
         /* TODO WDT problem when value set to 10 ? */        
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-        esp_task_wdt_reset();
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        //taskYIELD();
+        //vTaskDelay(pdMS_TO_TICKS(10));
+        //esp_task_wdt_reset();
     }
     
     // we never actually get here
