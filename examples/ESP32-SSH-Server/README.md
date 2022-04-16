@@ -18,6 +18,21 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 
 See the [ssh_server_config.h](./main/ssh_server.h) files for various configuration settings.
 
+## Defaults
+
+The default users and passwords are the same as in the [linux server.c example](https://github.com/wolfSSL/wolfssh/blob/8a714b2864e6b5c623da2851af5b5c2d0f9b186b/examples/server/server.c#L412):
+
+User: `jill` password: `upthehill`
+User: `jack` password: `fetchapail`
+
+The default port for this demo is `22222`.
+
+Example to connect from linux:
+
+```
+ssh jill@192.168.75.39 -p 22222
+```
+
 
 # ENC28J60 Example
 (See the README.md file in the upper level 'examples' [directory](https://github.com/espressif/esp-idf/tree/master/examples) for more information about examples.)
