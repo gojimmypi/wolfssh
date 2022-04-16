@@ -17,6 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
+ * 
  */
 
 #include "uart_helper.h"
@@ -28,6 +29,17 @@
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 #include <wolfssl/wolfcrypt/logging.h>
+
+/* portTICK_PERIOD_MS is ( ( TickType_t ) 1000 / configTICK_RATE_HZ ) 
+ * configTICK_RATE_HZ is CONFIG_FREERTOS_HZ 
+ * CONFIG_FREERTOS_HZ is 100 
+ **/
+#define UART_TICKS_TO_WAIT (20 / portTICK_RATE_MS)
+
+/*
+ * see examples: https://github.com/espressif/esp-idf/blob/master/examples/peripherals/uart/uart_echo/main/uart_echo_example_main.c
+ */
+
 
 /* we are going to use a real backspace instead of 0x7f observed */
 const char* backspace = (char*)0x08;
@@ -84,13 +96,9 @@ void uart_tx_task(void *arg) {
             /* once we sent data, reset the pointer to zedro to indicate empty queue */
             Set_ExternalReceiveBufferSz(0);
         }
-        
-        /* yield */
-        /* TODO WDT problem when value set to 10 ? */        
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        //taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(10));
-        //esp_task_wdt_reset();
+       
+        /* yield. let's not be greedy */
+        taskYIELD();
     }
 }
 
@@ -120,12 +128,13 @@ void uart_rx_task(void *arg) {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
 
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); /* TODO do we really want malloc? */
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); /* TODO do we really want malloc? probably not */
 
     /* thisBuf will point to exteranl buffer, dealth with for example SSH client */
     volatile char __attribute__((optimize("O0"))) *thisBuf;
     while (1) {
-        const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, 1000 / portTICK_RATE_MS);
+        /* note some examples have UART_TICKS_TO_WAIT = 1000, which results in very sluggish response */
+        const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, UART_TICKS_TO_WAIT);
         if (rxBytes > 0) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
@@ -133,21 +142,20 @@ void uart_rx_task(void *arg) {
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
             
+            
+            /* Set_ExternalTransmitBuffer(data, rxBytes);  TODO: to use this, we need to move external buffer stuff to its own file   */ 
+            
             /* thisBug points to the _ExternalTransmitBuffer  */
             thisBuf = ExternalTransmitBuffer();
             
-            /* save the data to send to the External Transmit Buffer */
-            memcpy((char*)thisBuf, data, rxBytes);
+            /* save the data to send to the External Transmit Buffer (e.g. to send to SSH) */
+            memcpy((char*)thisBuf, data, rxBytes); /* TODO this needs an RTOS wrapper */
 
             Set_ExternalTransmitBufferSz(rxBytes);
         }
         
-        /* yield */
-        /* TODO WDT problem when value set to 10 ? */        
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        //taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(10));
-        //esp_task_wdt_reset();
+        /* yield. let's not be greedy */
+        taskYIELD();
     }
     
     // we never actually get here
