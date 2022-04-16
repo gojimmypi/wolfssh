@@ -236,10 +236,15 @@ void init_UART(void) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_APB,
     };
+    int intr_alloc_flags = 0;
+    
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif    
     // We won't use a buffer for sending data.
-    uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 }
 
 void server_session(void* args)
@@ -267,7 +272,7 @@ void init() {
     init_UART();
     
 #undef  USE_ENC28J60
-#define USE_ENC28J60    
+// #define USE_ENC28J60    
 #ifdef USE_ENC28J60
     init_ENC28J60();
 #else
@@ -297,25 +302,30 @@ void init() {
 }
 
 void app_main(void) {
+
+    // note that by the time we get here, the scheduler is already running!
+    // see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
+    // Unlike Vanilla FreeRTOS, users must not call vTaskStartScheduler();
+
     init();
         
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 3, NULL);
+    // all of the tasks are at the same, highest idle priority, so they will all get equal attention
+    // when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
+    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
     
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
+    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, tskIDLE_PRIORITY, NULL);
 
-    // Start the real time scheduler.
-    vTaskStartScheduler();
     
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
-//        WOLFSSL_MSG("main loop!");
+        WOLFSSL_MSG("main loop!");
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
         esp_task_wdt_reset();
     }
 
-    // todo this is unreachable with RTOS threads 
+    // todo this is unreachable with RTOS threads, do we ever want to shut down?
     wolfSSH_Cleanup();
 }
