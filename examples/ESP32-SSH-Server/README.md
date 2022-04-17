@@ -134,4 +134,38 @@ Now you can ping your ESP32 in the terminal by entering `ping 192.168.2.34` (it 
 
 ## Troubleshooting
 
-(For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you as soon as possible.)
+
+Although [Error -236](https://github.com/wolfSSL/wolfssl/blob/9b5ad6f218f657d8651a56b50b6db1b3946a811c/wolfssl/wolfcrypt/error-crypt.h#L189) 
+typically means "_RNG required but not provided_", the reality is the time is probably wrong.
+
+```
+wolfssl: wolfSSL Leaving wc_ecc_shared_secret_gen_sync, return -236
+wolfssl: wolfSSL Leaving wc_ecc_shared_secret_ex, return -236
+```
+If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/sdkconfig) 
+file for unexpected changes, such as when using the EDP-IDF menuconfig. When in doubt, revert back to repo version.
+
+
+A message such as `E (545) uart: uart_set_pin(605): tx_io_num error` typically means the pins assigned to be a UART
+Tx/Rx are either input-only or output-only. see [gpio_types.h_](https://github.com/espressif/esp-idf/blob/master/components/hal/include/hal/gpio_types.h)
+for example GPIO Pins [34](https://github.com/espressif/esp-idf/blob/3aeb80acb66038f14fc2a7606e7516a3e2bfa6c9/components/hal/include/hal/gpio_types.h#L108)
+to 39 are input only.
+
+```
+E (545) uart: uart_set_pin(605): tx_io_num error
+ESP_ERROR_CHECK failed: esp_err_t 0xffffffff (ESP_FAIL) at 0x400870c4
+file: "../main/enc28j60_example_main.c" line 250
+func: init_UART
+expression: uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE)
+
+```
+
+If there are a lot of garbage characters on the UART Tx/Rx, ensure the proper baud rate, ground connection, and voltage level match. 
+The ESP32 is 3.3V and typically not 5V tolerant.
+
+For any technical queries specific to the ESP 32, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
+
+For any issues related to wolfSSL, please open an [issue](https://github.com/wolfssl/wolfssl/issues) on GitHub, 
+visit the [wolfSSL support forum](https://www.wolfssl.com/forums/),
+send an email to [support](mailto:support@wolfssl.com),   
+or [contact us](https://www.wolfssl.com/contact/).
