@@ -1,4 +1,5 @@
 #pragma once
+#include "driver/gpio.h"
 
 /* */
 
@@ -49,8 +50,16 @@ static const char *TAG = "eth_example";
 /* UART pins and config */
 #include "uart_helper.h"
 // static const int RX_BUF_SIZE = 1024;
-#define TXD_PIN (GPIO_NUM_17) /* orange */
-#define RXD_PIN (GPIO_NUM_16) /* yellow */
+
+#undef ULX3S
+#ifdef ULX3S
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_32) /* orange */
+    #define RXD_PIN (GPIO_NUM_33) /* yellow */
+#else
+    #define TXD_PIN (GPIO_NUM_17) /* orange */
+    #define RXD_PIN (GPIO_NUM_16) /* yellow */
+#endif
 
 /* Edgerouter is 57600, others are typically 115200 */
 #define BAUD_RATE (57600)
