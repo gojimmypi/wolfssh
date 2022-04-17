@@ -190,10 +190,10 @@ int set_time() {
     //*ideally, we'd like to set time from network, but let's set a default time, just in case */
     struct tm timeinfo;
     timeinfo.tm_year = 2022 - 1900;
-    timeinfo.tm_mon = 3;
-    timeinfo.tm_mday = 15;
-    timeinfo.tm_hour = 8;
-    timeinfo.tm_min = 03;
+    timeinfo.tm_mon = 4;
+    timeinfo.tm_mday = 17;
+    timeinfo.tm_hour = 10;
+    timeinfo.tm_min = 46;
     timeinfo.tm_sec = 10;
     time_t t;
     t = mktime(&timeinfo);
@@ -212,15 +212,18 @@ int set_time() {
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
     int i = 0;
+    WOLFSSL_MSG("sntp_setservername:");
     for (i = 0; i < NTP_SERVER_COUNT; i++) {
         const char* thisServer = ntpServerList[i];
         if (strncmp(thisServer, "\x00", 1)) {
             /* just in case we run out of NTP servers */
             break;
         }
+        WOLFSSL_MSG(thisServer);
         sntp_setservername(i, thisServer);
     }
     sntp_init();
+    WOLFSSL_MSG("sntp_init done.");
     return res;
 }
 
