@@ -28,12 +28,20 @@
     <BinaryDirectory>build/$(PlatformName)/$(ConfigurationName)</BinaryDirectory>
     <MakeCommandTemplate>
       <SkipWhenRunningCommandList>false</SkipWhenRunningCommandList>
+      <RemoteHost>
+        <HostName>BuildMachine</HostName>
+        <Transport>BuiltinShortcut</Transport>
+      </RemoteHost>
       <Command>$(ToolchainNinja)</Command>
       <WorkingDirectory>$(BuildDir)</WorkingDirectory>
       <BackgroundMode xsi:nil="true" />
     </MakeCommandTemplate>
     <CMakeCommand>
       <SkipWhenRunningCommandList>false</SkipWhenRunningCommandList>
+      <RemoteHost>
+        <HostName>BuildMachine</HostName>
+        <Transport>BuiltinShortcut</Transport>
+      </RemoteHost>
       <Command>$(SYSPROGS_CMAKE_PATH)</Command>
       <BackgroundMode xsi:nil="true" />
     </CMakeCommand>
@@ -71,7 +79,8 @@
           <Subdirectory>esp-idf/v4.4</Subdirectory>
           <Type>ESPIDF</Type>
         </IDFCheckout>
-        <COMPort>COM20</COMPort>
+        <COMPort>COM9</COMPort>
+        <BaudRate>115200</BaudRate>
         <SuppressTestPrerequisiteChecks>false</SuppressTestPrerequisiteChecks>
         <UseCCache>false</UseCCache>
         <DeviceID>ESP32</DeviceID>
@@ -90,10 +99,18 @@
     <PostDebugActions />
     <DebugStopActions />
     <BreakMode>Default</BreakMode>
+    <CustomBreakCommand>
+      <SkipWhenRunningCommandList>false</SkipWhenRunningCommandList>
+      <RemoteHost>
+        <HostName>BuildMachine</HostName>
+        <Transport>BuiltinShortcut</Transport>
+      </RemoteHost>
+      <BackgroundMode xsi:nil="true" />
+    </CustomBreakCommand>
   </CustomDebug>
   <DeviceTerminalSettings>
     <Connection xsi:type="com.sysprogs.terminal.connection.serial">
-      <ComPortName>COM20</ComPortName>
+      <ComPortName>COM9</ComPortName>
       <AdvancedSettings>
         <BaudRate>115200</BaudRate>
         <DataBits>8</DataBits>
@@ -159,15 +176,112 @@
   <UserDefinedVariables />
   <ImportedPropertySheets />
   <CodeSense>
-    <Enabled>Unknown</Enabled>
+    <Enabled>True</Enabled>
     <ExtraSettings>
       <HideErrorsInSystemHeaders>true</HideErrorsInSystemHeaders>
       <SupportLightweightReferenceAnalysis>true</SupportLightweightReferenceAnalysis>
+      <DiscoverySettings>
+        <Mode>Enabled</Mode>
+        <SearchInProjectDir>true</SearchInProjectDir>
+        <SearchInSourceDirs>true</SearchInSourceDirs>
+        <SearchInIncludeSubdirs>true</SearchInIncludeSubdirs>
+      </DiscoverySettings>
       <CheckForClangFormatFiles>true</CheckForClangFormatFiles>
       <FormattingEngine xsi:nil="true" />
     </ExtraSettings>
     <CodeAnalyzerSettings>
-      <Enabled>false</Enabled>
+      <Enabled>true</Enabled>
+      <SelectedAnalyzers>
+        <string>alpha.clone.CloneChecker</string>
+        <string>alpha.core.BoolAssignment</string>
+        <string>alpha.core.CallAndMessageUnInitRefArg</string>
+        <string>alpha.core.CastSize</string>
+        <string>alpha.core.CastToStruct</string>
+        <string>alpha.core.Conversion</string>
+        <string>alpha.core.DynamicTypeChecker</string>
+        <string>alpha.core.FixedAddr</string>
+        <string>alpha.core.IdenticalExpr</string>
+        <string>alpha.core.PointerArithm</string>
+        <string>alpha.core.PointerSub</string>
+        <string>alpha.core.SizeofPtr</string>
+        <string>alpha.core.StackAddressAsyncEscape</string>
+        <string>alpha.core.TestAfterDivZero</string>
+        <string>alpha.cplusplus.DeleteWithNonVirtualDtor</string>
+        <string>alpha.cplusplus.IteratorRange</string>
+        <string>alpha.cplusplus.MisusedMovedObject</string>
+        <string>alpha.deadcode.UnreachableCode</string>
+        <string>alpha.security.ArrayBound</string>
+        <string>alpha.security.ArrayBoundV2</string>
+        <string>alpha.security.MallocOverflow</string>
+        <string>alpha.security.ReturnPtrRange</string>
+        <string>alpha.security.taint.TaintPropagation</string>
+        <string>alpha.unix.BlockInCriticalSection</string>
+        <string>alpha.unix.Chroot</string>
+        <string>alpha.unix.cstring.BufferOverlap</string>
+        <string>alpha.unix.cstring.NotNullTerminated</string>
+        <string>alpha.unix.cstring.OutOfBounds</string>
+        <string>alpha.unix.PthreadLock</string>
+        <string>alpha.unix.SimpleStream</string>
+        <string>alpha.unix.Stream</string>
+        <string>apiModeling.google.GTest</string>
+        <string>core.builtin.BuiltinFunctions</string>
+        <string>core.builtin.NoReturnFunctions</string>
+        <string>core.CallAndMessage</string>
+        <string>core.DivideZero</string>
+        <string>core.DynamicTypePropagation</string>
+        <string>core.NonnilStringConstants</string>
+        <string>core.NonNullParamChecker</string>
+        <string>core.NullDereference</string>
+        <string>core.StackAddressEscape</string>
+        <string>core.UndefinedBinaryOperatorResult</string>
+        <string>core.uninitialized.ArraySubscript</string>
+        <string>core.uninitialized.Assign</string>
+        <string>core.uninitialized.Branch</string>
+        <string>core.uninitialized.CapturedBlockVariable</string>
+        <string>core.uninitialized.UndefReturn</string>
+        <string>core.VLASize</string>
+        <string>cplusplus.NewDelete</string>
+        <string>cplusplus.NewDeleteLeaks</string>
+        <string>cplusplus.SelfAssignment</string>
+        <string>deadcode.DeadStores</string>
+        <string>llvm.Conventions</string>
+        <string>nullability.NullableDereferenced</string>
+        <string>nullability.NullablePassedToNonnull</string>
+        <string>nullability.NullableReturnedFromNonnull</string>
+        <string>nullability.NullPassedToNonnull</string>
+        <string>nullability.NullReturnedFromNonnull</string>
+        <string>optin.cplusplus.VirtualCall</string>
+        <string>optin.mpi.MPI-Checker</string>
+        <string>optin.osx.cocoa.localizability.EmptyLocalizationContextChecker</string>
+        <string>optin.osx.cocoa.localizability.NonLocalizedStringChecker</string>
+        <string>optin.performance.Padding</string>
+        <string>optin.portability.UnixAPI</string>
+        <string>security.FloatLoopCounter</string>
+        <string>security.insecureAPI.getpw</string>
+        <string>security.insecureAPI.gets</string>
+        <string>security.insecureAPI.mkstemp</string>
+        <string>security.insecureAPI.mktemp</string>
+        <string>security.insecureAPI.rand</string>
+        <string>security.insecureAPI.strcpy</string>
+        <string>security.insecureAPI.UncheckedReturn</string>
+        <string>security.insecureAPI.vfork</string>
+        <string>unix.API</string>
+        <string>unix.cstring.BadSizeArg</string>
+        <string>unix.cstring.NullArg</string>
+        <string>unix.Malloc</string>
+        <string>unix.MallocSizeof</string>
+        <string>unix.MismatchedDeallocator</string>
+        <string>unix.StdCLibraryFunctions</string>
+        <string>unix.Vfork</string>
+        <string>valist.CopyToSelf</string>
+        <string>valist.Uninitialized</string>
+        <string>valist.Unterminated</string>
+      </SelectedAnalyzers>
+      <ExtraArguments>
+        <string>-analyzer-store=region</string>
+        <string>-analyzer-opt-analyze-nested-blocks</string>
+        <string>-analyzer-eagerly-assume</string>
+      </ExtraArguments>
     </CodeAnalyzerSettings>
   </CodeSense>
   <Configurations>
@@ -182,7 +296,11 @@
   </Configurations>
   <ProgramArgumentsSuggestions />
   <Debug xsi:type="com.visualgdb.debug.embedded">
-    <AdditionalStartupCommands />
+    <AdditionalStartupCommands>
+      <GDBPreStartupCommands />
+      <GDBStartupCommands />
+      <GDBFinalizationCommands />
+    </AdditionalStartupCommands>
     <AdditionalGDBSettings>
       <Features>
         <DisableAutoDetection>false</DisableAutoDetection>
@@ -235,7 +353,7 @@
           <string>mon reset halt</string>
           <string>load</string>
         </StartupCommands>
-        <ProgramFLASHUsingExternalTool>false</ProgramFLASHUsingExternalTool>
+        <ProgramFLASHUsingExternalTool>true</ProgramFLASHUsingExternalTool>
         <PreferredGDBPort>0</PreferredGDBPort>
         <PreferredTelnetPort>0</PreferredTelnetPort>
         <AlwaysPassSerialNumber>false</AlwaysPassSerialNumber>
@@ -252,7 +370,7 @@
       </Configuration>
     </DebugMethod>
     <AutoDetectRTOS>true</AutoDetectRTOS>
-    <SemihostingSupport>Auto</SemihostingSupport>
+    <SemihostingSupport>Disabled</SemihostingSupport>
     <SemihostingPollingDelay>0</SemihostingPollingDelay>
     <StepIntoEntryPoint>false</StepIntoEntryPoint>
     <ReloadFirmwareOnReset>false</ReloadFirmwareOnReset>
