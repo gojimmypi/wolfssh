@@ -2,5 +2,5 @@
 
 void ssh_server_config_init()
 {
-    EthernetReady = 0;
+    //EthernetReady = 0;
 }

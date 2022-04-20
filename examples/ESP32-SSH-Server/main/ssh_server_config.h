@@ -1,7 +1,11 @@
 #pragma once
 #include "driver/gpio.h"
 
-/* */
+/* default is wireless unless USE_ENC28J60 is defined */
+
+#undef USE_ENC28J60
+// #define USE_ENC28J60    
+
 
 static int wolfSshPort = 22222;
 
@@ -52,7 +56,12 @@ static const char *TAG = "eth_example";
 // static const int RX_BUF_SIZE = 1024;
 
 #undef ULX3S
-#ifdef ULX3S
+#define M5STICKC
+#ifdef M5STICKC
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_26) /* orange */
+    #define RXD_PIN (GPIO_NUM_36) /* yellow */
+#elif ULX3S
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_32) /* orange */
     #define RXD_PIN (GPIO_NUM_33) /* yellow */
@@ -67,15 +76,8 @@ static const char *TAG = "eth_example";
 
 /* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
    02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
+   see enc28j60_helper
 */
-static uint8_t myMacAddress[] = {
-    0x02,
-    0x00,
-    0x00,
-    0x12,
-    0x34,
-    0x56
-};
 
 // see https://tf.nist.gov/tf-cgi/servers.cgi
 static const int NTP_SERVER_COUNT = 3;
@@ -98,7 +100,5 @@ static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
  ******************************************************************************
  **/
   
-static volatile bool EthernetReady = 0;
-
 void ssh_server_config_init();
 
