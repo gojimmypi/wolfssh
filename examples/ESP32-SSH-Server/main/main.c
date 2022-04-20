@@ -116,6 +116,7 @@ int set_time() {
 #include "driver/uart.h"
 
 void init_UART(void) {
+    ESP_LOGI(TAG, "Begin init_UART.");    
     const uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -133,6 +134,8 @@ void init_UART(void) {
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    ESP_LOGI(TAG, "End init_UART.");    
 }
 
 void server_session(void* args)
@@ -168,11 +171,10 @@ bool NoEthernet()
 }
 
 void init() {
-    ESP_LOGI(TAG, "Turning the LED %s!", "1");
+    ESP_LOGI(TAG, "Begin main init.");
 #ifdef DEBUG_WOLFSSH
     wolfSSH_Debugging_ON();
 #endif
-    ESP_LOGI(TAG, "Turning the LED %s!", "2");
 
     
 #ifdef DEBUG_WOLFSSL
@@ -181,13 +183,13 @@ void init() {
     //ShowCiphers();
 #endif
 
-    ESP_LOGI(TAG, "Turning the LED %s!", "3");
     init_UART();
-    ESP_LOGI(TAG, "Turning the LED %s!", "4");
     
 #ifdef USE_ENC28J60
+    ESP_LOGI(TAG, "Found USE_ENC28J60.");
     init_ENC28J60();
 #else
+    ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -195,7 +197,9 @@ void init() {
     }
     ESP_ERROR_CHECK(ret);
     
+    ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
+    ESP_LOGI(TAG, "End setup WiFi STA.");
 #endif
 
     
@@ -210,7 +214,7 @@ void init() {
     // one of the most important aspects of security is the time and date values
     set_time();
 
-    WOLFSSL_MSG("inet_pton");
+    WOLFSSL_MSG("inet_pton"); /* TODO */
     
     wolfSSH_Init(); 
 }
@@ -245,7 +249,7 @@ void app_main(void) {
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
         WOLFSSL_MSG("main loop!");
-        
+        ESP_LOGI(TAG, "Loop!");
 
         /* esp_err_tesp_netif_get_ip_info(esp_netif_t *esp_netif, esp_netif_ip_info_t *ip_info) */ 
 //        esp_netif_t *netif = NULL;
@@ -260,12 +264,6 @@ void app_main(void) {
 //        }
         
         taskYIELD();
-        while (1) {
-            vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
-        }
-        ESP_LOGI(TAG, "Loop!");
-        
-        
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
         // esp_task_wdt_reset();
     }
