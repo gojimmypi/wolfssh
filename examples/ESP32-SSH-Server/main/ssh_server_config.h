@@ -6,8 +6,8 @@
 #undef USE_ENC28J60
 // #define USE_ENC28J60    
 
-
-static int wolfSshPort = 22222;
+/* SSH is usually on port 22, but for our example it lives at port 22222 */
+#define SSH_UART_PORT 22222
 
 #define SINGLE_THREADED
 #define DEBUG_WOLFSSL
@@ -18,8 +18,18 @@ static const char serverBanner[] = "wolfSSH Example Server\n";
 
 #undef  SO_REUSEPORT
 
-static char nonBlock = 1;
-static int echo = 0;
+/* WOLFSSL_NONBLOCK is a value assigned to threadCtx->nonBlock
+ * and should be a value 1 or 0
+ */
+#define WOLFSSL_NONBLOCK 1
+
+/* set SSH_SERVER_ECHO to a value of 1 to echo UART
+ * this is optional and typically not desired as the
+ * UART target will typically echo its own characters.
+ * Valid values are 0 and 1.
+ */
+#define SSH_SERVER_ECHO 0
+
 
 #ifndef EXAMPLE_HIGHWATER_MARK
     #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
@@ -49,7 +59,6 @@ static int echo = 0;
  ******************************************************************************
  ******************************************************************************
  **/
-static const char *TAG = "eth_example";
 
 /* UART pins and config */
 #include "uart_helper.h"
@@ -86,7 +95,7 @@ static const char* ntpServerList[] = {
     "time.nist.gov",
     "utcnist.colorado.edu"
 };
-static const char * TIME_ZONE = "PST-8";
+#define TIME_ZONE "PST-8"
 static const long  gmtOffset_sec = 3600;
 static const int   daylightOffset_sec = 3600;
 

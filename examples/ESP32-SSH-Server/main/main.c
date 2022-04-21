@@ -34,6 +34,7 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 
+/* see ssh_server_config.h for optional use of physical ethernet: USE_ENC28J60 */
 #ifdef USE_ENC28J60
     #include <enc28j69_helper.h>
 #endif
@@ -47,7 +48,14 @@
 #define WOLFSSL_USER_SETTINGS
 
 #define WOLFSSH_TEST_THREADING
+
+/*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM 
+ *  and "access an actual filesystem via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM 
+ *  we'll typically have neither on an embedded device:
+ */
 #define NO_FILESYSTEM
+#define WOLFSSH_NO_FILESYSTEM
+
 #include <wolfssl/wolfcrypt/settings.h> /* make sure this appears before any other wolfSSL headers */
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
@@ -66,6 +74,9 @@
 
 /* time */
 #include  <lwip/apps/sntp.h>
+
+static const char *TAG = "SSH Server main";
+
 
 
 int set_time() {
@@ -170,23 +181,29 @@ bool NoEthernet()
     return ret;
 }
 
+/*
+ * main initialization for UART, optional ethernet, time, etc.
+ */
 void init() {
     ESP_LOGI(TAG, "Begin main init.");
+    
 #ifdef DEBUG_WOLFSSH
+    ESP_LOGI(TAG, "wolfSSH debugging on.");
     wolfSSH_Debugging_ON();
 #endif
 
     
 #ifdef DEBUG_WOLFSSL
-    WOLFSSL_MSG("Debug ON");
+    ESP_LOGI(TAG, "wolfSSL debugging on.");
     wolfSSL_Debugging_ON();
+    WOLFSSL_MSG("Debug ON");
     //ShowCiphers();
 #endif
 
     init_UART();
     
 #ifdef USE_ENC28J60
-    ESP_LOGI(TAG, "Found USE_ENC28J60.");
+    ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
     init_ENC28J60();
 #else
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
@@ -227,8 +244,6 @@ void init() {
 static bool is_our_netif(const char *prefix, esp_netif_t *netif) {
     return strncmp(prefix, esp_netif_get_desc(netif), strlen(prefix) - 1) == 0;
 }
-#define CONFIG_BLINK_PERIOD 1000
-static uint8_t s_led_state = 0;
 
 void app_main(void) {
     init();

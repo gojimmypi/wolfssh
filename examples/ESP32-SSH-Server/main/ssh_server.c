@@ -530,7 +530,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
             else
                 buf = tmpBuf;
 
-            int show_msg = 0;
+            /* int show_msg = 0; TODO optionally disable echo of text to USB port */
             int has_err = 0;
             if (!stop) {
                 do {
@@ -573,7 +573,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     taskYIELD();
                     esp_task_wdt_reset();
                     
-                } while ((nonBlock == 0) /* we'll wait only when not using non-blocking socket */
+                } while ((WOLFSSL_NONBLOCK == 0) /* we'll wait only when not using non-blocking socket */
                          &&
                          (rxSz == WS_WANT_READ || rxSz == WS_WANT_WRITE));
 
@@ -626,7 +626,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
 
                     while (backlogSz != txSum && txSz >= 0 && !stop) {
-                        if (echo == 1) {
+                        /* we typically do NOT want to re-echo TTY data
+                         * but it can be configured to do so by setting
+                         * SSH_SERVER_ECHO to a value of 1
+                         **/
+                        if (SSH_SERVER_ECHO == 1) {
                             txSz = wolfSSH_stream_send(threadCtx->ssh,
                                                        buf + txSum,
                                                        backlogSz - txSum);
@@ -1156,33 +1160,43 @@ static INLINE void ThreadDetach(THREAD_TYPE thread) {
 
 #endif /* WOLFSSH_TEST_THREADING */
 
+
+/*
+ * this my_IORecv callback is WIP and not currently used
+ **/
 static int my_IORecv(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     int ret;
-//    ID  cepid;
-//    if (ctx != NULL)cepid = *(ID *)ctx;
-//    else return WS_CBIO_ERR_GENERAL;
-//    
-//    ret = tcp_rcv_dat(cepid, buff, sz, TMO_FEVR);
+/*    
+    ID  cepid;
+    if (ctx != NULL)cepid = *(ID *)ctx;
+    else return WS_CBIO_ERR_GENERAL;
+    
+    ret = tcp_rcv_dat(cepid, buff, sz, TMO_FEVR);
     byte* buf = NULL;
     int backlogSz = 0;
+    
+    ret = wolfSSH_stream_read(threadCtx->ssh,
+        buf + backlogSz,
+        EXAMPLE_BUFFER_SZ); 
+    ;
+*/    
     ret = WOLFSSL_SUCCESS;
-    
-//    ret = wolfSSH_stream_read(threadCtx->ssh,
-//        buf + backlogSz,
-//        EXAMPLE_BUFFER_SZ); 
-//    ;
-    
     return ret;
 }
 
+/*
+ * this my_IORecv callback is WIP and not currently used
+ **/
 static int my_IOSend(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     int ret;
-//    ID  cepid;
-//    
-//    if (ctx != NULL)cepid = *(ID *)ctx;
-//    else return WS_CBIO_ERR_GENERAL;
-//
-//    ret = tcp_snd_dat(cepid, buff, sz, TMO_FEVR);
+/*
+    ID  cepid;
+    
+    if (ctx != NULL)cepid = *(ID *)ctx;
+    else return WS_CBIO_ERR_GENERAL;
+
+    ret = tcp_snd_dat(cepid, buff, sz, TMO_FEVR);
+*/        
     ret = WOLFSSL_SUCCESS;
     
     return ret;
@@ -1210,18 +1224,13 @@ static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
 }
 
 void server_test(void *arg) {
-    int DEFAULT_PORT = wolfSshPort;
+    int DEFAULT_PORT = SSH_UART_PORT;
     int ret = WOLFSSL_SUCCESS; /* assume success until proven wrong */
     int sockfd = 0; /* the socket that will carry our secure connection */
     struct sockaddr_in servAddr;
-    size_t len; /* we'll be looking at the length of messages sent and received */
-
-    struct sockaddr_in clientAddr;
-    socklen_t          size = sizeof(clientAddr);
     int                on;
 
     static int mConnd = SOCKET_INVALID;
-    static int mShutdown = 0;
 
     /* declare wolfSSL objects */
     WOLFSSH_CTX *ctx = NULL; /* the wolfSSL context object*/
@@ -1544,10 +1553,8 @@ void server_test(void *arg) {
 
     word32 defaultHighwater = EXAMPLE_HIGHWATER_MARK;
     word32 threadCount = 0;
-    int port = wolfSshPort;
     char multipleConnections = 0;
     char useEcc = 0;
-    int  ch;
 
 #ifdef NO_RSA
     /* If wolfCrypt isn't built with RSA, force ECC on. */
@@ -1650,7 +1657,7 @@ void server_test(void *arg) {
             exit(EXIT_FAILURE);
         }
 
-        if (nonBlock)
+        if (WOLFSSL_NONBLOCK)
             tcp_set_nonblocking(&clientFd);
 
         wolfSSH_set_fd(ssh, (int)clientFd);
@@ -1658,7 +1665,7 @@ void server_test(void *arg) {
         threadCtx->ssh = ssh;
         threadCtx->fd = clientFd;
         threadCtx->id = threadCount++;
-        threadCtx->nonBlock = nonBlock;
+        threadCtx->nonBlock = WOLFSSL_NONBLOCK;
 
         WOLFSSL_MSG("server_worker started.");
 #ifndef SINGLE_THREADED
