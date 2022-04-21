@@ -18,6 +18,32 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 
 See the [ssh_server_config.h](./main/ssh_server.h) files for various configuration settings.
 
+For a wired ethernet connection, see `#define USE_ENC28J60`. When not defined, WiFi is assumed.
+
+Currently 3 specific target boards confirmed to be working: 
+a default [ESP32-WROOM board](https://www.espressif.com/en/producttype/esp32-wroom-32), 
+the [Radiona ULX3S](https://www.crowdsupply.com/radiona/ulx3s), 
+and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c) 
+
+```
+#undef ULX3S
+#define M5STICKC
+#ifdef M5STICKC
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_26) /* orange */
+    #define RXD_PIN (GPIO_NUM_36) /* yellow */
+#elif ULX3S
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_32) /* orange */
+    #define RXD_PIN (GPIO_NUM_33) /* yellow */
+#else
+    #define TXD_PIN (GPIO_NUM_17) /* orange */
+    #define RXD_PIN (GPIO_NUM_16) /* yellow */
+#endif
+```
+
+
+
 ## Defaults
 
 The default users and passwords are the same as in the [linux server.c example](https://github.com/wolfSSL/wolfssh/blob/8a714b2864e6b5c623da2851af5b5c2d0f9b186b/examples/server/server.c#L412):
@@ -132,6 +158,21 @@ Now you can ping your ESP32 in the terminal by entering `ping 192.168.2.34` (it 
 4. CS Hold Time needs to be configured to be at least 210 ns to properly read MAC and MII registers as defined by ENC28J60 Data Sheet. This is automatically configured in the example based on selected SPI clock frequency by computing amount of SPI bit-cycles the CS should stay active after the transmission. However, if your PCB design/wiring requires different value, please update `cs_ena_posttrans` member of `devcfg` structure per your actual needs.
 
 
+<br />
+
+## Known Issues
+
+If improper GPIO lines are selected, say when using the defaults but an M5Stick-C is being used, the UART initialization may hang.
+
+When plugged into a PC that goes to sleep and powers down the USB power, the ESP32 device seems to sometimes crash and does not always recover when PC power resumes.
+
+Only one connection is allowed at the time. There may be a delay when an existing connected is unexpecteedly terminated before a new connection can be made.
+
+
+
+
+<br />
+
 ## Troubleshooting
 
 
@@ -161,7 +202,18 @@ expression: uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_
 ```
 
 If there are a lot of garbage characters on the UART Tx/Rx, ensure the proper baud rate, ground connection, and voltage level match. 
-The ESP32 is 3.3V and typically not 5V tolerant.
+The ESP32 is 3.3V and typically not 5V tolerant. No ground connection will often cause garbage characters on the UART.
+
+The error `serialException: could not open port` typically means that something else is using the COM port on Windows. 
+Check for running instances of Putty, etc.
+
+```
+  File "C:\SysGCC\esp32\esp-idf\v4.4\python-env\lib\site-packages\serial\serialwin32.py", line 64, in open
+    raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
+serial.serialutil.SerialException: could not open port 'COM9': PermissionError(13, 'Access is denied.', None, 5)
+```
+
+<br />
 
 For any technical queries specific to the ESP 32, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
 
