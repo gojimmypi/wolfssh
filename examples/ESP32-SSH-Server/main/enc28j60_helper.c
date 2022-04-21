@@ -91,8 +91,17 @@ static void got_ip_event_handler(void *arg,
     _EthernetReady = true;
 }
 
-
+/*
+ * initialize the ENC28J60 wired ethernet SPI device.
+ * See optional define of USE_ENC28J60
+ */
 int init_ENC28J60() {
+#ifdef USE_ENC28J60    
+    ESP_LOGI(TAG, "Begin init_ENC28J60.");
+#else
+    ESP_LOGI(TAG, "WARNING: init_ENC28J60 called but USE_ENC28J60 is not defined.");
+#endif
+    
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
     // Initialize TCP/IP network interface (should be called only once in application)
     ESP_ERROR_CHECK(esp_netif_init());
@@ -155,5 +164,6 @@ int init_ENC28J60() {
     /* start Ethernet driver state machine */
     ESP_ERROR_CHECK(esp_eth_start(eth_handle)); 
     
+    ESP_LOGI(TAG, "End init_ENC28J60.");
     return 0;
 }
