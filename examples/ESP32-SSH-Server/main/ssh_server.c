@@ -426,6 +426,7 @@ int Get_ExternalTransmitBuffer(byte **ToData)
     
     return ret;
 }
+
 static char startupMessage[] = "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\rYou are now connected to UART Tx GPIO 17, Rx GPIO 16.\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n";
 
 int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
@@ -462,6 +463,27 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
     return ret;    
 }
 
+
+/*
+ *
+ **/
+int init_server_worker() {
+    int ret = 0;
+    /*
+     *  init and stuff startup message in buffer 
+     */
+    _ExternalReceiveBufferSz = 0;
+    _ExternalTransmitBufferSz = sizeof(startupMessage);
+
+    /* TODO this should really be wrapped in RTOS calls, but not a big issue at init time 
+     * Set_ExternalTransmitBuffer(startupMessage, _ExternalTransmitBufferSz);
+     **/
+    memcpy((byte*)&_ExternalTransmitBuffer[0],
+           (byte*)&startupMessage[0], 
+           _ExternalTransmitBufferSz);
+    
+    return ret;
+}
 
 /*
  * server_worker is the main threadd for a given SSH connection
@@ -506,16 +528,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
         byte* tmpBuf;
         int bufSz, backlogSz = 0, rxSz, txSz, stop = 0, txSum;
 
-        /*
-         *  init and stuff startup message in buffer 
-         */
-        _ExternalReceiveBufferSz = 0;
-        _ExternalTransmitBufferSz = sizeof(startupMessage);
-
-        /* TODO this should really be wrapped in RTOS calls, but not a big issue at init time */
-        memcpy((byte*)&_ExternalTransmitBuffer[0],
-               (byte*)&startupMessage[0], 
-               _ExternalTransmitBufferSz);
+        
+        init_server_worker();
     
         /*
          * we'll stay in this loop then entire time this worker thread has 
@@ -1163,10 +1177,12 @@ static INLINE void ThreadDetach(THREAD_TYPE thread) {
 
 /*
  * this my_IORecv callback is WIP and not currently used
- **/
+
+TODO decide if we want to use callbacks or not
+
 static int my_IORecv(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     int ret;
-/*    
+
     ID  cepid;
     if (ctx != NULL)cepid = *(ID *)ctx;
     else return WS_CBIO_ERR_GENERAL;
@@ -1178,29 +1194,25 @@ static int my_IORecv(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     ret = wolfSSH_stream_read(threadCtx->ssh,
         buf + backlogSz,
         EXAMPLE_BUFFER_SZ); 
-    ;
-*/    
     ret = WOLFSSL_SUCCESS;
     return ret;
 }
 
-/*
  * this my_IORecv callback is WIP and not currently used
- **/
+
 static int my_IOSend(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     int ret;
-/*
     ID  cepid;
     
     if (ctx != NULL)cepid = *(ID *)ctx;
     else return WS_CBIO_ERR_GENERAL;
 
     ret = tcp_snd_dat(cepid, buff, sz, TMO_FEVR);
-*/        
     ret = WOLFSSL_SUCCESS;
     
     return ret;
 }
+*/
  
 static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
 {
@@ -1575,7 +1587,7 @@ void server_test(void *arg) {
 
     memset(&pwMapList, 0, sizeof(pwMapList));
     wolfSSH_SetUserAuth(ctx, wsUserAuth);
-    wolfSSH_CTX_SetBanner(ctx, serverBanner);
+    wolfSSH_CTX_SetBanner(ctx, SSH_SERVER_BANNER);
 
 
     {

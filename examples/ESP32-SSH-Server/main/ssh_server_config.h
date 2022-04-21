@@ -2,9 +2,8 @@
 #include "driver/gpio.h"
 
 /* default is wireless unless USE_ENC28J60 is defined */
-
 #undef USE_ENC28J60
-// #define USE_ENC28J60    
+#define USE_ENC28J60    
 
 /* SSH is usually on port 22, but for our example it lives at port 22222 */
 #define SSH_UART_PORT 22222
@@ -14,7 +13,8 @@
 #define DEBUG_WOLFSSH
 
 
-static const char serverBanner[] = "wolfSSH Example Server\n";
+#define SSH_SERVER_BANNER "wolfSSH Example Server\n"
+// static const char serverBanner[] = "wolfSSH Example Server\n";
 
 #undef  SO_REUSEPORT
 
@@ -65,7 +65,7 @@ static const char serverBanner[] = "wolfSSH Example Server\n";
 // static const int RX_BUF_SIZE = 1024;
 
 #undef ULX3S
-#define M5STICKC
+#undef  M5STICKC
 #ifdef M5STICKC
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_26) /* orange */
@@ -83,24 +83,33 @@ static const char serverBanner[] = "wolfSSH Example Server\n";
 #define BAUD_RATE (57600)
 
 
-/* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
-   02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
-   see enc28j60_helper
-*/
-
 // see https://tf.nist.gov/tf-cgi/servers.cgi
-static const int NTP_SERVER_COUNT = 3;
-static const char* ntpServerList[] = {
-    "pool.ntp.org",
-    "time.nist.gov",
-    "utcnist.colorado.edu"
-};
+
+
+
+#define NTP_SERVER_LIST ( (char*[]) {        \
+                                     "pool.ntp.org",         \
+                                     "time.nist.gov",        \
+                                     "utcnist.colorado.edu"  \
+                                     }                       \
+                        ) 
+
+/* number of elements 
+ * To determine the number of elements in the array, we can divide the total size of 
+ * the array by the size of the array element 
+ * See https://stackoverflow.com/questions/37538/how-do-i-determine-the-size-of-my-array-in-c
+ **/
+#define NELEMS(x)  ( (int)(sizeof(x) / sizeof((x)[0])) )
+    
+/* #define NTP_SERVER_COUNT  (int)(sizeof(NTP_SERVER_LIST) / sizeof(NTP_SERVER_LIST[0])) */
+#define NTP_SERVER_COUNT NELEMS(NTP_SERVER_LIST)
+
+// extern char* ntpServerList[NTP_SERVER_COUNT];
+extern char* ntpServerList[NTP_SERVER_COUNT];
+
+    
 #define TIME_ZONE "PST-8"
-static const long  gmtOffset_sec = 3600;
-static const int   daylightOffset_sec = 3600;
 
-
-static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
 /**
  ******************************************************************************
  ******************************************************************************

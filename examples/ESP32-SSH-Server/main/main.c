@@ -36,7 +36,7 @@
 
 /* see ssh_server_config.h for optional use of physical ethernet: USE_ENC28J60 */
 #ifdef USE_ENC28J60
-    #include <enc28j69_helper.h>
+    #include <enc28j60_helper.h>
 #endif
 
 /* wolfSSL */
@@ -77,13 +77,14 @@
 
 static const char *TAG = "SSH Server main";
 
+static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
 
 
 int set_time() {
     /* we'll also return a result code of zero */
     int res = 0;
 
-    //*ideally, we'd like to set time from network, but let's set a default time, just in case */
+    /* ideally, we'd like to set time from network, but let's set a default time, just in case */
     struct tm timeinfo;
     timeinfo.tm_year = 2022 - 1900;
     timeinfo.tm_mon = 4;
@@ -141,7 +142,7 @@ void init_UART(void) {
 #if CONFIG_UART_ISR_IN_IRAM
     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 #endif    
-    // We won't use a buffer for sending data.
+    /* We won't use a buffer for sending data. */
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
@@ -155,7 +156,7 @@ void server_session(void* args)
     {
         server_test(args);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
-        // esp_task_wdt_reset();
+        /* esp_task_wdt_reset(); */
     }
 }
 
@@ -197,7 +198,7 @@ void init() {
     ESP_LOGI(TAG, "wolfSSL debugging on.");
     wolfSSL_Debugging_ON();
     WOLFSSL_MSG("Debug ON");
-    //ShowCiphers();
+    /* TODO ShowCiphers(); */
 #endif
 
     init_UART();
@@ -228,7 +229,7 @@ void init() {
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
     
-    // one of the most important aspects of security is the time and date values
+    /* one of the most important aspects of security is the time and date values */
     set_time();
 
     WOLFSSL_MSG("inet_pton"); /* TODO */
@@ -240,20 +241,23 @@ void init() {
  * @brief Checks the netif description if it contains specified prefix.
  * All netifs created withing common connect component are prefixed with the module TAG,
  * so it returns true if the specified netif is owned by this module
- */
+TODO
+
 static bool is_our_netif(const char *prefix, esp_netif_t *netif) {
     return strncmp(prefix, esp_netif_get_desc(netif), strlen(prefix) - 1) == 0;
 }
 
+*/
+
 void app_main(void) {
     init();
-    // note that by the time we get here, the scheduler is already running!
-    // see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
-    // Unlike Vanilla FreeRTOS, users must not call vTaskStartScheduler();
-
-        
-    // all of the tasks are at the same, highest idle priority, so they will all get equal attention
-    // when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
+    /* note that by the time we get here, the scheduler is already running!
+     * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
+     * Unlike Vanilla FreeRTOS, users must not call vTaskStartScheduler();
+     *        
+     * all of the tasks are at the same, highest idle priority, so they will all get equal attention
+     * when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
+     */
     xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
     
     xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
@@ -267,6 +271,7 @@ void app_main(void) {
         ESP_LOGI(TAG, "Loop!");
 
         /* esp_err_tesp_netif_get_ip_info(esp_netif_t *esp_netif, esp_netif_ip_info_t *ip_info) */ 
+        /* TODO print IP address */
 //        esp_netif_t *netif = NULL;
 //        esp_netif_ip_info_t ip;
 //        esp_err_t ret;
@@ -280,9 +285,8 @@ void app_main(void) {
         
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
-        // esp_task_wdt_reset();
     }
 
-    // todo this is unreachable with RTOS threads, do we ever want to shut down?
+    /* todo this is unreachable with RTOS threads, do we ever want to shut down? */
     wolfSSH_Cleanup();
 }

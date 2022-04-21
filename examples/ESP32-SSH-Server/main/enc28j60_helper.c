@@ -8,6 +8,11 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 
+/* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
+   02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
+   see enc28j60_helper
+*/
+
 static uint8_t myMacAddress[] = {
     0x02,
     0x00,
@@ -103,9 +108,9 @@ int init_ENC28J60() {
 #endif
     
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
-    // Initialize TCP/IP network interface (should be called only once in application)
+    /* Initialize TCP/IP network interface (should be called only once in application) */
     ESP_ERROR_CHECK(esp_netif_init());
-    // Create default event loop that running in background
+    /* Create default event loop that running in background */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&netif_cfg);
@@ -135,13 +140,13 @@ int init_ENC28J60() {
     enc28j60_config.int_gpio_num = CONFIG_EXAMPLE_ENC28J60_INT_GPIO;
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-    mac_config.smi_mdc_gpio_num = -1; // ENC28J60 doesn't have SMI interface
+    mac_config.smi_mdc_gpio_num = -1; /* ENC28J60 doesn't have SMI interface */
     mac_config.smi_mdio_gpio_num = -1;
     esp_eth_mac_t *mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
 
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-    phy_config.autonego_timeout_ms = 0; // ENC28J60 doesn't support auto-negotiation
-    phy_config.reset_gpio_num = -1; // ENC28J60 doesn't have a pin to reset internal PHY
+    phy_config.autonego_timeout_ms = 0; /* ENC28J60 doesn't support auto-negotiation */
+    phy_config.reset_gpio_num = -1; /* ENC28J60 doesn't have a pin to reset internal PHY */
     esp_eth_phy_t *phy = esp_eth_phy_new_enc28j60(&phy_config);
 
     esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
