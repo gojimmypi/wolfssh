@@ -3,7 +3,7 @@
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-#define USE_ENC28J60    
+// #define USE_ENC28J60    
 
 /* SSH is usually on port 22, but for our example it lives at port 22222 */
 #define SSH_UART_PORT 22222
@@ -65,7 +65,7 @@
 // static const int RX_BUF_SIZE = 1024;
 
 #undef ULX3S
-#undef  M5STICKC
+#define   M5STICKC
 #ifdef M5STICKC
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_26) /* orange */
