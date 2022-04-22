@@ -39,7 +39,20 @@
     #include <enc28j60_helper.h>
 #endif
 
-/* wolfSSL */
+/*
+ * wolfSSL
+ *
+ * IMPORTANT: Ensure wolfSSL settings.h appears before any other wolfSSL headers
+ * 
+ * Example locations:
+
+ *   Standard ESP-IDF:
+ *   C:\Users\[username]\Desktop\esp-idf\components\wolfssh\wolfssl\wolfcrypt\settings.h
+ * 
+ *   VisualGDB
+ *   C:\SysGCC\esp32\esp-idf\[version]\components\wolfssl\wolfcrypt\settings.h
+ *   
+ **/
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 
@@ -60,7 +73,12 @@
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
-#include "wifi.h"
+#ifdef USE_ENC28J60
+    /* no WiFi when using external ethernet */
+#else
+    #include "wifi.h"
+#endif
+
 #include "ssh_server.h"
 
 /* logging 
@@ -174,11 +192,13 @@ bool NoEthernet()
     }
 #endif
     
+#ifndef USE_ENC28J60
     /* WiFi is pretty much always available on the ESP32 */
     if (wifi_ready()) {
         ret = false;
     }
-
+#endif
+    
     return ret;
 }
 
