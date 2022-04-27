@@ -20,6 +20,14 @@
  * Adapted from Public Domain Expressif ENC28J60 Example
  * 
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
+ * 
+ *
+ * WARNING: although this code makes use of the UART #2 (as UART_NUM_0)
+ * 
+ * DO NOT LEAVE ANYTHING CONNECTED TO TXD2 (GPIO 15) and RXD2 (GPIO 13)
+ * 
+ * In particular, GPIO 15 must not be high during programming.
+ * 
  */
 
 /* include ssh_server_config.h first  */
@@ -152,13 +160,22 @@ int set_time() {
 static QueueHandle_t uart0_queue;
 
 void init_UART(void) {
+    /*
+     * We play a shell game of UARTs on the ESP8266
+     *
+     * When this runs, UART0 is UART #0 on pin1 1 and 3 is already configured.
+     * what happens here is we SWAP the UART0 to instead be on UART #2 using
+     * pins 13 and 15. Even though it is UART #2, it is still referred to as
+     * with the reference UART_NUM_0.
+     * 
+     * There is no UART_NUM_2
+     */
+
     
-
-    // Configure parameters of an UART driver,
-    // communication pins and install the driver
-    /* swap GPIO pins 1,3 with 13,15 */
-    uart_enable_swap();
-
+    /* Configure parameters of an UART driver,
+     * communication pins and install the driver
+     */        
+    ESP_LOGI(TAG, "Begin UART_NUM_0 driver install.");    
     uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -166,27 +183,35 @@ void init_UART(void) {
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
     };
-    uart_param_config(EX_UART_NUM, &uart_config);
+    uart_param_config(UART_NUM_0, &uart_config);
 
     // Install UART driver, and get the queue.
-    uart_driver_install(EX_UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 100, &uart0_queue, 0);
+    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, BUF_SIZE * 2, 100, &uart0_queue, 0);
+    ESP_LOGI(TAG, "Done: UART_NUM_0 driver install.");    
 
-    /* UART 1 is Tx only! */
-/*
-//    uart_config_t uart_config1 = {
-        .baud_rate = 74800,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
-    uart_param_config(UART_NUM_1, &uart_config1);
-*/
-    // Install UART driver, and get the queue.
-//    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, BUF_SIZE * 2, 100, &uart0_queue, 0);
-
-    /* use RTOS menuconfig to set logout output to UART1 */
-
+    /* UART0 swap. Use MTCK as UART0 RX, MTDO as UART0 TX, so ROM log will not output from this new
+     * UART0. We also need to use MTDO (U0RTS) and MTCK (U0CTS) as UART0 in hardware. 
+     * returns ESP_OK Success
+     * 
+     * The UART needs to be consfigured before swap, otherwise we see error:
+     * E uart: uart_wait_tx_done(256): uart driver error "uart_enable_swap"
+     */
+    /* swap UART_NUM_0 GPIO pins 1,3 with 13,15 */
+    ESP_LOGI(TAG, "Begin uart_enable_swap to UART #2 on pins 13 and 15.");    
+    uart_enable_swap();
+    ESP_LOGI(TAG, "Done with uart_enable_swap.");    
+    
+    
+    /* UART_NUM_1 on UART #1 is Tx only! There is no Rx pin!!
+     * 
+     * Configure UART #1 to be logging output in the ESP-IDF menu config.
+     * 
+     * This is needed as we want a "clean" UART to forward to SSH, and not
+     * all the text on the USB port.
+     *
+     * Although technically there's a UART #2, there is no UART_NUM_2
+     * (see above)
+     */
 }
 
 void server_session(void* args)
@@ -308,21 +333,7 @@ void app_main(void) {
     
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
-        WOLFSSL_MSG("main loop!");
-        ESP_LOGI(TAG, "Loop!");
-
-        /* esp_err_tesp_netif_get_ip_info(esp_netif_t *esp_netif, esp_netif_ip_info_t *ip_info) */ 
-        /* TODO print IP address */
-//        esp_netif_t *netif = NULL;
-//        esp_netif_ip_info_t ip;
-//        esp_err_t ret;
-//        netif = esp_netif_next(netif);
-//        ret = esp_netif_get_ip_info(netif, &ip);
-//        if (ret == ESP_OK) {
-//            ESP_LOGI(TAG, "- IPv4 address: " IPSTR, IP2STR(&ip.ip));
-//            ESP_LOGI(TAG, "       netmask: " IPSTR, IP2STR(&ip.netmask));
-//            ESP_LOGI(TAG, "       gateway: " IPSTR, IP2STR(&ip.gw));
-//        }
+        WOLFSSL_MSG("wolfSSH Server main loop heartbeat!");
         
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
