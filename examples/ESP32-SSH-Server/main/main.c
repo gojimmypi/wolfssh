@@ -22,7 +22,7 @@
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
  */
 
-/* include ssh_server_config.h first  */
+/* be sure include ssh_server_config.h first  */
 #include "ssh_server_config.h"
 
 #include "sdkconfig.h"

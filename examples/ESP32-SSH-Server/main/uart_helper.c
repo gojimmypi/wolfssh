@@ -19,8 +19,8 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  * 
  */
-
 #include "uart_helper.h"
+
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "string.h"

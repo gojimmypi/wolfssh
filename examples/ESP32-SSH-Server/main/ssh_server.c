@@ -1,4 +1,3 @@
-#include <esp_task_wdt.h>
 /* ssh_server.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -18,9 +17,10 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "ssh_server_config.h"
 #include "ssh_server.h"
+
+#include <esp_task_wdt.h>
+#include "ssh_server_config.h"
 #include <wolfssl/wolfcrypt/logging.h>
 
 

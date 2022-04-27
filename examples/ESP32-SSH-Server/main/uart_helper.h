@@ -1,4 +1,4 @@
-/* uart_hlper.c
+/* uart_hlper.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
