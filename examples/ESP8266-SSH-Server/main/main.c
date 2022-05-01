@@ -31,6 +31,7 @@
  */
 
 /* include ssh_server_config.h first  */
+#include "my_config.h"
 #include "ssh_server_config.h"
 
 #include "sdkconfig.h"
@@ -80,7 +81,8 @@
 #define NO_FILESYSTEM
 #define WOLFSSH_NO_FILESYSTEM
 
-#include <wolfssl/wolfcrypt/settings.h> /* make sure this appears before any other wolfSSL headers */
+// TODO check wolfSSL config
+// #include <wolfssl/include/user_settings.h> /* make sure this appears before any other wolfSSL headers */
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 

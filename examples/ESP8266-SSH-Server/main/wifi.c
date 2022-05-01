@@ -16,21 +16,9 @@
 */
 
 /* when using a private config with plain text passwords, not my_private_config.h should be excluded from git updates */
-#define  USE_MY_PRIVATE_CONFIG
 #define EXAMPLE_ESP_MAXIMUM_RETRY  10
 
-#ifdef  USE_MY_PRIVATE_CONFIG
-    #include "/workspace/my_private_config.h"
-#else
-    /* The examples use WiFi configuration that you can set via project configuration menu
-
-       If you'd rather not, just change the below entries to strings with
-       the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
-    */
-    #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
-    #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-    #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
-#endif
+#include "my_config.h"
 
 
 /* FreeRTOS event group to signal when we are connected*/
