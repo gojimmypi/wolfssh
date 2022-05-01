@@ -523,7 +523,7 @@ int init_server_worker() {
 //    
 //    return ret;
     
-    static char startupMessage[] = "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\rYou are now connected to UART Tx GPIO 17, Rx GPIO 16.\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n";
+    static char startupMessage[] = "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\rYou are now connected to UART Tx GPIO 15, Rx GPIO 13.\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n";
 
         /* TODO this should really be wrapped in RTOS calls, but not a big issue at init time 
      * Set_ExternalTransmitBuffer(startupMessage, _ExternalTransmitBufferSz);
