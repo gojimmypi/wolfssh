@@ -60,6 +60,10 @@
  *   C:\SysGCC\esp32\esp-idf\[version]\components\wolfssl\wolfcrypt\settings.h
  *   
  **/
+#ifdef WOLFSSL_STALE_EXAMPLE
+    #warning "This project is configured using local, stale wolfSSL code. See Makefile."
+#endif
+
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 
