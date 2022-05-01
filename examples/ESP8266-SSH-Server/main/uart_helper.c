@@ -64,7 +64,7 @@ void uart_send_welcome() {
  */
 int sendData(const char* logName, const char* data) {
     const int len = strlen(data);
-    const int txBytes = uart_write_bytes(EX_UART_NUM, data, len);
+    const int txBytes = uart_write_bytes(UART_NUM_0, data, len);
     ESP_LOGI(logName, "Wrote %d bytes", txBytes);
     return txBytes;
 }
@@ -135,7 +135,7 @@ void uart_rx_task(void *arg) {
     volatile char __attribute__((optimize("O0"))) *thisBuf;
     while (1) {
         /* note some examples have UART_TICKS_TO_WAIT = 1000, which results in very sluggish response */
-        const int rxBytes = uart_read_bytes(EX_UART_NUM, data, RX_BUF_SIZE, UART_TICKS_TO_WAIT);
+        const int rxBytes = uart_read_bytes(UART_NUM_0, data, RX_BUF_SIZE, UART_TICKS_TO_WAIT);
         if (rxBytes > 0) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
