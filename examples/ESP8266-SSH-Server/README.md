@@ -46,6 +46,9 @@ Right-click the project and "Build...":
 
 Alternatively, the code can be built via the [RTOS ESP-IDF for ESP8266](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/get-started/index.html)
 
+VisualGDB will typically use the `sdkconfig-debug` (and possibly `sdkconfig-release`), 
+but the ESP-IDF commandline will use `sdkconfig`.
+
 ## ESP8266 Toolchain
 
 This section is only needed for users not using VisualGDB. Otherwise, see the [VisualGDB Tutorials](https://visualgdb.com/w/tutorials/tag/esp8266/).
@@ -340,6 +343,8 @@ When only in AP mode, the timeserver settings will not work as there will be no 
 Note that certificates are only valid during a preiod of time.
 See the [int set_time()](https://github.com/gojimmypi/wolfssh/blob/893d3787b40b1194fbc7df48c70e01d921cfe01d/examples/ESP8266-SSH-Server/main/main.c#L118)
 to hard code a time value.
+
+Different `sdkconfig` files make be used. See above [building](./README.md#Building) notes.
 
 <br />
 
