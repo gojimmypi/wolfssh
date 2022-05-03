@@ -99,7 +99,14 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
     #ifndef  CONFIG_EXAMPLE_WIFI_PASSWORD
         #define CONFIG_EXAMPLE_WIFI_PASSWORD = "mypassword"
     #endif    
-    
+
+    #ifndef  CONFIG_ESP_WIFI_SSID
+        #define CONFIG_ESP_WIFI_SSID = "myssid"
+    #endif    
+    #ifndef  CONFIG_ESP_WIFI_PASSWORD
+        #define CONFIG_ESP_WIFI_PASSWORD = "mypassword"
+    #endif    
+
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
