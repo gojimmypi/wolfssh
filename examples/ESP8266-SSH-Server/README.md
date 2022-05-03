@@ -86,14 +86,17 @@ export IDF_PATH="$ESP8266_ROOT/esp/ESP8266_RTOS_SDK/"
 
 # Optional section if python pip needs to be installed
 # see https://pip.pypa.io/en/stable/installation/
-wget  https://bootstrap.pypa.io/get-pip.py
+curl --output get-pip.py https://bootstrap.pypa.io/get-pip.py
 
 # or for Python 2.7
-# wget https://bootstrap.pypa.io/pip/2.7/get-pip.py 
+# curl --output get-pip27.py https://bootstrap.pypa.io/get-pip.py
 
 # install pip if needed
 # ./get-pip.py
+#   or
+# ./get-pip27.py
 
+# Check if ESP-IDF requirements are met
 python -m pip install --user -r $IDF_PATH/requirements.txt
 
 # download the Espressif xtensa compiler
@@ -182,7 +185,9 @@ make flash ESPPORT=/dev/ttyS15
 ## Operational Status
 
 The USB port used to program the device should show only a small amount of text at boot time
-before the console output is routed to `UART1`. Here is some sample boot text (74800 baud, 8N1):
+before the console output is routed to `UART1`. 
+
+Here is some sample boot text (74800 baud, 8N1):
 
 ```
  ets Jan  8 2013,rst cause:2, boot mode:(3,6)
@@ -278,6 +283,18 @@ I (1486) wifi station: connected to ap SSID:YOURSSID password:YOURPASSWORD
 
 The SSH address to use for the connection is Message `I 1482` of this example: `192.168.75.39`
 
+In the case of WiFi AP mode:
+
+```
+I (485) SSH Server main: Begin setup WiFi Soft AP.
+I (495) system_api: Base MAC address is not set, read default base MAC address from EFUSE
+I (508) system_api: Base MAC address is not set, read default base MAC address from EFUSE
+phy_version: 1163.0, 665d56c, Jun 24 2020, 10:00:08, RTOS new
+I (574) phy_init: phy ver: 1163_0
+I (600) wifi station: wifi_init_softap finished. SSID:TheBucketHill password:jackorjill
+I (603) SSH Server main: End setup WiFi Soft AP.
+```
+
 When the SSH server is running, but nothing interesting is happening, the main thread will continued to periodically
 show a message:
 
@@ -317,8 +334,12 @@ If improper GPIO lines are selected, the UART initialization may hang.
 
 When plugged into a PC that goes to sleep and powers down the USB power, the ESP32 device seems to sometimes crash and does not always recover when PC power resumes.
 
-Only one connection is allowed at the time. There may be a delay when an existing connected is unexpecteedly terminated before a new connection can be made.
+Only one connection is allowed at the time. There may be a delay when an existing connected is unexpectedly terminated before a new connection can be made.
 
+When only in AP mode, the timeserver settings will not work as there will be no internet connectivity. 
+Note that certificates are only valid during a preiod of time.
+See the [int set_time()](https://github.com/gojimmypi/wolfssh/blob/893d3787b40b1194fbc7df48c70e01d921cfe01d/examples/ESP8266-SSH-Server/main/main.c#L118)
+to hard code a time value.
 
 <br />
 
@@ -364,7 +385,7 @@ serial.serialutil.SerialException: could not open port 'COM9': PermissionError(1
 
 <br />
 
-For any technical queries specific to the ESP 32, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
+For any technical queries specific to the Espressif chips, you can open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
 
 For any issues related to wolfSSL, please open an [issue](https://github.com/wolfssl/wolfssl/issues) on GitHub, 
 visit the [wolfSSL support forum](https://www.wolfssl.com/forums/),
