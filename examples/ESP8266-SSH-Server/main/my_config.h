@@ -4,7 +4,7 @@
 
 /*
  * we code .gitignore to also exclude my_private_config.h with wifi
- * SSID and passwords, etc. But it needs to be incldued in this project
+ * SSID and passwords, etc. But it needs to be included in this project
  * but we don't know if other's will be on different envrionments...
  * 
  * So: 
@@ -23,18 +23,28 @@
  * For this file to properly detect various "my_private_config.h" files, this
  * text needs to be in the Makefile:
 
+# Sysprogs VisualGDB has their own bash instance, so look in /c/workspace
+ifeq (/c/workspace/my_private_config.h, $(wildcard /c/workspace/my_private_config.h))
+$(info "Found WSL /mnt/c/workspace/my_private_config.h")
+CPPFLAGS += -DSYSPROGS_MY_PRIVATE_CONFIG=/c/workspace/my_private_config.h
+CFLAGS   += -DSYSPROGS_MY_PRIVATE_CONFIG=/c/workspace/my_private_config.h
+endif
+
+# Windows private config in /workspace/
 ifeq (/workspace/my_private_config.h, $(wildcard /workspace/my_private_config.h))
 $(info "Found /workspace/my_private_config.h" )
 CPPFLAGS += -DWINDOWS_MY_PRIVATE_CONFIG=/workspace/my_private_config.h
 CFLAGS   += -DWINDOWS_MY_PRIVATE_CONFIG=/workspace/my_private_config.h
 endif
 
+# WSL directory is /mnt/c/workspace/
 ifeq (/mnt/c/workspace/my_private_config.h, $(wildcard /mnt/c/workspace/my_private_config.h))
 $(info "Found WSL /mnt/c/workspace/my_private_config.h")
 CPPFLAGS += -DWSL_MY_PRIVATE_CONFIG=/mnt/c/workspace/my_private_config.h
 CFLAGS   += -DWSL_MY_PRIVATE_CONFIG=/mnt/c/workspace/my_private_config.h
 endif
 
+# for Linux, look in home directory ~/
 ifeq (~/my_private_config.h, $(wildcard ~/my_private_config.h))
 $(info "Found Linux ~/my_private_config.h")
 CPPFLAGS += -DWSL_MY_PRIVATE_CONFIG=~/my_private_config.h
@@ -49,7 +59,17 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-#if defined(SYSPROGS_MY_PRIVATE_CONFIG)
+#define EXAMPLE_ESP_WIFI_AP_SSID      "TheBucketHill"
+#define EXAMPLE_ESP_WIFI_AP_PASS      "jackorjill"
+
+
+#if defined(NO_PRIVATE_CONFIG)
+    /* reminder that if you put a password here, 
+     * it might get checked into GitHub!         */
+    #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
+    #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
+
+#elif defined(SYSPROGS_MY_PRIVATE_CONFIG)
     #pragma message ( "Found SYSPROGS_MY_PRIVATE_CONFIG !" )
     #pragma message ( XSTR(SYSPROGS_MY_PRIVATE_CONFIG) )
     #include XSTR(SYSPROGS_MY_PRIVATE_CONFIG)
@@ -70,7 +90,8 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
     #include XSTR(LINUX_MY_PRIVATE_CONFIG)
 
 #else
-    /* inline configs */ 
+    /* reminder that if you put a password here, 
+     * it might get checked into GitHub!         */
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif

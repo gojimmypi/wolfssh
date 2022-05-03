@@ -20,6 +20,10 @@
 
 #include "my_config.h"
 
+#ifndef CONFIG_ESP_MAX_STA_CONN
+    #define CONFIG_ESP_MAX_STA_CONN 2
+#endif
+
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -36,7 +40,7 @@ static int s_retry_num = 0;
 
 static volatile bool WiFiEthernetReady = 0;
 
-void event_handler(void* arg,
+void wifi_STA_event_handler(void* arg,
     esp_event_base_t event_base,
     int32_t event_id,
     void* event_data) {
@@ -65,6 +69,29 @@ void event_handler(void* arg,
     }
 }
 
+
+
+static void wifi_AP_event_handler(void* arg,
+    esp_event_base_t event_base,
+    int32_t event_id,
+    void* event_data) {
+    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        ESP_LOGI(TAG,
+            "station "MACSTR" join, AID=%d",
+            MAC2STR(event->mac),
+            event->aid);
+    }
+    else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGI(TAG,
+            "station "MACSTR" leave, AID=%d",
+            MAC2STR(event->mac),
+            event->aid);
+    }
+}
+
+
 void wifi_init_sta(void) {
     s_wifi_event_group = xEventGroupCreate();
 
@@ -75,8 +102,8 @@ void wifi_init_sta(void) {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_STA_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_STA_event_handler, NULL));
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -128,6 +155,44 @@ void wifi_init_sta(void) {
     ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler));
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
     vEventGroupDelete(s_wifi_event_group);
+}
+
+#define EXAMPLE_MAX_STA_CONN       CONFIG_ESP_MAX_STA_CONN
+
+void wifi_init_softap() {
+    tcpip_adapter_init();
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_AP_event_handler, NULL));
+
+    wifi_config_t wifi_config = {
+        .ap = {
+        .ssid = EXAMPLE_ESP_WIFI_AP_SSID,
+        .ssid_len = strlen(EXAMPLE_ESP_WIFI_AP_SSID),
+        .password = EXAMPLE_ESP_WIFI_AP_PASS,
+        .max_connection = EXAMPLE_MAX_STA_CONN,
+        .authmode = WIFI_AUTH_WPA2_PSK
+        },
+    };
+    
+    if (strlen(EXAMPLE_ESP_WIFI_AP_PASS) == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG,
+        "wifi_init_softap finished. SSID:%s password:%s",
+        EXAMPLE_ESP_WIFI_AP_SSID,
+        EXAMPLE_ESP_WIFI_AP_PASS);
+    
+    /* we don't need to wait for an IP address in AP mode */
+    WiFiEthernetReady = 1;
 }
 
 

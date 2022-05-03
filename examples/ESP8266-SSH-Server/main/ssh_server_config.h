@@ -5,6 +5,13 @@
 #undef USE_ENC28J60
 // #define USE_ENC28J60    
 
+/* wifi can be either STA or AP 
+ *  #define WOLFSSH_SERVER_IS_AP
+ *  #define WOLFSSH_SERVER_IS_STA
+ **/
+
+#define WOLFSSH_SERVER_IS_AP
+
 /* SSH is usually on port 22, but for our example it lives at port 22222 */
 #define SSH_UART_PORT 22222
 
@@ -123,6 +130,12 @@ extern char* ntpServerList[NTP_SERVER_COUNT];
  ******************************************************************************
  ******************************************************************************
  **/
+
+#ifdef  WOLFSSH_SERVER_IS_AP
+    #ifdef WOLFSSH_SERVER_IS_STA
+        #error Concurrent WOLFSSH_SERVER_IS_AP and WOLFSSH_SERVER_IS_STA not supported. Pick one. Disable the other.
+    #endif
+#endif
   
 void ssh_server_config_init();
 

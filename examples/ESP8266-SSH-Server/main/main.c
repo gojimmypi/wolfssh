@@ -189,9 +189,12 @@ void init_UART(void) {
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
     };
+    
+    ESP_LOGI(TAG, "UART_NUM_0 uart_param_config.");    
     uart_param_config(UART_NUM_0, &uart_config);
 
     // Install UART driver, and get the queue.
+    ESP_LOGI(TAG, "UART_NUM_0 uart_driver_install.");    
     uart_driver_install(UART_NUM_0, BUF_SIZE * 2, BUF_SIZE * 2, 100, &uart0_queue, 0);
     ESP_LOGI(TAG, "Done: UART_NUM_0 driver install.");    
 
@@ -280,16 +283,26 @@ void init() {
     init_ENC28J60();
 #else
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
-    esp_err_t ret = nvs_flash_init();
+    ESP_ERROR_CHECK(nvs_flash_init());
+    
 //    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 //        ESP_ERROR_CHECK(nvs_flash_erase());
 //        ret = nvs_flash_init();
 //    }
 //    ESP_ERROR_CHECK(ret);
     
+#ifdef WOLFSSH_SERVER_IS_AP    
+    ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
+    wifi_init_softap();
+    ESP_LOGI(TAG, "End setup WiFi Soft AP.");
+#endif
+    
+#ifdef WOLFSSH_SERVER_IS_STA 
     ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
     ESP_LOGI(TAG, "End setup WiFi STA.");
+#endif
+
 #endif
 
     

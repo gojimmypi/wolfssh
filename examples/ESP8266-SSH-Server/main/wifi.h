@@ -21,4 +21,6 @@ void event_handler(void* arg,
 
 void wifi_init_sta(void);
 
+void wifi_init_softap();
+
 bool wifi_ready();
