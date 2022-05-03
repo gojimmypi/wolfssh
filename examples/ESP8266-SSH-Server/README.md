@@ -30,7 +30,6 @@ Note there may be an old version of wolfSSL in `ESP8266_RTOS_SDK\components\esp-
 
 
 ```bash
-
 # create a home directory as needed for the ESP8266_RTOS_SDK
 mkdir -p /mnt/c/ESP8266/esp/
 cd /mnt/c/ESP8266/esp/
@@ -43,7 +42,7 @@ git clone --recursive https://github.com/espressif/ESP8266_RTOS_SDK.git
 export IDF_PATH="/mnt/c/ESP8266/esp/ESP8266_RTOS_SDK/"
 
 # or set IDF path for pure linux:
-# export IDF_PATH="~/ESP8266/esp/ESP8266_RTOS_SDK/"
+# export IDF_PATH=~/ESP8266/esp/ESP8266_RTOS_SDK
 
 
 # Optional section if python pip needs to be installed
@@ -54,6 +53,8 @@ wget  https://bootstrap.pypa.io/get-pip.py
 # wget https://bootstrap.pypa.io/pip/2.7/get-pip.py 
 
 # install pip if needed
+# ./get-pip.py
+
 python -m pip install --user -r $IDF_PATH/requirements.txt
 
 # download the Espressif xtensa compiler
@@ -64,6 +65,9 @@ tar -xzf xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
 
 # tell the environment where to find the xtensa compiler
 export PATH="$PATH:/mnt/c/ESP8266/esp/xtensa-lx106-elf/bin"
+
+# or for pure linux:
+export PATH="$PATH:~/ESP8266/esp/xtensa-lx106-elf/bin
 
 # delete the old version of wolfSSL
 rm -r ./ESP8266_RTOS_SDK/components/esp-wolfssl
