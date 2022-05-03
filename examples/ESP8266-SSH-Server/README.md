@@ -43,6 +43,8 @@ Alternatively, the code can be built via the [RTOS ESP-IDF for ESP8266](https://
 
 ## ESP8266 Toolchain
 
+This section is only needed for users not using VisualGDB. Otherwise, see the [VisualGDB Tutorials](https://visualgdb.com/w/tutorials/tag/esp8266/).
+
 Install the latest [ESP8266 Toolchain](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/get-started/windows-setup.html).
 
 To use a dual Windows/Linux (WSL) option, consider a shared directory such as `C:\ESP8288\esp\`
@@ -50,22 +52,32 @@ which would be `/mnt/c/ESP8266/esp/` in WSL.
 
 Note there may be an old version of wolfSSL in `ESP8266_RTOS_SDK\components\esp-wolfssl` that should be deleted.
 
+WSL
 
 ```bash
-# create a home directory as needed for the ESP8266_RTOS_SDK
-mkdir -p /mnt/c/ESP8266/esp/
-cd /mnt/c/ESP8266/esp/
+export ESP8266_ROOT=/mnt/c/ESP8266
+export WORKSPACE=/mnt/c/workspace
+```
 
-# or create a home directory for pure linux:
-# mkdir ~/ESP8266/
-# mkdir ~/ESP8266/esp/
+Linux
+
+```bash
+export ESP8266_ROOT=~/ESP8266
+export WORKSPACE=~/workspace
+```
+
+Then:
+```bash
+
+if [ "$ESP8266_ROOT" == "" ]; then read -p "ESP8266_ROOT not set?"; fi
+if [ "$WORKSPACE"    == "" ]; then read -p "WORKSPACE not set?"; fi
+
+# create a home directory as needed for the ESP8266_RTOS_SDK
+mkdir -p $ESP8266_ROOT/esp/
+cd $ESP8266_ROOT/esp/
 
 git clone --recursive https://github.com/espressif/ESP8266_RTOS_SDK.git
-export IDF_PATH="/mnt/c/ESP8266/esp/ESP8266_RTOS_SDK/"
-
-# or set IDF path for pure linux:
-# export IDF_PATH=~/ESP8266/esp/ESP8266_RTOS_SDK
-
+export IDF_PATH="$ESP8266_ROOT/esp/ESP8266_RTOS_SDK/"
 
 # Optional section if python pip needs to be installed
 # see https://pip.pypa.io/en/stable/installation/
@@ -86,13 +98,14 @@ curl --output xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz https://dl
 tar -xzf xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
 
 # tell the environment where to find the xtensa compiler
-export PATH="$PATH:/mnt/c/ESP8266/esp/xtensa-lx106-elf/bin"
-
-# or for pure linux:
-export PATH="$PATH:~/ESP8266/esp/xtensa-lx106-elf/bin
+export PATH="$PATH:$ESP8266_ROOT/esp/xtensa-lx106-elf/bin"
 
 # delete the old version of wolfSSL
 rm -r ./ESP8266_RTOS_SDK/components/esp-wolfssl
+
+echo # use these line for future ESP-IDF sessions:
+echo export IDF_PATH="$ESP8266_ROOT/esp/ESP8266_RTOS_SDK/"
+echo export PATH="\$PATH:$ESP8266_ROOT/esp/xtensa-lx106-elf/bin"
 
 ```
 
