@@ -62,6 +62,11 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
 #define EXAMPLE_ESP_WIFI_AP_SSID      "TheBucketHill"
 #define EXAMPLE_ESP_WIFI_AP_PASS      "jackorjill"
 
+/* clang intellisense gives a pragma-messages warning 
+ * but we'll ignore it here. 
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 
 #if defined(NO_PRIVATE_CONFIG)
     /* reminder that if you put a password here, 
@@ -93,6 +98,7 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
     /* reminder that if you put a password here, 
      * it might get checked into GitHub!         */
     #warning "Not using my_private_config.h"
+
     #ifndef  CONFIG_EXAMPLE_WIFI_SSID
         #define CONFIG_EXAMPLE_WIFI_SSID "myssid"
     #endif    
@@ -111,3 +117,4 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
 
+#pragma GCC diagnostic pop
