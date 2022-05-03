@@ -11,10 +11,13 @@ There's also a [blog about ESP8266 UARTs](https://gojimmypi.github.io/SSH-to-ESP
 
 ## Configuration
 
-See the [ssh_server_config.h](./main/ssh_server.h) files for various configuration settings.
+See the [ssh_server_config.h](./main/ssh_server_config.h) files for various configuration settings.
 
 For private settings (those files with WiFi passords, typically `**/my_private_config.h` excluded in `.gitignore`) 
 see [my_config.h](./main/my_config.h).
+
+Both WiFi STA and AP modes are supported. Define `WOLFSSH_SERVER_IS_AP` or `WOLFSSH_SERVER_IS_STA` in
+the [ssh_server_config.h](./main/ssh_server_config.h) file.
 
 ## Defaults
 
