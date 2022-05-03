@@ -9,10 +9,15 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 
 There's also a [blog about ESP8266 UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/) used in this project.
 
+## Requirements
+
+Any ESP8266 with `UART #2` pins `TXD2` = `GPIO 15` and `RXD2` = `GPIO 13` available. 
+The [Adafruit Feather HUZZAH ESP8266](https://www.adafruit.com/product/2821) was used during development.
+
 ## Private Config
 
 It is usually best to not publish private SSID names and passwords to GitHub. As such the project [Makefile](./Makefile)
-looks for these file, in this order:
+looks for one of these files, in this order:
 
 ```
 # VisualGDB default
@@ -37,7 +42,7 @@ The [project](https://github.com/gojimmypi/wolfssh/blob/ESP8266_Development/exam
 Just open the solution file in the [examples/ESP8266-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server) directory. 
 Right-click the project and "Build...":
 
-![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](../images/ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png)
+![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](./images/ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png)
 
 Alternatively, the code can be built via the [RTOS ESP-IDF for ESP8266](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/get-started/index.html)
 
@@ -159,7 +164,9 @@ WSL Quick Start, use the [ESPPORT](https://github.com/espressif/esp-idf/issues/1
 
 ```bash
 # change to whatever directory you use for projects
-cd /mnt/c/workspace/
+
+if [ "$WORKSPACE"    == "" ]; then read -p "WORKSPACE not set?"; fi
+cd $WORKSPACE
 
 git clone https://github.com/gojimmypi/wolfssh.git
 cd ./wolfssh
