@@ -18,30 +18,34 @@ CFLAGS   += -DWOLFSSL_STALE_EXAMPLE=YES
 
 # Sysprogs VisualGDB has their own bash instance, so look in /c/workspace
 ifeq (/c/workspace/my_private_config.h, $(wildcard /c/workspace/my_private_config.h))
-$(info "Found WSL /mnt/c/workspace/my_private_config.h")
+$(info "Found VisualGDB /c/workspace/my_private_config.h")
 CPPFLAGS += -DSYSPROGS_MY_PRIVATE_CONFIG=/c/workspace/my_private_config.h
 CFLAGS   += -DSYSPROGS_MY_PRIVATE_CONFIG=/c/workspace/my_private_config.h
-endif
 
+else 
 # Windows private config in /workspace/
 ifeq (/workspace/my_private_config.h, $(wildcard /workspace/my_private_config.h))
 $(info "Found /workspace/my_private_config.h" )
 CPPFLAGS += -DWINDOWS_MY_PRIVATE_CONFIG=/workspace/my_private_config.h
 CFLAGS   += -DWINDOWS_MY_PRIVATE_CONFIG=/workspace/my_private_config.h
-endif
 
+else
 # WSL directory is /mnt/c/workspace/
 ifeq (/mnt/c/workspace/my_private_config.h, $(wildcard /mnt/c/workspace/my_private_config.h))
 $(info "Found WSL /mnt/c/workspace/my_private_config.h")
 CPPFLAGS += -DWSL_MY_PRIVATE_CONFIG=/mnt/c/workspace/my_private_config.h
 CFLAGS   += -DWSL_MY_PRIVATE_CONFIG=/mnt/c/workspace/my_private_config.h
-endif
 
+else
 # for Linux, look in home directory ~/
 ifeq (~/my_private_config.h, $(wildcard ~/my_private_config.h))
 $(info "Found Linux ~/my_private_config.h")
 CPPFLAGS += -DWSL_MY_PRIVATE_CONFIG=~/my_private_config.h
 CFLAGS   += -DWSL_MY_PRIVATE_CONFIG=~/my_private_config.h
+
+endif
+endif
+endif
 endif
 
 # show what we found
