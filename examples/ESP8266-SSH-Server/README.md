@@ -9,6 +9,28 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 
 There's also a [blog about ESP8266 UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/) used in this project.
 
+## Private Config
+
+It is usually best to not publish private SSID names and passwords to GitHub. As such the project [Makefile](./Makefile)
+looks for these file, in this order:
+
+```
+# VisualGDB default
+/c/workspace/my_private_config.h
+
+# Windows 
+/workspace/my_private_config.h
+
+# WSL
+/mnt/c/workspace/my_private_config.h
+
+# Linux
+~/my_private_config.h
+```
+
+If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
+
+
 ## Building
 
 The [project](https://github.com/gojimmypi/wolfssh/blob/ESP8266_Development/examples/ESP8266-SSH-Server/ESP8266-SSH-Server.vgdbproj) was developed in Visual Studio with the VisualGDB extension.
@@ -109,7 +131,7 @@ For convenience ONLY, there's a [static copy of wolfSSL components](https://gith
 
 DO NOT USE those static components for anything other than this demo. 
 At some point, the code could contain critical, unresolved CVEs that are fixed 
-in the current release. To ensure proper security,
+in the current release. To ensure robust security,
 install recent code into the Espressif components directory and 
 delete your local copy found in `examples/Espressif-component-static`, 
 then remove these lines from the [Makefile](./Makefile):
