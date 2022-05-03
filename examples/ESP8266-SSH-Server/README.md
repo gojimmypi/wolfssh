@@ -9,6 +9,60 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 
 There's also a [blog about ESP8266 UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/) used in this project.
 
+## Building
+
+The [project](https://github.com/gojimmypi/wolfssh/blob/ESP8266_Development/examples/ESP8266-SSH-Server/ESP8266-SSH-Server.vgdbproj) was developed in Visual Studio with the VisualGDB extension.
+Just open the solution file in the [examples/ESP8266-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server) directory. 
+Right-click the project and "Build...":
+
+![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](../images/ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png)
+
+Alternatively, the code can be built via the [RTOS ESP-IDF for ESP8266](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/get-started/index.html)
+
+## ESP8266 Toolchain
+
+Install the latest [ESP8266 Toolchain](https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/get-started/windows-setup.html).
+
+To use a dual Windows/Linux (WSL) option, consider a shared directory such as `C:\ESP8288\esp\`
+which would be `/mnt/c/ESP8266/esp/` in WSL.
+
+Note there may be an old version of wolfSSL in `ESP8266_RTOS_SDK\components\esp-wolfssl` that should be deleted.
+
+
+{% include code_header.html %}
+```bash
+
+# create a home directory as needed for the ESP8266_RTOS_SDK
+mkdir -p /mnt/c/ESP8266/esp/
+cd /mnt/c/ESP8266/esp/
+
+git clone --recursive https://github.com/espressif/ESP8266_RTOS_SDK.git
+export IDF_PATH="/mnt/c/ESP8266/esp/ESP8266_RTOS_SDK/"
+
+# Optional section if python pip needs to be installed
+# see https://pip.pypa.io/en/stable/installation/
+wget  https://bootstrap.pypa.io/get-pip.py
+
+# or for Python 2.7
+# wget https://bootstrap.pypa.io/pip/2.7/get-pip.py 
+
+# install pip if needed
+python -m pip install --user -r $IDF_PATH/requirements.txt
+
+# download the Espressif xtensa compiler
+curl --output xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz https://dl.espressif.com/dl/xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
+
+# unzip Espressif xtensa compiler
+tar -xzf xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
+
+# tell the environment where to find the xtensa compiler
+export PATH="$PATH:/mnt/c/ESP8266/esp/xtensa-lx106-elf/bin"
+
+# delete the old version of wolfSSL
+rm -r ./ESP8266_RTOS_SDK/components/esp-wolfssl
+
+```
+
 ## Configuration
 
 See the [ssh_server_config.h](./main/ssh_server_config.h) files for various configuration settings.
@@ -57,7 +111,6 @@ CFLAGS   += -DWOLFSSL_STALE_EXAMPLE=YES
 
 WSL Quick Start, use the [ESPPORT](https://github.com/espressif/esp-idf/issues/1026#issuecomment-331307660) with make:
 
-{% include code_header.html %}
 ```bash
 # change to whatever directory you use for projects
 cd /mnt/c/workspace/
