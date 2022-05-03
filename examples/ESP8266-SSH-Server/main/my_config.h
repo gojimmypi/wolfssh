@@ -94,10 +94,10 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
      * it might get checked into GitHub!         */
     #warning "Not using my_private_config.h"
     #ifndef  CONFIG_EXAMPLE_WIFI_SSID
-        CONFIG_EXAMPLE_WIFI_SSID = "myssid"
+        #define CONFIG_EXAMPLE_WIFI_SSID = "myssid"
     #endif    
     #ifndef  CONFIG_EXAMPLE_WIFI_PASSWORD
-        CONFIG_EXAMPLE_WIFI_PASSWORD = "mypassword"
+        #define CONFIG_EXAMPLE_WIFI_PASSWORD = "mypassword"
     #endif    
     
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
