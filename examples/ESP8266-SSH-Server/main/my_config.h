@@ -92,6 +92,14 @@ $(info $$CPPFLAGS is [${CPPFLAGS}])
 #else
     /* reminder that if you put a password here, 
      * it might get checked into GitHub!         */
+    #warning "Not using my_private_config.h"
+    #ifndef  CONFIG_EXAMPLE_WIFI_SSID
+        CONFIG_EXAMPLE_WIFI_SSID = "myssid"
+    #endif    
+    #ifndef  CONFIG_EXAMPLE_WIFI_PASSWORD
+        CONFIG_EXAMPLE_WIFI_PASSWORD = "mypassword"
+    #endif    
+    
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
