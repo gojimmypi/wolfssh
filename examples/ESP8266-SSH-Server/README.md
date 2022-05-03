@@ -26,6 +26,10 @@ The default users and passwords are the same as in the [linux server.c example](
 User: `jill` password: `upthehill`
 User: `jack` password: `fetchapail`
 
+When in AP mode, the demo SSID is `TheBucketHill` and the wifi password is `jackorjill`. 
+Unlike the STA mode, where the device needs to get an IP address from DHCP, in AP mode
+the IP address is `192.168.4.1`. The computer connecting will likely get an address of `192.168.4.2`.
+
 The default port for this demo is `22222`.
 
 Example to connect from linux:
