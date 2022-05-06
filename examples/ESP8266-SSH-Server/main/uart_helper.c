@@ -28,6 +28,7 @@
 
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
+#define WOLFSSL_USER_SETTINGS
 #include <wolfssl/wolfcrypt/logging.h>
 
 /* portTICK_PERIOD_MS is ( ( TickType_t ) 1000 / configTICK_RATE_HZ ) 
