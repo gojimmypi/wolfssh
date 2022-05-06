@@ -38,6 +38,8 @@ void event_handler(void* arg,
     int32_t event_id,
     void* event_data);
 
+void wifi_init_softap(void);
+
 void wifi_init_sta(void);
 
 bool wifi_ready();
