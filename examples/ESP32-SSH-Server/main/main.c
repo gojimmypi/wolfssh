@@ -20,19 +20,27 @@
  * Adapted from Public Domain Expressif ENC28J60 Example
  * 
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
+ * 
+ *
+ * WARNING: although this code makes use of the UART #2 (as UART_NUM_0)
+ * 
+ * DO NOT LEAVE ANYTHING CONNECTED TO TXD2 (GPIO 15) and RXD2 (GPIO 13)
+ * 
+ * In particular, GPIO 15 must not be high during programming.
+ * 
  */
 
-/* be sure include ssh_server_config.h first  */
+#include "sdkconfig.h"
+
+/* include ssh_server_config.h first  */
+#include "my_config.h"
 #include "ssh_server_config.h"
 
-#include "sdkconfig.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_netif.h"
-#include "esp_eth.h"
-#include "esp_event.h"
-#include "driver/gpio.h"
-#include "driver/spi_master.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_netif.h>
+#include <esp_event.h>
+#include <driver/gpio.h>
 
 /* see ssh_server_config.h for optional use of physical ethernet: USE_ENC28J60 */
 #ifdef USE_ENC28J60
@@ -53,11 +61,23 @@
  *   C:\SysGCC\esp32\esp-idf\[version]\components\wolfssl\wolfcrypt\settings.h
  *   
  **/
+#ifdef WOLFSSL_STALE_EXAMPLE
+    #warning "This project is configured using local, stale wolfSSL code. See Makefile."
+#endif
+
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 
 #define WOLFSSL_ESPIDF
 #define WOLFSSL_ESPWROOM32
+
+#define WOLFSSL_TLS13
+#define HAVE_TLS_EXTENSIONS
+#define HAVE_SUPPORTED_CURVES
+#define HAVE_ECC
+#define HAVE_HKDF
+#define HAVE_FFDHE_8192 // or one of the other supported FFDHE sizes [2048, 3072, 4096, 6144, 8192]
+#define WC_RSA_PSS
 #define WOLFSSL_USER_SETTINGS
 
 #define WOLFSSH_TEST_THREADING
@@ -69,7 +89,8 @@
 #define NO_FILESYSTEM
 #define WOLFSSH_NO_FILESYSTEM
 
-#include <wolfssl/wolfcrypt/settings.h> /* make sure this appears before any other wolfSSL headers */
+// TODO check wolfSSL config
+// #include <wolfssl/include/user_settings.h> /* make sure this appears before any other wolfSSL headers */
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
@@ -202,6 +223,19 @@ bool NoEthernet()
     return ret;
 }
 
+void init_nvsflash() {
+    ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES 
+          || 
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+}
+
 /*
  * main initialization for UART, optional ethernet, time, etc.
  */
@@ -221,29 +255,45 @@ void init() {
     /* TODO ShowCiphers(); */
 #endif
 
+    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
+
     init_UART();
     
-#ifdef USE_ENC28J60
+    /*
+     * here we have one of three options:
+     * 
+     * Wired Ethernet: USE_ENC28J60
+     * 
+     * WiFi Access Point: WOLFSSH_SERVER_IS_AP
+     * 
+     * WiFi Station: WOLFSSH_SERVER_IS_STA
+     **/
+#if defined(USE_ENC28J60)
     ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
     init_ENC28J60();
-#else
-    ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+
+#elif defined( WOLFSSH_SERVER_IS_AP)
+    init_nvsflash();
+
+    ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
+    wifi_init_softap();
+    ESP_LOGI(TAG, "End setup WiFi Soft AP.");
+
+#elif defined(WOLFSSH_SERVER_IS_STA)
+    init_nvsflash();
     
     ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
     ESP_LOGI(TAG, "End setup WiFi STA.");
+#else
+    while (1)
+    {
+        WOLFSSL_ERROR_MSG("ERROR: No network is defined... choose USE_ENC28J60, \
+                          WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
+        vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
+    }    
 #endif
-
     
-    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
-
-       
     while (NoEthernet()) {
         WOLFSSL_MSG("Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
@@ -287,21 +337,7 @@ void app_main(void) {
     
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
-        WOLFSSL_MSG("main loop!");
-        ESP_LOGI(TAG, "Loop!");
-
-        /* esp_err_tesp_netif_get_ip_info(esp_netif_t *esp_netif, esp_netif_ip_info_t *ip_info) */ 
-        /* TODO print IP address */
-//        esp_netif_t *netif = NULL;
-//        esp_netif_ip_info_t ip;
-//        esp_err_t ret;
-//        netif = esp_netif_next(netif);
-//        ret = esp_netif_get_ip_info(netif, &ip);
-//        if (ret == ESP_OK) {
-//            ESP_LOGI(TAG, "- IPv4 address: " IPSTR, IP2STR(&ip.ip));
-//            ESP_LOGI(TAG, "       netmask: " IPSTR, IP2STR(&ip.netmask));
-//            ESP_LOGI(TAG, "       gateway: " IPSTR, IP2STR(&ip.gw));
-//        }
+        WOLFSSL_MSG("wolfSSH Server main loop heartbeat!");
         
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
