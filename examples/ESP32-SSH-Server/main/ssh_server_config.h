@@ -25,6 +25,13 @@
 #undef USE_ENC28J60
 // #define USE_ENC28J60    
 
+/* wifi can be either STA or AP 
+ *  #define WOLFSSH_SERVER_IS_AP
+ *  #define WOLFSSH_SERVER_IS_STA
+ **/
+
+#define WOLFSSH_SERVER_IS_AP
+
 /* SSH is usually on port 22, but for our example it lives at port 22222 */
 #define SSH_UART_PORT 22222
 
@@ -80,17 +87,21 @@
  ******************************************************************************
  **/
 
-/* UART pins and config */
-#include "uart_helper.h"
+
+/* Edgerouter is 57600, others are typically 115200 */
+#define BAUD_RATE (57600)
+
+
 // static const int RX_BUF_SIZE = 1024;
 
 #undef ULX3S
-#define   M5STICKC
+#undef M5STICKC
+
 #ifdef M5STICKC
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_26) /* orange */
     #define RXD_PIN (GPIO_NUM_36) /* yellow */
-#elif ULX3S
+#elif defined (ULX3S)
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_32) /* orange */
     #define RXD_PIN (GPIO_NUM_33) /* yellow */
@@ -98,9 +109,6 @@
     #define TXD_PIN (GPIO_NUM_17) /* orange */
     #define RXD_PIN (GPIO_NUM_16) /* yellow */
 #endif
-
-/* Edgerouter is 57600, others are typically 115200 */
-#define BAUD_RATE (57600)
 
 
 // see https://tf.nist.gov/tf-cgi/servers.cgi
@@ -137,6 +145,15 @@ extern char* ntpServerList[NTP_SERVER_COUNT];
  ******************************************************************************
  ******************************************************************************
  **/
+
+/* UART pins and config */
+#include "uart_helper.h"
+
+#ifdef  WOLFSSH_SERVER_IS_AP
+    #ifdef WOLFSSH_SERVER_IS_STA
+        #error Concurrent WOLFSSH_SERVER_IS_AP and WOLFSSH_SERVER_IS_STA not supported. Pick one. Disable the other.
+    #endif
+#endif
   
 void ssh_server_config_init();
 
