@@ -2,6 +2,8 @@
 
 Connect to Tx/Rx pins on ESP8266 UART via remote SSH.
 
+![Adafruit_Huzzah_ESP8266_SSH_Server.png](./images/Adafruit_Huzzah_ESP8266_SSH_Server.png)
+
 There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows, 
 but to get started quickly there's a stale copy of the the components included.
 
@@ -11,7 +13,16 @@ There's also a [blog about ESP8266 UARTs](https://gojimmypi.github.io/SSH-to-ESP
 
 ## Requirements
 
-Any ESP8266 with `UART #2` pins `TXD2` = `GPIO 15` and `RXD2` = `GPIO 13` available. 
+Any ESP8266 with `UART #2` pins available:
+
+`TXD2` = `GPIO 15` = `D8` (Yellow)
+
+and 
+
+`RXD2` = `GPIO 13` = `D7` (Orange)
+
+![ESP8266_D7_D8_pins.png](./images/ESP8266_D7_D8_pins.png)
+
 The [Adafruit Feather HUZZAH ESP8266](https://www.adafruit.com/product/2821) was used during development.
 
 ## Private Config
@@ -147,6 +158,24 @@ Example to connect from linux:
 
 ```
 ssh jill@192.168.75.39 -p 22222
+```
+
+The SSH Server is current configured for RSA Algorithm. If you've turned that off in favor
+or more modern and secure algoritems, you'll need to use something like this until the code
+is updated:
+
+```
+ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222 jill@192.168.4.2
+```
+
+Linux users note [this resource](http://sensornodeinfo.rockingdlabs.com/blog/2016/01/19/baud74880/) 
+may be helpful for connecting at unusual serial port speeds, such 74800 baud:
+
+```bash
+git clone https://gist.github.com/3f1a984533556cf890d9.git anybaud
+cd anybaud
+gcc gistfile.c -o anybaud
+anybaud /dev/ttyUSB0 74880
 ```
 
 ## Quick Start
@@ -387,6 +416,20 @@ Check for running instances of Putty, etc.
     raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
 serial.serialutil.SerialException: could not open port 'COM9': PermissionError(13, 'Access is denied.', None, 5)
 ```
+
+If you see a messsage `no matching host key type found`:
+
+```
+Unable to negotiate with 192.168..4.2 port 22222: no matching host key type found. Their offer: ssh-rsa
+```
+
+Try connecting with:
+
+```
+ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222 jill@192.168.4.2
+
+```
+
 
 <br />
 
