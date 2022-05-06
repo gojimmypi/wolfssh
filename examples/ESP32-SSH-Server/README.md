@@ -1,18 +1,114 @@
 # ESP32 SSH Server
 
-Connect to Tx/Rx pins on ESP32 UART via remote SSH.
-
+Connect to Tx/Rx pins on [Espressif ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/index.html)
+UART via remote SSH. 
+There's also an [ESP8266 Version](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server#readme)
+ 
 This particular example utilizes the sample application for the [Espressif Wired ENC28J60 Ethernet](https://github.com/espressif/esp-idf/tree/master/examples/ethernet/enc28j60) 
 as well as the [Getting Started - Wi-Fi Station Example](https://github.com/espressif/esp-idf/tree/master/examples/wifi/getting_started/station)
 and includes the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/).
 
 See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20&t=SuiFcn672jlhXtCVh0lRRw).
 
-The code is operational, but yes: also pretty messy at the moment. Cleanup and PR coming soon!
+The code is operational, but yes: also somewhat messy at the moment. Cleanup and PR coming soon!
 
 There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
 
 See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
+
+<br />
+
+## Requirements
+
+Any ESP32 with available UART pins other than USB / Console. The default is 
+`U2TXD` = `TXD_PIN` = `GPIO_NUM_17` 
+and 
+`U2RXD` = `RXD_PIN` = `GPIO_NUM_16`
+defined in the [main/ssh_server_config.h](./main/ssh_server_config.h) file.
+
+Although there's no notion of a "speed" setting in SSH, our UART bridge needs to have one set.
+The `BAUD_RATE` for the target board is defined in [main/ssh_server_config.h](./main/ssh_server_config.h) 
+and is typically:  `#define BAUD_RATE (57600)`. 
+Serial port console monitoring port is typically 74800 baud, 8N1.
+
+For more details on the UARTs and the ESP32 in general, refer to the 
+[ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
+
+<br />
+
+## Private Config
+
+It is usually best to not publish private SSID names and passwords to GitHub. 
+As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these files, in this order:
+
+```
+# VisualGDB default
+/c/workspace/my_private_config.h
+
+# Windows 
+/workspace/my_private_config.h
+
+# WSL
+/mnt/c/workspace/my_private_config.h
+
+# Linux
+~/my_private_config.h
+```
+If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
+
+<br />
+
+## Building
+
+The [project](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/ESP32-SSH-Server.vgdbproj) 
+was developed in Visual Studio with the [Sysprogs VisualGDB](https://visualgdb.com/) extension.
+Just open the solution file in the [examples/ESP8266-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server) directory. 
+Right-click the project and "Build...":
+
+![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
+
+Alternatively, the code can be built via the [ESP-IDF for ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html).
+
+VisualGDB will typically use the `sdkconfig-debug` (and possibly `sdkconfig-release`), 
+but the ESP-IDF commandline will use `sdkconfig`.
+
+<br />
+
+## ESP32 Toolchain
+
+This section is only needed for users not using VisualGDB. Otherwise, see the [VisualGDB Tutorials](https://visualgdb.com/w/tutorials/tag/esp32/).
+
+Install the latest [ESP32 ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html).
+
+To use a dual Windows/Linux (WSL) option, consider a shared directory such as `C:\ESP32\esp\`
+which would be `/mnt/c/ESP32/esp/` in WSL.
+
+Note there may be an old version of wolfSSL in `ESP32\components\esp-wolfssl` that should be deleted.
+
+Windows/DOS 
+
+Note the `IDF_PATH` may alrteady be set if calling from the installed shortcut 
+(typically in `C:\Users\%USERNAME%\.espressif\idf_cmd_init.bat`)
+
+```batch
+SET IDF_PATH=C:\Users\%username%\Desktop\esp-idf
+SET WORKSPACE=C:\workspace
+```
+WSL
+
+```bash
+export IDF_PATH=/mnt/c/Users/$USER/Desktop/esp-idf
+export WORKSPACE=/mnt/c/workspace
+```
+
+Linux
+
+```bash
+export IDF_PATH=~/esp-idf
+export WORKSPACE=~/workspace
+```
+
+<br />
 
 ## Configuration
 
@@ -27,7 +123,7 @@ and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c)
 
 ```
 #undef ULX3S
-#define M5STICKC
+#undef M5STICKC
 #ifdef M5STICKC
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_26) /* orange */
@@ -42,7 +138,7 @@ and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c)
 #endif
 ```
 
-
+<br />
 
 ## Defaults
 
@@ -51,14 +147,238 @@ The default users and passwords are the same as in the [linux server.c example](
 User: `jill` password: `upthehill`
 User: `jack` password: `fetchapail`
 
-The default port for this demo is `22222`.
+When in AP mode, the demo SSID is `TheBucketHill` and the wifi password is `jackorjill`. 
+Unlike the STA mode, where the device needs to get an IP address from DHCP, in AP mode
+the IP address is `192.168.4.1`. The computer connecting will likely get an address of `192.168.4.2`.
+See the [main/ssh_server_config.h](./main/ssh_server_config.h) 
+to define `WOLFSSH_SERVER_IS_AP` or `WOLFSSH_SERVER_IS_STA`.
+
+The default SSH port for this demo is `22222`.
 
 Example to connect from linux:
 
-```
+```bash
 ssh jill@192.168.75.39 -p 22222
 ```
 
+The SSH Server is current configured for RSA Algorithm. If you've turned that off in favor
+or more modern and secure algoritems, you'll need to use something like this until the code
+is updated:
+
+```bash
+ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222 jill@192.168.4.2
+```
+
+Linux users note [this resource](http://sensornodeinfo.rockingdlabs.com/blog/2016/01/19/baud74880/) may be helpful for connecting at 74800 baud:
+
+```bash
+git clone https://gist.github.com/3f1a984533556cf890d9.git anybaud
+cd anybaud
+gcc gistfile.c -o anybaud
+anybaud /dev/ttyUSB0 74880
+```
+
+<br />
+
+## Quick Start
+
+For convenience ONLY, there's a [static copy of wolfSSL components](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server/components/).
+
+DO NOT USE those static components for anything other than this demo. 
+At some point, the code could contain critical, unresolved CVEs that are fixed 
+in the current release. To ensure robust security,
+install recent code into the Espressif components directory and 
+delete your local copy found in `examples/ESP32-SSH-Server/components/`
+
+WSL Quick Start
+
+```bash
+# change to whatever directory you use for projects
+
+if [ "$WORKSPACE"    == "" ]; then read -p "WORKSPACE not set?"; fi
+cd $WORKSPACE
+
+git clone https://github.com/gojimmypi/wolfssh.git
+cd ./wolfssh
+git checkout ESP32_Development
+cd ./examples/ESP32-SSH-Server
+
+# Reminder that WSL USB devices are called /dev/ttySn and not /dev/TTYUSBn
+# For example, on Windows, COM15 is ttyS15 in WSL.
+idf.py -p /dev/ttyS15 -baud 460800 flash
+
+```
+
+<br />
+
+## Operational Status
+
+Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/), 
+the ESP32 is much more graceful. The console port at boot time should look like this:
+
+```
+ets Jun  8 2016 00:22:57
+
+rst:0x1 (POWERON_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6628
+load:0x40078000,len:14780
+load:0x40080400,len:3792
+entry 0x40080694
+I (26) boot: ESP-IDF v4.4-263-g000d3823bb-dirty 2nd stage bootloader
+I (26) boot: compile time 20:42:35
+I (26) boot: chip revision: 1
+I (31) boot_comm: chip revision: 1, min. bootloader chip revision: 0
+I (38) boot.esp32: SPI Speed      : 40MHz
+I (43) boot.esp32: SPI Mode       : DIO
+I (47) boot.esp32: SPI Flash Size : 4MB
+I (52) boot: Enabling RNG early entropy source...
+I (57) boot: Partition Table:
+I (61) boot: ## Label            Usage          Type ST Offset   Length
+I (68) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (75) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (83) boot:  2 factory          factory app      00 00 00010000 00100000
+I (90) boot: End of partition table
+I (95) boot_comm: chip revision: 1, min. application chip revision: 0
+I (102) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1d850h (120912) map
+I (154) esp_image: segment 1: paddr=0002d878 vaddr=3ffb0000 size=027a0h ( 10144) load
+I (158) esp_image: segment 2: paddr=00030020 vaddr=400d0020 size=93314h (602900) map
+I (378) esp_image: segment 3: paddr=000c333c vaddr=3ffb27a0 size=05ed0h ( 24272) load
+I (388) esp_image: segment 4: paddr=000c9214 vaddr=40080000 size=15148h ( 86344) load
+I (423) esp_image: segment 5: paddr=000de364 vaddr=50000000 size=00010h (    16) load
+I (435) boot: Loaded app from partition at offset 0x10000
+I (435) boot: Disabling RNG early entropy source...
+I (447) cpu_start: Pro cpu up.
+I (447) cpu_start: Starting app cpu, entry point is 0x4008127c
+I (0) cpu_start: App cpu up.
+I (461) cpu_start: Pro cpu start user code
+I (461) cpu_start: cpu freq: 160000000
+I (461) cpu_start: Application information:
+I (466) cpu_start: Project name:     ESP32-SSH-Server
+I (471) cpu_start: App version:      v1.4.7-stable-166-g4555602-dirt
+I (478) cpu_start: Compile time:     May  4 2022 21:43:35
+I (484) cpu_start: ELF file SHA256:  84344e5745864c4b...
+I (490) cpu_start: ESP-IDF:          v4.4-263-g000d3823bb-dirty
+I (497) heap_init: Initializing. RAM available for dynamic allocation:
+I (504) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (510) heap_init: At 3FFBD360 len 00022CA0 (139 KiB): DRAM
+I (517) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (523) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (529) heap_init: At 40095148 len 0000AEB8 (43 KiB): IRAM
+I (537) spi_flash: detected chip: generic
+I (540) spi_flash: flash io: dio
+I (545) cpu_start: Starting scheduler on PRO CPU.
+I (0) cpu_start: Starting scheduler on APP CPU.
+I (555) SSH Server main: Begin main init.
+I (555) SSH Server main: wolfSSH debugging on.
+I (565) SSH Server main: wolfSSL debugging on.
+I (575) wolfssl: Debug ON
+I (575) SSH Server main: Begin init_UART.
+I (575) SSH Server main: End init_UART.
+I (585) SSH Server main: Setting up nvs flash for WiFi.
+I (625) SSH Server main: Begin setup WiFi Soft AP.
+I (635) wifi:wifi driver task: 3ffd3c74, prio:23, stack:6656, core=0
+I (635) system_api: Base MAC address is not set
+I (635) system_api: read default base MAC address from EFUSE
+I (655) wifi:wifi firmware version: 71cb2c8
+I (655) wifi:wifi certification version: v7.0
+I (655) wifi:config NVS flash: enabled
+I (655) wifi:config nano formating: disabled
+I (665) wifi:Init data frame dynamic rx buffer num: 32
+I (665) wifi:Init management frame dynamic rx buffer num: 32
+I (675) wifi:Init management short buffer num: 32
+I (675) wifi:Init dynamic tx buffer num: 32
+I (685) wifi:Init static rx buffer size: 1600
+I (685) wifi:Init static rx buffer num: 10
+I (685) wifi:Init dynamic rx buffer num: 32
+I (695) wifi_init: rx ba win: 6
+I (695) wifi_init: tcpip mbox: 32
+I (705) wifi_init: udp mbox: 6
+I (705) wifi_init: tcp mbox: 6
+I (705) wifi_init: tcp tx win: 5744
+I (715) wifi_init: tcp rx win: 5744
+I (715) wifi_init: tcp mss: 1440
+I (715) wifi_init: WiFi IRAM OP enabled
+I (725) wifi_init: WiFi RX IRAM OP enabled
+I (735) phy_init: phy_version 4670,719f9f6,Feb 18 2021,17:07:07
+I (835) wifi:mode : softAP (7c:9e:bd:65:5d:dd)
+I (835) wifi:Total power save buffer number: 16
+I (835) wifi:Init max length of beacon: 752/752
+I (845) wifi:Init max length of beacon: 752/752
+I (845) wifi station: wifi_init_softap finished. SSID:TheBucketHill password:jackorjill channel:1
+I (855) SSH Server main: End setup WiFi Soft AP.
+I (855) wolfssl: sntp_setservername:
+I (865) wolfssl: pool.ntp.org
+I (865) wolfssl: time.nist.gov
+I (865) wolfssl: utcnist.colorado.edu
+I (875) wolfssl: sntp_init done.
+I (875) wolfssl: inet_pton
+I (875) wolfssl: wolfSSL Entering wolfCrypt_Init
+I (885) wolfssl: wolfSSH Server main loop heartbeat!
+I (895) wolfssl: InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled
+I (895) wolfssl: InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled
+I (905) wolfssl: Debug ON v0.2b
+I (935) wolfssl: socket creation successful
+I (945) wolfssl: setsockopt re-use addr successful
+I (945) wolfssl: SO_REUSEPORT not configured for setsockopt to re-use port
+
+I (945) wolfssl: socket bind successful.
+I (945) wolfssl: socket listen successful
+
+I (965) wolfssl: wolfSSL Entering GetAlgoId
+
+```
+
+Upon a successful remote connection to our embedded SSH Server as a WiFi Access Point, 
+the console monitoring port should show something like this:
+
+```
+
+I (945) wolfssl: socket bind successful.
+I (945) wolfssl: socket listen successful
+
+I (945) wolfssl: wolfSSL Entering GetAlgoId
+I (10895) wolfssl: wolfSSH Server main loop heartbeat!
+I (20895) wolfssl: wolfSSH Server main loop heartbeat!
+I (30895) wolfssl: wolfSSH Server main loop heartbeat!
+I (40895) wolfssl: wolfSSH Server main loop heartbeat!
+I (50895) wolfssl: wolfSSH Server main loop heartbeat!
+I (60895) wolfssl: wolfSSH Server main loop heartbeat!
+I (68565) wifi:new:<1,1>, old:<1,1>, ap:<1,1>, sta:<255,255>, prof:1
+I (68565) wifi:station: [mac address] join, AID=1, bgn, 40U
+I (68585) wifi station: station [mac address] join, AID=1
+I (68995) esp_netif_lwip: DHCP server assigned IP to a station, IP is: 192.168.4                              .2
+W (70505) wifi:<ba-add>idx:2 (ifx:1, [mac address]), tid:0, ssn:61, winSize:                              64
+I (70895) wolfssl: wolfSSH Server main loop heartbeat!
+I (80895) wolfssl: wolfSSH Server main loop heartbeat!
+I (90895) wolfssl: wolfSSH Server main loop heartbeat!
+I (100895) wolfssl: wolfSSH Server main loop heartbeat!
+I (104865) wolfssl: server_worker started.
+I (104865) wolfssl: Start NonBlockSSH_accept
+I (104905) wolfssl: wolfSSL Entering GetAlgoId
+I (105225) wolfssl: wolfSSL Entering wc_ecc_shared_secret_gen_sync
+I (105515) wolfssl: wolfSSL Leaving wc_ecc_shared_secret_gen_sync, return 0
+I (105515) wolfssl: wolfSSL Leaving wc_ecc_shared_secret_ex, return 0
+I (110895) wolfssl: wolfSSH Server main loop heartbeat!
+I (116395) wolfssl: Exit NonBlockSSH_accept
+I (116395) wolfssl: InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled
+I (116415) wolfssl: Tx UART!
+I (120895) wolfssl: wolfSSH Server main loop heartbeat!
+
+```
+
+When the SSH server is running, but nothing interesting is happening, the main thread will continued to periodically
+show a message:
+
+```
+I (2621868) wolfssl: wolfSSH Server main loop heartbeat!
+```
+
+<br />
+
+<br />
 
 # ENC28J60 Example
 (See the README.md file in the upper level 'examples' [directory](https://github.com/espressif/esp-idf/tree/master/examples) for more information about examples.)
@@ -71,7 +391,7 @@ This is also an example of how to integrate a new Ethernet MAC driver into the `
 
 If you have a more complicated application to go (for example, connect to some IoT cloud via MQTT), you can always reuse the initialization codes in this example.
 
-## How to use example
+## How to use ENC28J60example
 
 ### Hardware Required
 
