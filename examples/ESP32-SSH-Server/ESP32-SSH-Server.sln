@@ -29,6 +29,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "main", "main", "{D743A727-3
 		main\component.mk = main\component.mk
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "openocd", "openocd", "{68AE1391-9701-4920-BEE8-D2163474C23D}"
+	ProjectSection(SolutionItems) = preProject
+		openocd\scripts\interface\README.md = openocd\scripts\interface\README.md
+		openocd\scripts\interface\tigard.cfg = openocd\scripts\interface\tigard.cfg
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|VisualGDB = Debug|VisualGDB
@@ -53,6 +59,7 @@ Global
 		{321B8A01-BBCB-4F97-94A7-4895EA1E0C50} = {A4406E39-586C-411E-B4A7-52E03034EF56}
 		{B49CD6BD-202F-4958-9841-08480C15F1D8} = {A4406E39-586C-411E-B4A7-52E03034EF56}
 		{D743A727-34E4-4B25-A06A-C4ACFE57F974} = {A4406E39-586C-411E-B4A7-52E03034EF56}
+		{68AE1391-9701-4920-BEE8-D2163474C23D} = {A4406E39-586C-411E-B4A7-52E03034EF56}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B966C21F-D281-4250-A450-1915EC531B0A}
