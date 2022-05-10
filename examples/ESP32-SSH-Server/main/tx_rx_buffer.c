@@ -337,53 +337,50 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
     
     /* typically "Welcome to wolfSSL ESP32 SSH UART Server!" */
     Set_ExternalTransmitBuffer((byte*)SSH_WELCOME_MESSAGE, 
-        sizeof(SSH_WELCOME_MESSAGE));
+                               sizeof(SSH_WELCOME_MESSAGE)
+                              );
     
     /* typically "You are now connected to UART " */
     Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE, 
-        sizeof(SSH_GPIO_MESSAGE));
+                               sizeof(SSH_GPIO_MESSAGE)
+                              );
     
     /* "Tx GPIO " */
     Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE_TX, 
-        sizeof(SSH_GPIO_MESSAGE_TX));
+                               sizeof(SSH_GPIO_MESSAGE_TX)
+                              );
 
     /* the number of the Tx pin, converted to a string */
-    int_to_dec(numStr, TxPin);
-    Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
+    if ((TxPin >= 0) && (TxPin <= 99)) {
+        int_to_dec(numStr, TxPin);
+        Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
+    }
+    else {
+        WOLFSSL_ERROR_MSG("ERROR: bad value for TxPin");
+        ret = 1;
+    }
     
     /* ", Rx GPIO " */
     Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE_RX, 
-        sizeof(SSH_GPIO_MESSAGE_RX));
+                               sizeof(SSH_GPIO_MESSAGE_RX)
+                              );
 
     /* the number of the Rx pin, converted to a string */
-    int_to_dec(numStr, RxPin);
-    Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
-
+    if ((RxPin >= 0) && (RxPin <= 99))
+    {
+        int_to_dec(numStr, RxPin);
+        Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
+    }
+    else {
+        WOLFSSL_ERROR_MSG("ERROR: bad value for RxPin");
+        ret = 1;
+    }
+    
     /* typically "Press [Enter] to start. Ctrl-C to exit" */
     Set_ExternalTransmitBuffer((byte*)SSH_READY_MESSAGE, 
-        sizeof(SSH_READY_MESSAGE));
-    
-    return ret;
-    
-    /* TODO delete this unreachable code, for reference */
-    static char startupMessage[] = 
-        "\r\n" 
-        "Welcome to wolfSSL ESP32 SSH UART Server!"
-        "\n\r\n\r"
-        "You are now connected to UART Tx GPIO 17, Rx GPIO 16."
-        "\r\n\r\n"
-        "Press [Enter] to start. Ctrl-C to exit."
-        "\r\n\r\n";
+                               sizeof(SSH_READY_MESSAGE)
+                              );
 
-    /* TODO this should really be wrapped in RTOS calls, but not a big issue at init time 
-     * Set_ExternalTransmitBuffer(startupMessage, _ExternalTransmitBufferSz);
-     **/
-    _ExternalTransmitBufferSz = sizeof(startupMessage);
-    memcpy((byte*)&_ExternalTransmitBuffer[0],
-        (byte*)&startupMessage[0], 
-        _ExternalTransmitBufferSz);
-
-    
     return ret;
 }
 
