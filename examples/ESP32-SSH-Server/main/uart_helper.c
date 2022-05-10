@@ -20,6 +20,7 @@
  * 
  */
 #include "uart_helper.h"
+#include "tx_rx_buffer.h"
 
 #include "driver/uart.h"
 #include "esp_log.h"
@@ -47,7 +48,11 @@ const char* backspace = (char*)0x08;
 /*
  * startupMessage is the message before actually connecting to UART in server task thread.
  */
-static char startupMessage[] = "\nWelcome to ESP32 SSH Server!\n\nPress [Enter]\n\n";
+static char startupMessage[] = 
+      "\n"
+      "Welcome to ESP32 SSH Server!"
+      "\n\n"
+      "Press [Enter]\n\n";
 
 /*
  * welcome message
@@ -63,6 +68,8 @@ void uart_send_welcome() {
  */
 int sendData(const char* logName, const char* data) {
     const int len = strlen(data);
+    
+    /* note we are always using UART_NUM_1 but the GPIO pins may vary */
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
     ESP_LOGI(logName, "Wrote %d bytes", txBytes);
     return txBytes;
@@ -110,6 +117,7 @@ void InitSemaphore()
     if (xUART_Semaphore == NULL) {
         xUART_Semaphore = xSemaphoreCreateMutex();
     }
+    
 #ifdef configUSE_RECURSIVE_MUTEXES
     /* see semphr.h */
     WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
@@ -128,13 +136,19 @@ void uart_rx_task(void *arg) {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
 
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); /* TODO do we really want malloc? probably not */
+    /* TODO do we really want malloc? probably not */
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); 
 
     /* thisBuf will point to exteranl buffer, dealth with for example SSH client */
-    volatile char __attribute__((optimize("O0"))) *thisBuf;
+    // volatile char __attribute__((optimize("O0"))) *thisBuf;
     while (1) {
-        /* note some examples have UART_TICKS_TO_WAIT = 1000, which results in very sluggish response */
-        const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, UART_TICKS_TO_WAIT);
+        /* note some examples have UART_TICKS_TO_WAIT = 1000, 
+         * which results in very sluggish response */
+        const int rxBytes = uart_read_bytes(UART_NUM_1, 
+                                            data, 
+                                            RX_BUF_SIZE, 
+                                            UART_TICKS_TO_WAIT);
+        
         if (rxBytes > 0) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
@@ -142,16 +156,7 @@ void uart_rx_task(void *arg) {
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
             
-            
-            /* Set_ExternalTransmitBuffer(data, rxBytes);  TODO: to use this, we need to move external buffer stuff to its own file   */ 
-            
-            /* thisBug points to the _ExternalTransmitBuffer  */
-            thisBuf = ExternalTransmitBuffer();
-            
-            /* save the data to send to the External Transmit Buffer (e.g. to send to SSH) */
-            memcpy((char*)thisBuf, data, rxBytes); /* TODO this needs an RTOS wrapper */
-
-            Set_ExternalTransmitBufferSz(rxBytes);
+            Set_ExternalTransmitBuffer(data, rxBytes);           
         }
         
         /* yield. let's not be greedy */
