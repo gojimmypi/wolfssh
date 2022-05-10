@@ -32,21 +32,19 @@ extern "C" {
      * see also           https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c
      * see also https://github.com/kevmuret/libhex/blob/master/hex.c
      */
-    char *int_to_base(char *dest, unsigned long n, int base) {
+    
+    /*
+     * convert [n] to a text string in [dest]. 
+     * m is minus sign negative number indicator: 0 if positive, 1 if negative
+     */
+    char *int_to_base(char *dest, long n, int base, int m) {
         char *outbuf = dest;
         int i = 12;
         int j = 0;
-        int m = 0;
-        
-        /* check to see if we have a negative number
-         * we'll check the high bit by shiftinh a 1 over by 1 minus the number 
-         * of bytes in our log (typically 4) by 3 bits 
-         * (which multiplies by 8). (e.g. 32-1)
-        */
-        if (n & ((unsigned long)(1 << ((sizeof(n) << 3) - 1))))
-        {
-            n = -n;
-            m = 1;
+
+        /* only base 2 .. 16 supported at this time, assume base 10 otherwise*/
+        if ((base < 2) || (base > 16))  {
+            base = 10;
         }
 
         do {
@@ -71,19 +69,53 @@ extern "C" {
         return dest;
     }
 
+    /*
+     * if we wanted a signed number from n, check the high bit
+     */
+    char *int_to_signed_base(char *dest, long n, int base) {
+        int m = 0;
+        /* check to see if we have a negative number
+         * we'll check the high bit by shiftinh a 1 over by 1 minus the number 
+         * of bytes in our log (typically 4) by 3 bits 
+         * (which multiplies by 8). (e.g. 32-1)
+        */
+        if (n & ((unsigned long)(1 << ((sizeof(n) << 3) - 1)))) {
+            n = -n;
+            m = 1;
+        }
+        return int_to_base(dest, n, base, m);
+    }
+    
+    
+    /*
+     * convert [n] to unsigned hex string
+     */
     char *int_to_hex(char *dest, unsigned long n)
     {
-        return int_to_base(dest, n, 16);
+        return int_to_base(dest, n, 16, 0);
     }
 
+    /*
+     * convert [n] to unsigned decimal string
+     */
     char *int_to_dec(char *dest, unsigned long n)
     {
-        return int_to_base(dest, n, 10);
+        return int_to_base(dest, n, 10, 0);
     } 
     
+    /*
+     * convert [n] to signed decimal string
+     */
+    char *int_to_signed_dec(char *dest, long n) {
+        return int_to_signed_base(dest, n, 10);
+    } 
+
+    /*
+     * convert [n] to unsigned binary string
+     */
     char *int_to_bin(char *dest, unsigned long n)
     {
-        return int_to_base(dest, n, 2);
+        return int_to_base(dest, n, 2, 0);
     }
 
 #ifdef __cplusplus
