@@ -28,17 +28,21 @@ extern "C" {
     }
 
    
-    // based on code from https://stackoverflow.com/questions/3464194/how-can-i-convert-an-integer-to-a-hexadecimal-string-in-c
-    // see also           https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c
-    // see also https://github.com/kevmuret/libhex/blob/master/hex.c
+    /* based on code from https://stackoverflow.com/questions/3464194/how-can-i-convert-an-integer-to-a-hexadecimal-string-in-c
+     * see also           https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c
+     * see also https://github.com/kevmuret/libhex/blob/master/hex.c
+     */
     char *int_to_base(char *dest, unsigned long n, int base) {
         char *outbuf = dest;
         int i = 12;
         int j = 0;
         int m = 0;
         
-        // check to see if we have a negative number
-        // we'll check the high bit by shiftinh a 1 over by 1 minus the number of bytes in our log (typically 4) by 3 bits (which multiplies by 8). (e.g. 32-1)
+        /* check to see if we have a negative number
+         * we'll check the high bit by shiftinh a 1 over by 1 minus the number 
+         * of bytes in our log (typically 4) by 3 bits 
+         * (which multiplies by 8). (e.g. 32-1)
+        */
         if (n & ((unsigned long)(1 << ((sizeof(n) << 3) - 1))))
         {
             n = -n;
@@ -52,7 +56,7 @@ extern "C" {
         } while (n > 0);
 
 
-        // see if we need to add the minus sign
+        /* see if we need to add the minus sign */
         if (m)
         {
             outbuf[j++] = '-';
@@ -62,7 +66,7 @@ extern "C" {
             outbuf[j++] = outbuf[i];
         }
 
-        // zero terminated string
+        /* zero terminated string */
         outbuf[j] = 0;
         return dest;
     }
