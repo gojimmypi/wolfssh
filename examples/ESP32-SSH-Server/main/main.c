@@ -76,7 +76,7 @@
 #define HAVE_SUPPORTED_CURVES
 #define HAVE_ECC
 #define HAVE_HKDF
-#define HAVE_FFDHE_8192 // or one of the other supported FFDHE sizes [2048, 3072, 4096, 6144, 8192]
+#define HAVE_FFDHE_8192 /* or one of the other supported FFDHE sizes [2048, 3072, 4096, 6144, 8192] */
 #define WC_RSA_PSS
 #define WOLFSSL_USER_SETTINGS
 
@@ -89,8 +89,11 @@
 #define NO_FILESYSTEM
 #define WOLFSSH_NO_FILESYSTEM
 
-// TODO check wolfSSL config
-// #include <wolfssl/include/user_settings.h> /* make sure this appears before any other wolfSSL headers */
+/* TODO check wolfSSL config
+ * #include <wolfssl/include/user_settings.h> 
+ * make sure this appears before any other wolfSSL headers 
+ */
+    
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
@@ -223,6 +226,7 @@ bool NoEthernet()
     return ret;
 }
 
+#if defined(WOLFSSH_SERVER_IS_AP) || defined(WOLFSSH_SERVER_IS_STA)
 void init_nvsflash() {
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
     esp_err_t ret = nvs_flash_init();
@@ -235,6 +239,7 @@ void init_nvsflash() {
     }
     ESP_ERROR_CHECK(ret);
 }
+#endif
 
 /*
  * main initialization for UART, optional ethernet, time, etc.
@@ -328,11 +333,14 @@ void app_main(void) {
      * all of the tasks are at the same, highest idle priority, so they will all get equal attention
      * when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
      */
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, 
+                tskIDLE_PRIORITY, NULL);
     
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, 
+                tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, 
+                tskIDLE_PRIORITY, NULL);
 
     
     for (;;) {
