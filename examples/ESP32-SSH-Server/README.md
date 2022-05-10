@@ -62,10 +62,10 @@ If no `my_private_config.h` file is found, default values are used. See [my_conf
 
 The [project](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/ESP32-SSH-Server.vgdbproj) 
 was developed in Visual Studio with the [Sysprogs VisualGDB](https://visualgdb.com/) extension.
-Just open the solution file in the [examples/ESP8266-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server) directory. 
+Just open the solution file in the [examples/ESP32-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server) directory. 
 Right-click the project and "Build...":
 
-![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
+![ssh_uart_ESP32_VisualGDB_build.png.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
 
 Alternatively, the code can be built via the [ESP-IDF for ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html).
 
@@ -219,7 +219,7 @@ can be copied to the ESP-IDF.
 
 The earliest release that [includes that directory is Version 4.4](https://github.com/espressif/esp-idf/tree/release/v4.4/examples/ethernet/enc28j60/components/eth_enc28j60). 
 
-The [CmakeLists.txt](./CMakeLists.txt) should be able to copy the components when running `cmake .` in the project directory. Otherwise, the files may need to be manually copied 
+The [CMakeLists.txt](./CMakeLists.txt) should be able to copy the components when running `cmake .` in the project directory. Otherwise, the files may need to be manually copied 
 to the local ESP-IDF `components` directory.
 
 Note some early versions may not properly get an IP address, so it is best to use the most recent even if the files need to be manually copied into an older ESP-IDF.
