@@ -140,7 +140,6 @@ void uart_rx_task(void *arg) {
     uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); 
 
     /* thisBuf will point to exteranl buffer, dealth with for example SSH client */
-    // volatile char __attribute__((optimize("O0"))) *thisBuf;
     while (1) {
         /* note some examples have UART_TICKS_TO_WAIT = 1000, 
          * which results in very sluggish response */
@@ -153,8 +152,14 @@ void uart_rx_task(void *arg) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
             
-            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+            ESP_LOGI(RX_TASK_TAG, "Read %d bytes:", rxBytes);
+            
+            /* this can be helpful during debug, but causes a bit of 
+             * sluggish performance as it is not very RTOS friendly:
+             *
+             * ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
+             * ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+             */
             
             Set_ExternalTransmitBuffer(data, rxBytes);           
         }
@@ -163,6 +168,6 @@ void uart_rx_task(void *arg) {
         taskYIELD();
     }
     
-    // we never actually get here
+    /* we never actually get here */
     free(data);
 }
