@@ -211,6 +211,19 @@ idf.py -p /dev/ttyS15 -baud 460800 flash
 
 <br />
 
+## Wired Ethernet ENC28J60 Notes
+
+The Espressif ENC28J60 library may not be included in the [components/esp_eth/include](https://github.com/espressif/esp-idf/tree/master/components/esp_eth/include) directory,
+depending on the latest release install, but the [example component](https://github.com/espressif/esp-idf/tree/master/examples/ethernet/enc28j60/components/eth_enc28j60) 
+can be copied to the ESP-IDF.
+
+The earliest release that [includes that directory is Version 4.4](https://github.com/espressif/esp-idf/tree/release/v4.4/examples/ethernet/enc28j60/components/eth_enc28j60). 
+
+The [CmakeLists.txt](./CMakeLists.txt) should be able to copy the components when running `cmake .` in the project directory. Otherwise, the files may need to be manually copied 
+to the local ESP-IDF `components` directory.
+
+Note some early versions may not properly get an IP address, so it is best to use the most recent even if the files need to be manually copied into an older ESP-IDF.
+
 ## Operational Status
 
 Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/), 
