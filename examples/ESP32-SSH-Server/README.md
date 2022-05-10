@@ -62,12 +62,15 @@ was developed in Visual Studio with the [Sysprogs VisualGDB](https://visualgdb.c
 Just open the solution file in the [examples/ESP32-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server) directory. 
 Right-click the project and "Build...":
 
-![ssh_uart_ESP32_VisualGDB_build.png.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
+![ssh_uart_ESP32_VisualGDB_build.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
 
 Alternatively, the code can be built via the [ESP-IDF for ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html).
 
 VisualGDB will typically use the `sdkconfig-debug` (and possibly `sdkconfig-release`), 
 but the ESP-IDF commandline will use `sdkconfig`.
+
+Note for wired ethernet, the ENC28J60 component make not be available in some versions of the ESP-IDF. See below: [Wired Ethernet Notes](#wired-ethernet-enc28j60-notes).
+
 <br />
 
 ## ESP32 Toolchain
@@ -222,7 +225,7 @@ Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.
 the ESP32 is much more graceful. The console port at boot time should look like this:
 <br />
 
-```
+```text
 ets Jun  8 2016 00:22:57
 
 rst:0x1 (POWERON_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
@@ -340,7 +343,7 @@ I (965) wolfssl: wolfSSL Entering GetAlgoId
 Upon a successful remote connection to our embedded SSH Server as a WiFi Access Point, 
 the console monitoring port should show something like this:
 
-```
+```text
 
 I (945) wolfssl: socket bind successful.
 I (945) wolfssl: socket listen successful
@@ -378,7 +381,7 @@ I (120895) wolfssl: wolfSSH Server main loop heartbeat!
 When the SSH server is running, but nothing interesting is happening, the main thread will continued to periodically
 show a message:
 
-```
+```text
 I (2621868) wolfssl: wolfSSH Server main loop heartbeat!
 ```
 
