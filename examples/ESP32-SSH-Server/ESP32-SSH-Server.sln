@@ -12,8 +12,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSH", "wolfSSH", "{321B8A01-BBCB-4F97-94A7-4895EA1E0C50}"
+	ProjectSection(SolutionItems) = preProject
+		components\wolfssh\CMakeLists.txt = components\wolfssh\CMakeLists.txt
+		components\wolfssh\component.mk = components\wolfssh\component.mk
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSL", "wolfSSL", "{B49CD6BD-202F-4958-9841-08480C15F1D8}"
+	ProjectSection(SolutionItems) = preProject
+		components\wolfssl\CMakeLists.txt = components\wolfssl\CMakeLists.txt
+		components\wolfssl\component.mk = components\wolfssl\component.mk
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "main", "main", "{D743A727-34E4-4B25-A06A-C4ACFE57F974}"
 	ProjectSection(SolutionItems) = preProject
