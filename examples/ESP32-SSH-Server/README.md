@@ -55,7 +55,6 @@ As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these fi
 ~/my_private_config.h
 ```
 If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
-
 <br />
 
 ## Building
@@ -71,7 +70,6 @@ Alternatively, the code can be built via the [ESP-IDF for ESP32](https://docs.es
 
 VisualGDB will typically use the `sdkconfig-debug` (and possibly `sdkconfig-release`), 
 but the ESP-IDF commandline will use `sdkconfig`.
-
 <br />
 
 ## ESP32 Toolchain
@@ -107,7 +105,6 @@ Linux
 export IDF_PATH=~/esp-idf
 export WORKSPACE=~/workspace
 ```
-
 <br />
 
 ## Configuration
@@ -137,7 +134,6 @@ and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c)
     #define RXD_PIN (GPIO_NUM_16) /* yellow */
 #endif
 ```
-
 <br />
 
 ## Defaults
@@ -177,7 +173,6 @@ cd anybaud
 gcc gistfile.c -o anybaud
 anybaud /dev/ttyUSB0 74880
 ```
-
 <br />
 
 ## Quick Start
@@ -208,7 +203,6 @@ cd ./examples/ESP32-SSH-Server
 idf.py -p /dev/ttyS15 -baud 460800 flash
 
 ```
-
 <br />
 
 ## Wired Ethernet ENC28J60 Notes
@@ -228,6 +222,7 @@ Note some early versions may not properly get an IP address, so it is best to us
 
 Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/), 
 the ESP32 is much more graceful. The console port at boot time should look like this:
+<br />
 
 ```
 ets Jun  8 2016 00:22:57
@@ -500,8 +495,6 @@ If improper GPIO lines are selected, say when using the defaults but an M5Stick-
 When plugged into a PC that goes to sleep and powers down the USB power, the ESP32 device seems to sometimes crash and does not always recover when PC power resumes.
 
 Only one connection is allowed at the time. There may be a delay when an existing connected is unexpecteedly terminated before a new connection can be made.
-
-
 
 
 <br />
