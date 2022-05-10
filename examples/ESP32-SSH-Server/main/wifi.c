@@ -60,7 +60,9 @@
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
-/* The event group allows multiple bits for each event, but we only care about two events:
+/* The event group allows multiple bits for each event, 
+ * but we only care about two events:
+ * 
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
@@ -80,19 +82,28 @@ void event_handler(void* arg,
         WiFiEthernetReady = 0;
         esp_wifi_connect();
     }
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    else if (event_base == WIFI_EVENT 
+              && 
+            event_id == WIFI_EVENT_STA_DISCONNECTED) {
+
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
         }
+
         else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
+                
         ESP_LOGI(TAG, "connect to the AP fail");
         WiFiEthernetReady = 0;
     }
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        
+    else if (event_base == IP_EVENT 
+               && 
+             event_id == IP_EVENT_STA_GOT_IP) {
+                 
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
@@ -174,8 +185,18 @@ void wifi_init_sta(void) {
     }
 
     /* The event will not be processed after unregister */
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
+                      IP_EVENT, 
+                      IP_EVENT_STA_GOT_IP, 
+                      instance_got_ip)
+                   );
+    
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
+                      WIFI_EVENT, 
+                      ESP_EVENT_ANY_ID, 
+                      instance_any_id)
+                   );
+    
     vEventGroupDelete(s_wifi_event_group);
 }
 
@@ -184,14 +205,18 @@ static void wifi_ap_event_handler(void* arg,
     int32_t event_id,
     void* event_data) {
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        wifi_event_ap_staconnected_t* event = 
+              (wifi_event_ap_staconnected_t*) event_data;
+         
         ESP_LOGI(TAG,
             "station "MACSTR" join, AID=%d",
             MAC2STR(event->mac),
             event->aid);
     }
     else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        wifi_event_ap_stadisconnected_t* event = 
+              (wifi_event_ap_stadisconnected_t*) event_data;
+        
         ESP_LOGI(TAG,
             "station "MACSTR" leave, AID=%d",
             MAC2STR(event->mac),
