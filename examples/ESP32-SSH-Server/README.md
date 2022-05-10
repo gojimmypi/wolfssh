@@ -15,7 +15,6 @@ The code is operational, but yes: also somewhat messy at the moment. Cleanup and
 There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
 
 See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
-
 <br />
 
 ## Requirements
@@ -33,7 +32,6 @@ Serial port console monitoring port is typically 74800 baud, 8N1.
 
 For more details on the UARTs and the ESP32 in general, refer to the 
 [ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
-
 <br />
 
 ## Private Config
