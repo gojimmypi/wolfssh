@@ -18,6 +18,8 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define  USE_ENC28J60
+
 #include "enc28j60_helper.h"
 
 #include "esp_netif.h"
@@ -142,7 +144,8 @@ int init_ENC28J60() {
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
     };
-    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, &buscfg, 1));
+    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, 
+                    &buscfg, 1));
     /* ENC28J60 ethernet driver is based on spi driver */
     spi_device_interface_config_t devcfg = {
         .command_bits = 3,
@@ -153,7 +156,8 @@ int init_ENC28J60() {
         .queue_size = 20
     };
     spi_device_handle_t spi_handle = NULL;
-    ESP_ERROR_CHECK(spi_bus_add_device(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, &devcfg, &spi_handle));
+    ESP_ERROR_CHECK(spi_bus_add_device(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, 
+                    &devcfg, &spi_handle));
 
     eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(spi_handle);
     enc28j60_config.int_gpio_num = CONFIG_EXAMPLE_ENC28J60_INT_GPIO;
@@ -177,13 +181,18 @@ int init_ENC28J60() {
 
 
     /* attach Ethernet driver to TCP/IP stack */
-    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, 
+                                     esp_eth_new_netif_glue(eth_handle))
+                   );
 
     /* Register user defined event handers 
      * "ensure that they register the user event handlers as the last thing prior to starting the Ethernet driver." 
     */
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, 
+                                               &eth_event_handler, NULL));
+    
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, 
+                                               &got_ip_event_handler, NULL));
     
     /* start Ethernet driver state machine */
     ESP_ERROR_CHECK(esp_eth_start(eth_handle)); 
