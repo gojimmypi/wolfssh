@@ -1,5 +1,5 @@
 #
-# cmake for wolfssl
+# cmake for wolfssh
 # 
 cmake_minimum_required(VERSION 3.5)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
@@ -9,9 +9,9 @@ set(WOLFSSL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set(INCLUDE_PATH ${WOLFSSL_ROOT})
 
 set(COMPONENT_SRCDIRS "./src/"
-                      "./wolfcrypt/src/"
-                      "./wolfcrypt/src/port/Espressif/"
-                      "./wolfcrypt/src/port/atmel/"
+                      "../wolfssl/wolfcrypt/src/"
+                      "../wolfssl/wolfcrypt/src/port/Espressif/"
+                      "../wolfssl/wolfcrypt/src/port/atmel/"
                       )
 
 set(COMPONENT_REQUIRES lwip)
