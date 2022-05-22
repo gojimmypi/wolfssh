@@ -32,6 +32,8 @@
 #include <wolfssh/internal.h>
 #include <wolfssh/log.h>
 #include <wolfssl/wolfcrypt/wc_port.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
+#include <wolfssl/wolfcrypt/random.h>
 
 #ifdef NO_INLINE
     #include <wolfssh/misc.h>
@@ -40,6 +42,19 @@
     #include "src/misc.c"
 #endif
 
+#ifdef HAVE_FIPS
+static void myFipsCb(int ok, int err, const char* hash)
+{
+    printf("in my Fips callback, ok = %d, err = %d\n", ok, err);
+    printf("message = %s\n", wc_GetErrorString(err));
+    printf("hash = %s\n", hash);
+
+    if (err == IN_CORE_FIPS_E) {
+        printf("In core integrity hash check failure, copy above hash\n");
+        printf("into verifyCore[] in fips_test.c and rebuild\n");
+    }
+}
+#endif /* HAVE_FIPS */
 
 int wolfSSH_Init(void)
 {
@@ -48,6 +63,13 @@ int wolfSSH_Init(void)
     WLOG(WS_LOG_DEBUG, "Entering wolfSSH_Init()");
     if (wolfCrypt_Init() != 0)
         ret = WS_CRYPTO_FAILED;
+
+#ifdef HAVE_FIPS
+    wolfCrypt_SetCb_fips(myFipsCb);
+#endif
+#ifdef WC_RNG_SEED_CB
+    wc_SetSeed_Cb(wc_GenerateSeed);
+#endif
 
     WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_Init(), returning %d", ret);
     return ret;
@@ -1017,7 +1039,6 @@ static int wolfSSH_stream_adjust_window(WOLFSSH* ssh)
  */
 int wolfSSH_stream_read(WOLFSSH* ssh, byte* buf, word32 bufSz)
 {
-    // TODO if the connection is closed, such as when debugging and timeout, we get stuck here
     int ret = WS_SUCCESS;
     Buffer* inputBuffer;
 

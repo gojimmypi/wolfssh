@@ -102,14 +102,6 @@
     #endif
 
     #define NUM_SOCKETS 5
-#elif defined ESP_PLATFORM
-/* socket includes */
-#include "lwip/netdb.h"
-#include "lwip/sockets.h"
-
-/* time */
-#include  <lwip/apps/sntp.h>
-
 #else /* USE_WINDOWS_API */
     #include <unistd.h>
     #include <netdb.h>
@@ -544,7 +536,7 @@ static INLINE void tcp_socket(WS_SOCKET_T* sockFd)
 
 #if defined(WOLFSSH_TEST_SERVER) && !defined(FREESCALE_MQX)
 
-static INLINE void tcp_ssh_listen(WS_SOCKET_T* sockfd, word16* port, int useAnyAddr)
+static INLINE void tcp_listen(WS_SOCKET_T* sockfd, word16* port, int useAnyAddr)
 {
 #ifdef MICROCHIP_MPLAB_HARMONY
     /* does bind and listen and returns the socket */
