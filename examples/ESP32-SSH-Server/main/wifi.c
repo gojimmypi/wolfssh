@@ -39,7 +39,6 @@
        If you'd rather not, just change the below entries to strings with
        the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
     */
-    #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
@@ -72,16 +71,28 @@ static const char *TAG = "wifi station";
 
 static int s_retry_num = 0;
 
-static volatile bool WiFiEthernetReady = 0;
+/* we'll change WiFiEthernetReady in event handler
+ * 
+ * see also bool wifi_ready() 
+ */
+static volatile bool WiFiEthernetReady = 0; 
 
+/*
+ * WiFi event_handler() Public Domain Sample Code Credit Espressif
+ * 
+ * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
+ * 
+ */
 void event_handler(void* arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void* event_data) {
+                   esp_event_base_t event_base,
+                   int32_t event_id,
+                   void* event_data) {
+                       
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         WiFiEthernetReady = 0;
         esp_wifi_connect();
     }
+                       
     else if (event_base == WIFI_EVENT 
               && 
             event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -112,6 +123,12 @@ void event_handler(void* arg,
     }
 }
 
+/*
+ * WiFi wifi_init_sta() Public Domain Sample Code Credit Espressif
+ * 
+ * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
+ * 
+ */
 void wifi_init_sta(void) {
 
     s_wifi_event_group = xEventGroupCreate();
@@ -200,10 +217,19 @@ void wifi_init_sta(void) {
     vEventGroupDelete(s_wifi_event_group);
 }
 
+
+
+/*
+ * WiFi wifi_ap_event_handler() Public Domain Sample Code Credit Espressif
+ * 
+ * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/softAP/main/softap_example_main.c
+ * 
+ */
 static void wifi_ap_event_handler(void* arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void* event_data) {
+                                  esp_event_base_t event_base,
+                                  int32_t event_id,
+                                  void* event_data) {
+                                      
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t* event = 
               (wifi_event_ap_staconnected_t*) event_data;
@@ -227,6 +253,13 @@ static void wifi_ap_event_handler(void* arg,
     WiFiEthernetReady = 1;
 }
 
+
+/*
+ * WiFi wifi_init_softap() Public Domain Sample Code Credit Espressif
+ * 
+ * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/softAP/main/softap_example_main.c
+ * 
+ */
 void wifi_init_softap(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -249,7 +282,7 @@ void wifi_init_softap(void) {
         .password = EXAMPLE_ESP_WIFI_AP_PASS,
         .max_connection = EXAMPLE_MAX_STA_CONN,
         .authmode = WIFI_AUTH_WPA2_PSK
-    },
+        },
     };
     if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
@@ -266,6 +299,10 @@ void wifi_init_softap(void) {
         EXAMPLE_ESP_WIFI_CHANNEL);
 }
 
+/*
+ * return true when above events determined that WiFi is actually ready.
+ *
+ */
 bool wifi_ready()
 {
     return WiFiEthernetReady;
