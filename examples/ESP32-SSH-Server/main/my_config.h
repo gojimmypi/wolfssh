@@ -53,10 +53,16 @@ endif()
 #define EXAMPLE_ESP_WIFI_AP_PASS      "jackorjill"
 
 /* clang intellisense gives a pragma-messages warning 
- * but we'll ignore it here. 
+ * but we'll ignore it here. It does however, give a 
+ * compile-time warning that can be ignored:
+ * 
+ * In file included from ../../../main/wifi.c:32:
+ * ../../../main/my_config.h:59:32: warning: unknown option after '#pragma GCC diagnostic' kind [-Wpragmas]
+ *  #pragma GCC diagnostic ignored "-W#pragma-messages" * 
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
+
 
 #if defined(NO_PRIVATE_CONFIG)
     /* reminder that if you put a password here, 
@@ -107,4 +113,6 @@ endif()
 #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
 
+/* turn off GCC diagnostic ignored "-W#pragma-messages" from above
+*/
 #pragma GCC diagnostic pop
