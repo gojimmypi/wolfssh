@@ -245,6 +245,8 @@ void init_nvsflash() {
  * main initialization for UART, optional ethernet, time, etc.
  */
 void init() {
+    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
+
     ESP_LOGI(TAG, "Begin main init.");
     
 #ifdef DEBUG_WOLFSSH
@@ -260,8 +262,6 @@ void init() {
     /* TODO ShowCiphers(); */
 #endif
 
-    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
-
     init_UART();
     
     /*
@@ -275,7 +275,7 @@ void init() {
      **/
 #if defined(USE_ENC28J60)
     ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
-    init_ENC28J60();
+    init_ENC28J60(MY_MAC_ADDRESS);
 
 #elif defined( WOLFSSH_SERVER_IS_AP)
     init_nvsflash();
