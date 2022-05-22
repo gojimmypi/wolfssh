@@ -44,6 +44,8 @@
 
 /* we are going to use a real backspace instead of 0x7f observed */
 const char* backspace = (char*)0x08;
+static SemaphoreHandle_t xUART_Semaphore = NULL;
+
 
 /*
  * startupMessage is the message before actually connecting to UART in server task thread.
@@ -71,7 +73,9 @@ int sendData(const char* logName, const char* data) {
     
     /* note we are always using UART_NUM_1 but the GPIO pins may vary */
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
+    
     ESP_LOGI(logName, "Wrote %d bytes", txBytes);
+
     return txBytes;
 }
 
@@ -85,6 +89,8 @@ void uart_tx_task(void *arg) {
     */
     static const char *TX_TASK_TAG = "TX_TASK";
     esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
+    
+    /* this RTOS task will never exit */
     while (1) {
         if (ExternalReceiveBufferSz() > 0)
         {
@@ -109,9 +115,10 @@ void uart_tx_task(void *arg) {
     }
 }
 
-
-static SemaphoreHandle_t xUART_Semaphore = NULL;
-
+/* 
+ * reading and writing memory from different threads requires coordination.
+ * we'll use exclusive mutex semaphores for this.
+ */
 void InitSemaphore() 
 {
     if (xUART_Semaphore == NULL) {
@@ -119,7 +126,7 @@ void InitSemaphore()
     }
     
 #ifdef configUSE_RECURSIVE_MUTEXES
-    /* see semphr.h */
+    /* this may be interesting; see semphr.h */
     WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 }
@@ -130,19 +137,24 @@ void InitSemaphore()
  */
 void uart_rx_task(void *arg) {
     InitSemaphore();
+
+    /* TODO do we really want malloc? probably not.
+     * but in this thread, it only gets allocated once.
+     **/
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); 
+
     /* 
      * when we receive chars from UART, we'll send them out SSH
-    */
+     */
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
 
-    /* TODO do we really want malloc? probably not */
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); 
 
-    /* thisBuf will point to exteranl buffer, dealth with for example SSH client */
+    /* TODO this should be interrupt driven, rather than polling */
     while (1) {
         /* note some examples have UART_TICKS_TO_WAIT = 1000, 
-         * which results in very sluggish response */
+         * which results in very sluggish response.
+         * a known good value is (20 / portTICK_RATE_MS) */
         const int rxBytes = uart_read_bytes(UART_NUM_1, 
                                             data, 
                                             RX_BUF_SIZE, 
@@ -162,7 +174,7 @@ void uart_rx_task(void *arg) {
              */
             
             Set_ExternalTransmitBuffer(data, rxBytes);           
-        }
+        } /* (rxBytes > 0) */
         
         /* yield. let's not be greedy */
         taskYIELD();
