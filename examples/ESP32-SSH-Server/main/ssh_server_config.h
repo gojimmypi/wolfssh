@@ -19,25 +19,65 @@
  */
 #pragma once
 
-#include "driver/gpio.h"
+#include <driver/gpio.h>
+
+/**
+ ******************************************************************************
+ ******************************************************************************
+ ** USER SETTINGS BEGIN
+ ******************************************************************************
+ ******************************************************************************
+ **/
+#define SINGLE_THREADED
+#define DEBUG_WOLFSSL
+#define DEBUG_WOLFSSH
+
+
+/* Edgerouter is 57600, others are typically 115200 
+ *  
+ **/
+#define BAUD_RATE (57600)
+
+
+/* SSH is usually on port 22, but for our example it lives at port 22222 */
+#define SSH_UART_PORT 22222
+
+/* in the case of wired ethernet on the ESN28J60 we need to
+ * manually assign an IP address: MY_MAC_ADDRESS see init_ENC28J60() */
+#define MY_MAC_ADDRESS  ( (uint8_t[6]) { 0x02, 0x00, 0x00, 0x12, 0x34, 0x56 } )
+
+
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-// #define USE_ENC28J60    
+#define USE_ENC28J60    
 
 /* wifi can be either STA or AP 
  *  #define WOLFSSH_SERVER_IS_AP
  *  #define WOLFSSH_SERVER_IS_STA
  **/
 
-#define WOLFSSH_SERVER_IS_AP
+/* #define WOLFSSH_SERVER_IS_AP */
 
-/* SSH is usually on port 22, but for our example it lives at port 22222 */
-#define SSH_UART_PORT 22222
 
-#define SINGLE_THREADED
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
+/* set GPIO pins for UART_NUM_1 */
+
+#undef ULX3S
+#undef M5STICKC
+
+#ifdef M5STICKC
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_26) /* orange */
+    #define RXD_PIN (GPIO_NUM_36) /* yellow */
+#elif defined (ULX3S)
+    /* reminder GPIO 34 to 39 are input only */
+    #define TXD_PIN (GPIO_NUM_32) /* orange */
+    #define RXD_PIN (GPIO_NUM_33) /* yellow */
+#else
+    #define TXD_PIN (GPIO_NUM_17) /* orange */
+    #define RXD_PIN (GPIO_NUM_16) /* yellow */
+#endif
+
 
 
 #define SSH_SERVER_BANNER "wolfSSH Example Server\n"
@@ -58,15 +98,25 @@
 #define SSH_SERVER_ECHO 0
 
 
-#ifndef EXAMPLE_HIGHWATER_MARK
-    #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
-#endif
-#ifndef EXAMPLE_BUFFER_SZ
-    #define EXAMPLE_BUFFER_SZ 4096
-#endif
-#define SCRATCH_BUFFER_SZ 1200
+/*
+ * Time server settings. 
+ * 
+ * Accurate time is often important in cryptocgraphic key exchange.
+ * 
+ * see https://tf.nist.gov/tf-cgi/servers.cgi
+ */ 
+#define NTP_SERVER_LIST ( (char*[]) {        \
+                                     "pool.ntp.org",         \
+                                     "time.nist.gov",        \
+                                     "utcnist.colorado.edu"  \
+                                     }                       \
+                        ) 
+
+    
+#define TIME_ZONE "PST-8"
 
 
+/* TODO will be ever need WOLFSSL_NUCLEUS here? probably not  */
 #ifdef WOLFSSL_NUCLEUS
     #define WFD_SET_TYPE FD_SET
     #define WFD_SET NU_FD_Set
@@ -79,50 +129,29 @@
     #define WFD_ISSET FD_ISSET
 #endif
 
+
 /**
  ******************************************************************************
  ******************************************************************************
- ** USER SETTINGS BEGIN
+ ** USER SETTINGS END
  ******************************************************************************
  ******************************************************************************
  **/
 
+/* UART pins and config */
+#include "uart_helper.h"
 
-/* Edgerouter is 57600, others are typically 115200 */
-#define BAUD_RATE (57600)
-
-
-// static const int RX_BUF_SIZE = 1024;
-
-#undef ULX3S
-#undef M5STICKC
-
-#ifdef M5STICKC
-    /* reminder GPIO 34 to 39 are input only */
-    #define TXD_PIN (GPIO_NUM_26) /* orange */
-    #define RXD_PIN (GPIO_NUM_36) /* yellow */
-#elif defined (ULX3S)
-    /* reminder GPIO 34 to 39 are input only */
-    #define TXD_PIN (GPIO_NUM_32) /* orange */
-    #define RXD_PIN (GPIO_NUM_33) /* yellow */
-#else
-    #define TXD_PIN (GPIO_NUM_17) /* orange */
-    #define RXD_PIN (GPIO_NUM_16) /* yellow */
+/* TODO check / optimimize these values */
+#ifndef EXAMPLE_HIGHWATER_MARK
+    #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
 #endif
+#ifndef EXAMPLE_BUFFER_SZ
+    #define EXAMPLE_BUFFER_SZ 4096
+#endif
+#define SCRATCH_BUFFER_SZ 1200
 
-
-// see https://tf.nist.gov/tf-cgi/servers.cgi
-
-
-
-#define NTP_SERVER_LIST ( (char*[]) {        \
-                                     "pool.ntp.org",         \
-                                     "time.nist.gov",        \
-                                     "utcnist.colorado.edu"  \
-                                     }                       \
-                        ) 
-
-/* number of elements 
+    
+/* NELEMS(x) number of elements 
  * To determine the number of elements in the array, we can divide the total size of 
  * the array by the size of the array element 
  * See https://stackoverflow.com/questions/37538/how-do-i-determine-the-size-of-my-array-in-c
@@ -136,24 +165,26 @@
 extern char* ntpServerList[NTP_SERVER_COUNT];
 
     
-#define TIME_ZONE "PST-8"
-
-/**
- ******************************************************************************
- ******************************************************************************
- ** USER SETTINGS END
- ******************************************************************************
- ******************************************************************************
- **/
-
-/* UART pins and config */
-#include "uart_helper.h"
-
+    
 #ifdef  WOLFSSH_SERVER_IS_AP
     #ifdef WOLFSSH_SERVER_IS_STA
-        #error Concurrent WOLFSSH_SERVER_IS_AP and WOLFSSH_SERVER_IS_STA not supported. Pick one. Disable the other.
+        #error "Concurrent WOLFSSH_SERVER_IS_AP and WOLFSSH_SERVER_IS_STA"
+        #error "not supported. Pick one. Disable the other."
     #endif
 #endif
   
 void ssh_server_config_init();
 
+/* sanity checks */
+
+#if defined WOLFSSH_SERVER_IS_AP && defined WOLFSSH_SERVER_IS_AP
+    #error "Server cannot be WiFi AP when using ENC28J60 at this time."
+#endif
+
+#if defined WOLFSSH_SERVER_IS_AP && defined WOLFSSH_SERVER_IS_AP
+    #error "Server cannot be WiFi STA when using ENC28J60 at this time."
+#endif
+
+#ifdef WOLFSSL_ESP8266
+    #error "WOLFSSL_ESP8266 defined for ESP32 project. See user_settings.h"
+#endif
