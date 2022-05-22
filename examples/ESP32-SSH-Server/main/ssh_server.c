@@ -29,6 +29,12 @@
 volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
 volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
 
+enum {
+    WS_SELECT_FAIL,
+    WS_SELECT_TIMEOUT,
+    WS_SELECT_RECV_READY,
+    WS_SELECT_ERROR_READY
+};
 
 typedef struct {
     WOLFSSH* ssh;
@@ -83,13 +89,6 @@ static int dump_stats(thread_ctx_t* ctx) {
     return wolfSSH_stream_send(ctx->ssh, (byte*)stats, statsSz);
 }
 
-enum {
-    WS_SELECT_FAIL,
-    WS_SELECT_TIMEOUT,
-    WS_SELECT_RECV_READY,
-    WS_SELECT_ERROR_READY
-};
-
 static INLINE int wSelect(int nfds,
     WFD_SET_TYPE* recvfds,
     WFD_SET_TYPE *writefds,
@@ -109,6 +108,10 @@ static INLINE int wSelect(int nfds,
     return select(nfds, recvfds, writefds, errfds, timeout);
 #endif
 }
+
+/*
+ * tcp_select; call wSelect & check for success or fail
+ */
 static INLINE int tcp_select(SOCKET_T socketfd, int to_sec) {
     WFD_SET_TYPE recvfds, errfds;
     int nfds = (int)socketfd + 1;
@@ -153,11 +156,13 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         if (max_wait < 0) {
             error = WS_FATAL_ERROR;
         }
-//        if (error == WS_WANT_READ)
-//            WOLFSSL_ERROR_MSG("... client would read block\n");
-//        else if (error == WS_WANT_WRITE)
-//            WOLFSSL_ERROR_MSG("... client would write block\n");
-
+/*
+        if (error == WS_WANT_READ)
+            WOLFSSL_ERROR_MSG("... client would read block\n");
+        else if (error == WS_WANT_WRITE)
+            WOLFSSL_ERROR_MSG("... client would write block\n");
+*/
+                
         select_ret = tcp_select(sockfd, 1);
         if (select_ret == WS_SELECT_RECV_READY  ||
             select_ret == WS_SELECT_ERROR_READY ||
@@ -171,9 +176,8 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
             error = WS_FATAL_ERROR;
 
         /* RTOS yield */
-        /* TODO WDT problem when value set to 10 ? */        
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
-        // esp_task_wdt_reset();
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        esp_task_wdt_reset();
     }
     WOLFSSL_MSG("Exit NonBlockSSH_accept");
 
