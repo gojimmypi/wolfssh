@@ -506,7 +506,59 @@ Only one connection is allowed at the time. There may be a delay when an existin
 
 ## Troubleshooting
 
-The error `undefined reference to `wc_GenerateSeed'` is often caused by a bad or missing `components\wolfssh\include\user_settings.h` file.
+
+#### reeRTOS-Kernel/include/freertos is not a directory
+
+The error `FreeRTOS-Kernel/include/freertos is not a directory` typically means there's an ESP-IDF component directory for wolfssl and/or woldssh
+as well as a local project wolfssl and/or woldssh directory.
+
+```
+Make Error at /home/gojimmypi/esp/esp-idf/tools/cmake/component.cmake:306 (message):
+  Include directory
+  '/home/gojimmypi/workspace/wolfssh/examples/ESP32-SSH-Server/components/freertos/FreeRTOS-Kernel/include/freertos'
+  is not a directory.
+
+```
+
+The wolfssl components should exist in only the ESP-IDF or the local project, but not both.
+
+#### error: unknown type name 'xSemaphoreHandle'
+
+There's a known problem with ESP-IDF 5.0 and FressRTOS.
+
+```
+home/gojimmypi/esp/esp-idf/components/wolfssl/wolfssl/wolfcrypt/wc_port.h:199:17: error: unknown type name 'xSemaphoreHandle'
+         typedef xSemaphoreHandle wolfSSL_Mutex;
+```
+Start a new terminal session, otherwise you'll likely see `ERROR: This script was called from a virtual environment, can not create a virtual environment again`
+
+```
+idf.py --version
+cd ~/esp/esp-idf
+git branch -a
+git checkout release/v4.4
+./install.sh
+. ./export.sh
+cd ~/workspace/wolfssh/examples/ESP32-SSH-Server
+```
+
+A more redical approach is to completely replace the ESP-IDF 
+with [version 4.4.1](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/index.html#step-2-get-esp-idf).
+```
+mkdir -p ~/esp4.4.1/
+cd ~/esp4.4.1/
+git clone -b v4.4.1 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf
+./install.sh esp32
+. ./export.sh
+cd /workspace/wolfssh/examples/ESP32-SSH-Server
+cd ~/workspace/wolfssh/examples/ESP32-SSH-Server
+idf.py build
+```
+
+#### undefined reference to wc_GenerateSeed
+
+The error `undefined reference to wc_GenerateSeed` is often caused by a bad or missing `components\wolfssh\include\user_settings.h` file.
 It is usually best to ensure the setting here exactly match the wolfssl file in `\components\wolfssl\include` unless there's a 
 compelling reason to do otherwise.
 
@@ -521,6 +573,7 @@ wolfssl: wolfSSL Leaving wc_ecc_shared_secret_ex, return -236
 If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/sdkconfig) 
 file for unexpected changes, such as when using the EDP-IDF menuconfig. When in doubt, revert back to repo version.
 
+#### E (545) uart: uart_set_pin(605): tx_io_num error
 
 A message such as `E (545) uart: uart_set_pin(605): tx_io_num error` typically means the pins assigned to be a UART
 Tx/Rx are either input-only or output-only. see [gpio_types.h_](https://github.com/espressif/esp-idf/blob/master/components/hal/include/hal/gpio_types.h)
