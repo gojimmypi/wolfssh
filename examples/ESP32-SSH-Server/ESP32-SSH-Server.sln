@@ -15,12 +15,17 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSH", "wolfSSH", "{321B
 	ProjectSection(SolutionItems) = preProject
 		components\wolfssh\CMakeLists.txt = components\wolfssh\CMakeLists.txt
 		components\wolfssh\component.mk = components\wolfssh\component.mk
+		components\wolfssh\include\config.h = components\wolfssh\include\config.h
+		components\wolfssh\include\user_settings.h = components\wolfssh\include\user_settings.h
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSL", "wolfSSL", "{B49CD6BD-202F-4958-9841-08480C15F1D8}"
 	ProjectSection(SolutionItems) = preProject
 		components\wolfssl\CMakeLists.txt = components\wolfssl\CMakeLists.txt
 		components\wolfssl\component.mk = components\wolfssl\component.mk
+		components\wolfssl\include\config.h = components\wolfssl\include\config.h
+		components\wolfssl\wolfssl\options.h = components\wolfssl\wolfssl\options.h
+		components\wolfssl\include\user_settings.h = components\wolfssl\include\user_settings.h
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "main", "main", "{D743A727-34E4-4B25-A06A-C4ACFE57F974}"
@@ -39,6 +44,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "enc28j60", "enc28j60", "{98
 	ProjectSection(SolutionItems) = preProject
 		components\eth_enc28j60\CMakeLists.txt = components\eth_enc28j60\CMakeLists.txt
 		components\eth_enc28j60\component.mk = components\eth_enc28j60\component.mk
+		components\eth_enc28j60\README.md = components\eth_enc28j60\README.md
 	EndProjectSection
 EndProject
 Global
