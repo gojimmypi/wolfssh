@@ -507,7 +507,7 @@ Only one connection is allowed at the time. There may be a delay when an existin
 ## Troubleshooting
 
 
-#### reeRTOS-Kernel/include/freertos is not a directory
+#### FreeRTOS-Kernel/include/freertos is not a directory
 
 The error `FreeRTOS-Kernel/include/freertos is not a directory` typically means there's an ESP-IDF component directory for wolfssl and/or woldssh
 as well as a local project wolfssl and/or woldssh directory.
