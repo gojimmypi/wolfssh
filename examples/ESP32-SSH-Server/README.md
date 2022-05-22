@@ -2,11 +2,12 @@
 
 Connect to Tx/Rx pins on [Espressif ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/index.html)
 UART via remote SSH. 
-There's also an [ESP8266 Version](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server#readme)
+There's also an [ESP8266 Version](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server#readme).
  
 This particular example utilizes the sample application for the [Espressif Wired ENC28J60 Ethernet](https://github.com/espressif/esp-idf/tree/master/examples/ethernet/enc28j60) 
 as well as the [Getting Started - Wi-Fi Station Example](https://github.com/espressif/esp-idf/tree/master/examples/wifi/getting_started/station)
-and includes the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/).
+and includes the [wolfSSH library](https://github.com/wolfssl/wolfssh) from [wolfSSL](https://www.wolfssl.com/). 
+Additional information is available in [wolfSSL INSTALL](https://github.com/wolfSSL/wolfssl/blob/master/INSTALL).
 
 See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20&t=SuiFcn672jlhXtCVh0lRRw).
 
@@ -14,7 +15,10 @@ The code is operational, but yes: also somewhat messy at the moment. Cleanup and
 
 There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
 
-See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
+See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts 
+as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/blob/master/wolfcrypt/src/port/Espressif/README.md).
+
+[wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
 <br />
 
 ## Requirements
@@ -501,6 +505,10 @@ Only one connection is allowed at the time. There may be a delay when an existin
 <br />
 
 ## Troubleshooting
+
+The error `undefined reference to `wc_GenerateSeed'` is often caused by a bad or missing `components\wolfssh\include\user_settings.h` file.
+It is usually best to ensure the setting here exactly match the wolfssl file in `\components\wolfssl\include` unless there's a 
+compelling reason to do otherwise.
 
 
 Although [Error -236](https://github.com/wolfSSL/wolfssl/blob/9b5ad6f218f657d8651a56b50b6db1b3946a811c/wolfssl/wolfcrypt/error-crypt.h#L189) 
