@@ -20,6 +20,7 @@
 #pragma once
 
 #include "stdbool.h"
+#include "esp_netif.h"
 
 bool EthernetReady_ENC28J60();
-int init_ENC28J60();
+int init_ENC28J60(uint8_t MacAddressToAssign[6]);

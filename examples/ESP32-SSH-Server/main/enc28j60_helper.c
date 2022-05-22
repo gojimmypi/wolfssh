@@ -121,7 +121,7 @@ static void got_ip_event_handler(void *arg,
  * initialize the ENC28J60 wired ethernet SPI device.
  * See optional define of USE_ENC28J60
  */
-int init_ENC28J60() {
+int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
 #ifdef USE_ENC28J60    
     ESP_LOGI(TAG, "Begin init_ENC28J60.");
 #else
@@ -177,7 +177,7 @@ int init_ENC28J60() {
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config, &eth_handle));
 
        
-    mac->set_addr(mac, myMacAddress);
+    mac->set_addr(mac, MacAddressToAssign);
 
 
     /* attach Ethernet driver to TCP/IP stack */
