@@ -21,13 +21,14 @@ set(COMPONENT_REQUIRES lwip)
 # "/Users/{username}/Desktop/esp-idf/components/freertos/include/freertos"
 # depending on the environment, we may need to swap backslashes with forward slashes
 string(REPLACE "\\" "/" RTOS_IDF_PATH "$ENV{IDF_PATH}/components/freertos/include/freertos")
-
+# ESP-IDF after version 4.4x has a different RTOS directory structure
+string(REPLACE "\\" "/" RTOS_IDF_PATH5 "$ENV{IDF_PATH}/components/freertos/FreeRTOS-Kernel/include/freertos")
 
 if(IS_DIRECTORY ${IDF_PATH}/components/freertos/FreeRTOS-Kernel/)
     set(COMPONENT_ADD_INCLUDEDIRS
         "."
         "./include"
-        "../freertos/FreeRTOS-Kernel/include/freertos"
+       "${RTOS_IDF_PATH5}"
        "${WOLFSSL_ROOT}"
        )
 else()

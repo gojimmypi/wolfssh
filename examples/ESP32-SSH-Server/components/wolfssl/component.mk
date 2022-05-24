@@ -3,7 +3,8 @@
 #
 
 COMPONENT_ADD_INCLUDEDIRS := . ./include
-COMPONENT_ADD_INCLUDEDIRS += /Users/gojimmypi/Desktop/esp-idf/components/freertos/include/freertos
+
+COMPONENT_ADD_INCLUDEDIRS += "$ENV{IDF_PATH}/components/freertos/include/freertos"
 
 COMPONENT_SRCDIRS := src wolfcrypt/src
 COMPONENT_SRCDIRS += wolfcrypt/src/port/Espressif
