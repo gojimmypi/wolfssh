@@ -30,6 +30,11 @@
  * 
  */
 
+/* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
+ * see CMakeLists.txt 
+ */
+#define WOLFSSL_USER_SETTINGS 
+
 #include "sdkconfig.h"
 
 /* include ssh_server_config.h first  */
@@ -78,8 +83,6 @@
 #define HAVE_HKDF
 #define HAVE_FFDHE_8192 /* or one of the other supported FFDHE sizes [2048, 3072, 4096, 6144, 8192] */
 #define WC_RSA_PSS
-#define WOLFSSL_USER_SETTINGS
-
 #define WOLFSSH_TEST_THREADING
 
 /*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM 
