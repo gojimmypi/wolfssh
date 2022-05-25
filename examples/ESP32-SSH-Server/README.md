@@ -11,9 +11,8 @@ Additional information is available in [wolfSSL INSTALL](https://github.com/wolf
 
 See [tweet thread](https://twitter.com/gojimmypi/status/1510703484886085633?s=20&t=SuiFcn672jlhXtCVh0lRRw).
 
-The code is operational, but yes: also somewhat messy at the moment. Cleanup and PR coming soon!
-
-There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
+There's an [ESP-IDF wolfSSH component install in IDE/Espressif/ESP-IDF](https://github.com/wolfSSL/wolfssh/blob/master/ide/Espressif/ESP-IDF/setup_win.bat) for Windows. 
+and [an install for Linux](https://github.com/wolfSSL/wolfssh/blob/master/ide/Espressif/ESP-IDF/setup.sh).
 
 See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts 
 as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/blob/master/wolfcrypt/src/port/Espressif/README.md).
@@ -21,7 +20,59 @@ as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
 <br />
 
+## Linux Quick Start
+
+This project does not yet work with ESP-IDF Version 5.x.
+
+```
+#!/bin/bash
+
+# Make sure you re-login to enable read and write permissions for the serial port.
+sudo usermod -a -G dialout $USER
+
+# get ESP-IDF version 4.1.1
+mkdir -p ~/esp
+cd ~/esp
+git clone -b v4.4.1 --recursive https://github.com/espressif/esp-idf.git --depth 1
+
+cd ~/esp/esp-idf
+./install.sh esp32
+
+. ./export.sh
+
+# get wolfssl and wolfssh
+mkdir -p ~/workspace
+cd ~/workspace
+git clone --recursive https://github.com/wolfssl/wolfssl.git --depth 1
+git clone --recursive https://github.com/wolfssl/wolfssh.git --depth 1
+
+git clone -b ESP32_Development https://github.com/gojimmypi/wolfssh.git wolfssh-gojimmypi --depth 1
+
+cd ~/workspace/wolfssl/IDE/Espressif/ESP-IDF
+./setup.sh
+
+cd ~/workspace/wolfssh/ide/Espressif/ESP-IDF
+./setup.sh
+
+cd ~/workspace/wolfssh-gojimmypi/examples/ESP32-SSH-Server
+idf.py build
+
+idf.py -p /dev/ttyUSB0 flash
+
+```
+
+config files needed:
+
+```
+components/wolfssh/include/user_settings.h
+components/wolfssl/include/user_settings.h
+components/wolfssl/wolfssl/options.h
+```
+
+
 ## Requirements
+
+[ESP-IDF Version 4.x](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/index.html)
 
 Any ESP32 with available UART pins other than USB / Console. The default is 
 `U2TXD` = `TXD_PIN` = `GPIO_NUM_17` 
@@ -81,7 +132,12 @@ Note for wired ethernet, the ENC28J60 component make not be available in some ve
 
 This section is only needed for users not using VisualGDB. Otherwise, see the [VisualGDB Tutorials](https://visualgdb.com/w/tutorials/tag/esp32/).
 
-Install the latest [ESP32 ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html).
+This project does not yet work with ESP-IDF Version 5.x.
+
+Install Version 4.4 of [ESP32 ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/get-started/index.html). 
+
+*NOTE:* This project has NOT yet been migrated to Version 5.0 ofthe ESP-IDF. 
+See the [Migration Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/build-system.html)
 
 To use a dual Windows/Linux (WSL) option, consider a shared directory such as `C:\ESP32\esp\`
 which would be `/mnt/c/ESP32/esp/` in WSL.
@@ -505,6 +561,19 @@ Only one connection is allowed at the time. There may be a delay when an existin
 <br />
 
 ## Troubleshooting
+
+
+### fatal error: wolfssl/options.h: No such file or directory
+
+Many problems can originate in the configuration file.
+
+The `options.h` typically is not used. This error typically means there's an incorrection user_setting.h, or the `#DEFINE WOLFSSL_USER_SETTINGS` is missing.
+
+This may be a helpful line to add to the beginning of the [CMakeLists.txt](./CMakeLists.txt):
+
+```
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+```
 
 
 #### FreeRTOS-Kernel/include/freertos is not a directory
