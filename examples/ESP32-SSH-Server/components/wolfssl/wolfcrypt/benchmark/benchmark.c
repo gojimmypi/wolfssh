@@ -31,9 +31,14 @@
     #include <wolfssl/options.h>
 #endif
 #include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/version.h>
 #include <wolfssl/wolfcrypt/wc_port.h>
 #include <wolfssl/wolfcrypt/ecc.h>
+
+#ifdef HAVE_PTHREAD
+    #include <pthread.h>
+#endif
 
 /* Macro to disable benchmark */
 #ifndef NO_CRYPT_BENCHMARK
@@ -53,12 +58,14 @@
        defined(HAVE_PTHREAD) && !defined(HAVE_RENESAS_SYNC)
 
     #define WC_ENABLE_BENCH_THREADING
-    #if defined(_POSIX_THREADS) && !defined(__MINGW32__)
+    #if defined(_POSIX_THREADS)
         typedef void*         THREAD_RETURN;
         typedef pthread_t     THREAD_TYPE;
         #define WOLFSSL_THREAD
+        #if !defined(__MINGW32__)
         #define INFINITE (-1)
         #define WAIT_OBJECT_0 0L
+        #endif
     #elif defined(WOLFSSL_MDK_ARM)|| defined(WOLFSSL_KEIL_TCP_NET) || defined(FREESCALE_MQX)
         typedef unsigned int  THREAD_RETURN;
         typedef int           THREAD_TYPE;
@@ -674,6 +681,7 @@ static const bench_alg bench_other_opt[] = {
 
 #endif /* !WOLFSSL_BENCHMARK_ALL && !NO_MAIN_DRIVER */
 
+#if defined(HAVE_PQC)
 /* The post-quantum-specific mapping of command line option to bit values and
  * OQS name. */
 typedef struct bench_pq_alg {
@@ -752,6 +760,7 @@ static const bench_pq_alg bench_pq_asym_opt[] = {
 #endif
     { NULL, 0, NULL }
 };
+#endif
 
 #ifdef HAVE_WNR
     const char* wnrConfigFile = "wnr-example.conf";
@@ -979,14 +988,20 @@ static const char* bench_result_words2[][5] = {
 #endif
 #endif
 
-/* Asynchronous helper macros */
-#ifdef WOLFSSL_QNX_CAAM
-#include <wolfssl/wolfcrypt/port/caam/wolfcaam.h>
-static THREAD_LS_T int devId = WOLFSSL_CAAM_DEVID;
+#ifdef WOLFSSL_CAAM
+    #include <wolfssl/wolfcrypt/port/caam/wolfcaam.h>
+    #ifdef WOLFSSL_SECO_CAAM
+        #define SECO_MAX_UPDATES 10000
+        #define SECO_BENCHMARK_NONCE 0x7777
+        #define SECO_KEY_STORE_ID 1
+    #endif
+
+    static THREAD_LS_T int devId = WOLFSSL_CAAM_DEVID;
 #else
-static THREAD_LS_T int devId = INVALID_DEVID;
+    static THREAD_LS_T int devId = INVALID_DEVID;
 #endif
 
+/* Asynchronous helper macros */
 #ifdef WC_ENABLE_BENCH_THREADING
     typedef struct ThreadData {
         pthread_t thread_id;
@@ -999,7 +1014,7 @@ static THREAD_LS_T int devId = INVALID_DEVID;
     static WOLF_EVENT_QUEUE eventQueue;
 
     #define BENCH_ASYNC_GET_DEV(obj)      (&(obj)->asyncDev)
-    #define BENCH_ASYNC_GET_NAME(doAsync) (doAsync) ? "HW" : "SW"
+    #define BENCH_ASYNC_GET_NAME(useDeviceID) (useDeviceID) ? "HW" : "SW"
     #define BENCH_MAX_PENDING             (WOLF_ASYNC_MAX_PENDING)
 
 
@@ -1091,7 +1106,7 @@ static THREAD_LS_T int devId = INVALID_DEVID;
 
 #else
     #define BENCH_MAX_PENDING             (1)
-    #define BENCH_ASYNC_GET_NAME(doAsync) ""
+    #define BENCH_ASYNC_GET_NAME(useDeviceID) ""
     #define BENCH_ASYNC_GET_DEV(obj)      NULL
 
     static WC_INLINE int bench_async_check(int* ret, void* asyncDev,
@@ -1127,8 +1142,9 @@ static THREAD_LS_T int devId = INVALID_DEVID;
 
 
 /* maximum runtime for each benchmark */
-#define BENCH_MIN_RUNTIME_SEC   1.0f
-
+#ifndef BENCH_MIN_RUNTIME_SEC
+    #define BENCH_MIN_RUNTIME_SEC   1.0f
+#endif
 
 #if defined(HAVE_AESGCM) || defined(HAVE_AESCCM)
     #if !defined(AES_AUTH_ADD_SZ) && \
@@ -1273,7 +1289,7 @@ typedef enum bench_stat_type {
         const char* desc;
         double perfsec;
         int strength;
-        int doAsync;
+        int useDeviceID;
         int finishCount;
         bench_stat_type_t type;
         int lastRet;
@@ -1283,7 +1299,7 @@ typedef enum bench_stat_type {
     static bench_stats_t* bench_stats_tail;
 
     static bench_stats_t* bench_stats_add(bench_stat_type_t type,
-        const char* algo, int strength, const char* desc, int doAsync,
+        const char* algo, int strength, const char* desc, int useDeviceID,
         double perfsec, const char* perftype, int ret)
     {
         bench_stats_t* bstat = NULL;
@@ -1298,7 +1314,7 @@ typedef enum bench_stat_type {
                 if (XSTRNCMP(bstat->algo, algo, BENCH_MAX_NAME_SZ) == 0 &&
                     bstat->strength == strength &&
                     bstat->desc == desc &&
-                    bstat->doAsync == doAsync) {
+                    bstat->useDeviceID == useDeviceID) {
                     break;
                 }
             }
@@ -1329,7 +1345,7 @@ typedef enum bench_stat_type {
                 XSTRNCPY(bstat->algo, algo, BENCH_MAX_NAME_SZ);
             bstat->strength = strength;
             bstat->desc = desc;
-            bstat->doAsync = doAsync;
+            bstat->useDeviceID = useDeviceID;
             bstat->perfsec += perfsec;
             bstat->finishCount++;
             bstat->perftype = perftype;
@@ -1351,13 +1367,13 @@ typedef enum bench_stat_type {
         for (bstat = bench_stats_head; bstat != NULL; ) {
             if (bstat->type == BENCH_STAT_SYM) {
                 printf("%-16s%s %8.3f %s/s\n", bstat->desc,
-                    BENCH_ASYNC_GET_NAME(bstat->doAsync), bstat->perfsec,
+                    BENCH_ASYNC_GET_NAME(bstat->useDeviceID), bstat->perfsec,
                     base2 ? "MB" : "mB");
             }
             else {
                 printf("%-5s %4d %-9s %s %.3f ops/sec\n",
                     bstat->algo, bstat->strength, bstat->desc,
-                    BENCH_ASYNC_GET_NAME(bstat->doAsync), bstat->perfsec);
+                    BENCH_ASYNC_GET_NAME(bstat->useDeviceID), bstat->perfsec);
             }
 
             bstat = bstat->next;
@@ -1366,7 +1382,7 @@ typedef enum bench_stat_type {
         pthread_mutex_unlock(&bench_lock);
     }
 
-#else
+#else /* !WC_ENABLE_BENCH_THREADING */
 
     typedef struct bench_stats {
         const char* algo;
@@ -1383,36 +1399,15 @@ typedef enum bench_stat_type {
     static int gStatsCount;
 
     static bench_stats_t* bench_stats_add(bench_stat_type_t type,
-            const char* algo, int strength, const char* desc, int doAsync,
+            const char* algo, int strength, const char* desc, int useDeviceID,
             double perfsec, const char* perftype, int ret)
     {
         bench_stats_t* bstat = NULL;
         if (gStatsCount >= MAX_BENCH_STATS)
             return bstat;
 
-    #ifdef WC_ENABLE_BENCH_THREADING
-        /* protect bench_stats_head and bench_stats_tail access */
-        pthread_mutex_lock(&bench_lock);
-    #endif
-
         bstat = &gStats[gStatsCount++];
         bstat->algo = algo;
-    #ifdef WC_ENABLE_BENCH_THREADING
-        pthread_mutex_lock(&bench_lock);
-        if (g_threadCount > 1) {
-            int algoLen = (int)(XSTRLEN(algo) + 1);
-            bstat->algo = (const char* )XMALLOC(algoLen, HEAP_HINT,
-                DYNAMIC_TYPE_TMP_BUFFER);
-            if (bstat->algo == NULL) {
-                bstat->algo = "UNKNOWN";
-                type = BENCH_STAT_IGNORE;
-            }
-            else {
-                XSTRNCPY((char* )bstat->algo, algo, algoLen);
-            }
-        }
-        pthread_mutex_unlock(&bench_lock);
-    #endif
         bstat->desc = desc;
         bstat->perfsec = perfsec;
         bstat->perftype = perftype;
@@ -1420,11 +1415,7 @@ typedef enum bench_stat_type {
         bstat->type = type;
         bstat->ret = ret;
 
-        (void)doAsync;
-
-    #ifdef WC_ENABLE_BENCH_THREADING
-        pthread_mutex_unlock(&bench_lock);
-    #endif
+        (void)useDeviceID;
 
         return bstat;
     }
@@ -1433,35 +1424,6 @@ typedef enum bench_stat_type {
     {
         int i;
         bench_stats_t* bstat;
-
-    #ifdef WC_ENABLE_BENCH_THREADING
-        pthread_mutex_lock(&bench_lock);
-        if (g_threadCount > 1) {
-            int j;
-            bench_stats_t* bstat2;
-
-            /* Merge results and mark duplicates with type ignore. */
-            for (i=0; i<gStatsCount; i++) {
-                bstat = &gStats[i];
-                if (bstat->type == BENCH_STAT_IGNORE)
-                    continue;
-                for (j=i+1; j<gStatsCount; j++) {
-                    bstat2 = &gStats[j];
-                    if (bstat2->type == BENCH_STAT_IGNORE)
-                        continue;
-
-                    if ((XSTRNCMP(bstat->algo, bstat2->algo,
-                                  XSTRLEN(bstat->algo)) == 0) &&
-                        (XSTRNCMP(bstat->desc, bstat2->desc,
-                                  XSTRLEN(bstat->desc)) == 0)) {
-                        bstat2->type = BENCH_STAT_IGNORE;
-                        bstat->perfsec += bstat2->perfsec;
-                    }
-                }
-            }
-        }
-        pthread_mutex_unlock(&bench_lock);
-    #endif
 
         for (i=0; i<gStatsCount; i++) {
             bstat = &gStats[i];
@@ -1473,16 +1435,9 @@ typedef enum bench_stat_type {
                 printf("%-5s %4d %-9s %.3f ops/sec\n",
                     bstat->algo, bstat->strength, bstat->desc, bstat->perfsec);
             }
-        #ifdef WC_ENABLE_BENCH_THREADING
-            pthread_mutex_lock(&bench_lock);
-            if (g_threadCount > 1) {
-                free((void*)bstat->algo);
-            }
-            pthread_mutex_unlock(&bench_lock);
-        #endif
         }
     }
-#endif /* WOLFSSL_ASYNC_CRYPT && !WC_NO_ASYNC_THREADING */
+#endif /* WC_ENABLE_BENCH_THREADING */
 
 static WC_INLINE void bench_stats_init(void)
 {
@@ -1508,7 +1463,7 @@ static WC_INLINE int bench_stats_sym_check(double start)
 
 /* countSz is number of bytes that 1 count represents. Normally bench_size,
  * except for AES direct that operates on AES_BLOCK_SIZE blocks */
-static void bench_stats_sym_finish(const char* desc, int doAsync, int count,
+static void bench_stats_sym_finish(const char* desc, int useDeviceID, int count,
                                    int countSz, double start, int ret)
 {
     double total, persec = 0, blocks = count;
@@ -1562,7 +1517,7 @@ static void bench_stats_sym_finish(const char* desc, int doAsync, int count,
         SHOW_INTEL_CYCLES_CSV(msg, sizeof(msg), countSz);
     } else {
         XSNPRINTF(msg, sizeof(msg), "%-16s%s %5.0f %s %s %5.3f %s, %8.3f %s/s",
-            desc, BENCH_ASYNC_GET_NAME(doAsync), blocks, blockType, word[0],
+        desc, BENCH_ASYNC_GET_NAME(useDeviceID), blocks, blockType, word[0],
             total, word[1], persec, blockType);
         SHOW_INTEL_CYCLES(msg, sizeof(msg), countSz);
     }
@@ -1574,9 +1529,10 @@ static void bench_stats_sym_finish(const char* desc, int doAsync, int count,
     }
 
     /* Add to thread stats */
-    bench_stats_add(BENCH_STAT_SYM, desc, 0, desc, doAsync, persec, blockType, ret);
+    bench_stats_add(BENCH_STAT_SYM, desc, 0, desc, useDeviceID, persec,
+        blockType, ret);
 
-    (void)doAsync;
+    (void)useDeviceID;
     (void)ret;
 
     TEST_SLEEP();
@@ -1587,7 +1543,7 @@ static void bench_stats_sym_finish(const char* desc, int doAsync, int count,
     defined(HAVE_CURVE25519) || defined(HAVE_ED25519) || \
     defined(HAVE_CURVE448) || defined(HAVE_ED448)
 static void bench_stats_asym_finish(const char* algo, int strength,
-    const char* desc, int doAsync, int count, double start, int ret)
+    const char* desc, int useDeviceID, int count, double start, int ret)
 {
     double total, each = 0, opsSec, milliEach;
     const char **word = bench_result_words2[lng_index];
@@ -1611,7 +1567,7 @@ static void bench_stats_asym_finish(const char* algo, int strength,
         XSNPRINTF(msg, sizeof(msg), "%s %d %s,%.3f,%.3f,\n", algo, strength, desc, milliEach, opsSec);
     } else {
         XSNPRINTF(msg, sizeof(msg), "%-6s %5d %-9s %s %6d %s %5.3f %s, %s %5.3f ms,"
-        " %.3f %s\n", algo, strength, desc, BENCH_ASYNC_GET_NAME(doAsync),
+        " %.3f %s\n", algo, strength, desc, BENCH_ASYNC_GET_NAME(useDeviceID),
         count, word[0], total, word[1], word[2], milliEach, opsSec, word[3]);
     }
     printf("%s", msg);
@@ -1622,9 +1578,9 @@ static void bench_stats_asym_finish(const char* algo, int strength,
     }
 
     /* Add to thread stats */
-    bench_stats_add(BENCH_STAT_ASYM, algo, strength, desc, doAsync, opsSec, kOpsSec, ret);
+    bench_stats_add(BENCH_STAT_ASYM, algo, strength, desc, useDeviceID, opsSec, kOpsSec, ret);
 
-    (void)doAsync;
+    (void)useDeviceID;
     (void)ret;
 
     TEST_SLEEP();
@@ -1632,7 +1588,7 @@ static void bench_stats_asym_finish(const char* algo, int strength,
 #endif
 
 #if defined(HAVE_PQC)
-static void bench_stats_pq_asym_finish(const char* algo, int doAsync, int count,
+static void bench_stats_pq_asym_finish(const char* algo, int useDeviceID, int count,
                                        double start, int ret)
 {
     double total, each = 0, opsSec, milliEach;
@@ -1657,7 +1613,7 @@ static void bench_stats_pq_asym_finish(const char* algo, int doAsync, int count,
         XSNPRINTF(msg, sizeof(msg), "%s %.3f,%.3f,\n", algo, milliEach, opsSec);
     } else {
          XSNPRINTF(msg, sizeof(msg), "%-18s %s %6d %s %5.3f %s, %s %5.3f ms,"
-         " %.3f %s\n", algo, BENCH_ASYNC_GET_NAME(doAsync),
+         " %.3f %s\n", algo, BENCH_ASYNC_GET_NAME(useDeviceID),
          count, word[0], total, word[1], word[2], milliEach, opsSec, word[3]);
     }
     printf("%s", msg);
@@ -1668,9 +1624,9 @@ static void bench_stats_pq_asym_finish(const char* algo, int doAsync, int count,
     }
 
     /* Add to thread stats */
-    bench_stats_add(BENCH_STAT_ASYM, algo, 0, "", doAsync, opsSec, kOpsSec, ret);
+    bench_stats_add(BENCH_STAT_ASYM, algo, 0, "", useDeviceID, opsSec, kOpsSec, ret);
 
-    (void)doAsync;
+    (void)useDeviceID;
     (void)ret;
 
     TEST_SLEEP();
@@ -1812,7 +1768,7 @@ static void* benchmarks_do(void* args)
     #endif
     #if ((defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_3DES)) || \
          defined(HAVE_INTEL_QA_SYNC) || defined(HAVE_CAVIUM_OCTEON_SYNC) || \
-         defined(HAVE_RENESAS_SYNC)) && \
+         defined(HAVE_RENESAS_SYNC)  || defined(WOLFSSL_CAAM)) && \
         !defined(NO_HW_BENCH)
         bench_aescbc(1);
     #endif
@@ -1825,7 +1781,7 @@ static void* benchmarks_do(void* args)
     #endif
     #if ((defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_3DES)) || \
          defined(HAVE_INTEL_QA_SYNC) || defined(HAVE_CAVIUM_OCTEON_SYNC) || \
-         defined(HAVE_RENESAS_SYNC)) && \
+         defined(HAVE_RENESAS_SYNC)  || defined(WOLFSSL_CAAM)) && \
         !defined(NO_HW_BENCH)
         bench_aesgcm(1);
     #endif
@@ -1833,13 +1789,13 @@ static void* benchmarks_do(void* args)
         bench_gmac();
     }
 #endif
-#ifdef WOLFSSL_AES_DIRECT
+#ifdef HAVE_AES_ECB
     if (bench_all || (bench_cipher_algs & BENCH_AES_ECB)) {
     #ifndef NO_SW_BENCH
         bench_aesecb(0);
     #endif
-    #if defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_AES) && \
-        !defined(NO_HW_BENCH)
+    #if ((defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_AES)) || \
+          defined(WOLFSSL_CAAM)) && !defined(NO_HW_BENCH)
         bench_aesecb(1);
     #endif
     }
@@ -2418,6 +2374,16 @@ int benchmark_init(void)
         printf("wolfCrypt_Init failed %d\n", ret);
         return EXIT_FAILURE;
     }
+#ifdef WOLFSSL_SECO_CAAM
+    if (devId == WOLFSSL_SECO_DEVID && wc_SECO_OpenHSM(SECO_KEY_STORE_ID,
+            SECO_BENCHMARK_NONCE, SECO_MAX_UPDATES, CAAM_KEYSTORE_CREATE)
+            != 0) {
+        printf("unable to open HSM\n");
+        wolfCrypt_Cleanup();
+        return EXIT_FAILURE;
+    }
+#endif
+
 #ifdef WC_RNG_SEED_CB
     wc_SetSeed_Cb(wc_GenerateSeed);
 #endif
@@ -2485,6 +2451,12 @@ int benchmark_free(void)
     ret = wc_FreeNetRandom();
     if (ret < 0) {
         printf("Failed to free netRandom context %d\n", ret);
+    }
+#endif
+
+#ifdef WOLFSSL_SECO_CAAM
+    if (devId == WOLFSSL_SECO_DEVID && wc_SECO_CloseHSM() != 0) {
+        printf("Error closing down the key store\n");
     }
 #endif
 
@@ -2656,7 +2628,7 @@ exit_rng:
 #ifndef NO_AES
 
 #ifdef HAVE_AES_CBC
-static void bench_aescbc_internal(int doAsync, const byte* key, word32 keySz,
+static void bench_aescbc_internal(int useDeviceID, const byte* key, word32 keySz,
                                   const byte* iv, const char* encLabel,
                                   const char* decLabel)
 {
@@ -2670,7 +2642,7 @@ static void bench_aescbc_internal(int doAsync, const byte* key, word32 keySz,
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_AesInit(&enc[i], HEAP_HINT,
-                                doAsync ? devId : INVALID_DEVID)) != 0) {
+                                useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("AesInit failed, ret = %d\n", ret);
             goto exit;
         }
@@ -2704,7 +2676,7 @@ static void bench_aescbc_internal(int doAsync, const byte* key, word32 keySz,
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_enc:
-    bench_stats_sym_finish(encLabel, doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish(encLabel, useDeviceID, count, bench_size, start, ret);
 
     if (ret < 0) {
         goto exit;
@@ -2742,7 +2714,7 @@ exit_aes_enc:
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_dec:
-    bench_stats_sym_finish(decLabel, doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish(decLabel, useDeviceID, count, bench_size, start, ret);
 
 #endif /* HAVE_AES_DECRYPT */
 
@@ -2754,18 +2726,18 @@ exit:
     }
 }
 
-void bench_aescbc(int doAsync)
+void bench_aescbc(int useDeviceID)
 {
 #ifdef WOLFSSL_AES_128
-    bench_aescbc_internal(doAsync, bench_key, 16, bench_iv,
+    bench_aescbc_internal(useDeviceID, bench_key, 16, bench_iv,
                  "AES-128-CBC-enc", "AES-128-CBC-dec");
 #endif
 #ifdef WOLFSSL_AES_192
-    bench_aescbc_internal(doAsync, bench_key, 24, bench_iv,
+    bench_aescbc_internal(useDeviceID, bench_key, 24, bench_iv,
                  "AES-192-CBC-enc", "AES-192-CBC-dec");
 #endif
 #ifdef WOLFSSL_AES_256
-    bench_aescbc_internal(doAsync, bench_key, 32, bench_iv,
+    bench_aescbc_internal(useDeviceID, bench_key, 32, bench_iv,
                  "AES-256-CBC-enc", "AES-256-CBC-dec");
 #endif
 }
@@ -2773,7 +2745,7 @@ void bench_aescbc(int doAsync)
 #endif /* HAVE_AES_CBC */
 
 #ifdef HAVE_AESGCM
-static void bench_aesgcm_internal(int doAsync, const byte* key, word32 keySz,
+static void bench_aesgcm_internal(int useDeviceID, const byte* key, word32 keySz,
                                   const byte* iv, word32 ivSz,
                                   const char* encLabel, const char* decLabel)
 {
@@ -2810,7 +2782,7 @@ static void bench_aesgcm_internal(int doAsync, const byte* key, word32 keySz,
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_AesInit(&enc[i], HEAP_HINT,
-                        doAsync ? devId : INVALID_DEVID)) != 0) {
+                        useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("AesInit failed, ret = %d\n", ret);
             goto exit;
         }
@@ -2859,13 +2831,13 @@ static void bench_aesgcm_internal(int doAsync, const byte* key, word32 keySz,
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_gcm:
-    bench_stats_sym_finish(encLabel, doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish(encLabel, useDeviceID, count, bench_size, start, ret);
 
 #ifdef HAVE_AES_DECRYPT
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_AesInit(&dec[i], HEAP_HINT,
-                        doAsync ? devId : INVALID_DEVID)) != 0) {
+                        useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("AesInit failed, ret = %d\n", ret);
             goto exit;
         }
@@ -2913,7 +2885,7 @@ exit_aes_gcm:
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_gcm_dec:
-    bench_stats_sym_finish(decLabel, doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish(decLabel, useDeviceID, count, bench_size, start, ret);
 #endif /* HAVE_AES_DECRYPT */
 
     (void)decLabel;
@@ -2936,20 +2908,20 @@ exit:
     WC_FREE_VAR(bench_tag, HEAP_HINT);
 }
 
-void bench_aesgcm(int doAsync)
+void bench_aesgcm(int useDeviceID)
 {
 #if defined(WOLFSSL_AES_128) && !defined(WOLFSSL_AFALG_XILINX_AES) \
         && !defined(WOLFSSL_XILINX_CRYPT)
-    bench_aesgcm_internal(doAsync, bench_key, 16, bench_iv, 12,
+    bench_aesgcm_internal(useDeviceID, bench_key, 16, bench_iv, 12,
                           "AES-128-GCM-enc", "AES-128-GCM-dec");
 #endif
 #if defined(WOLFSSL_AES_192) && !defined(WOLFSSL_AFALG_XILINX_AES) \
         && !defined(WOLFSSL_XILINX_CRYPT)
-    bench_aesgcm_internal(doAsync, bench_key, 24, bench_iv, 12,
+    bench_aesgcm_internal(useDeviceID, bench_key, 24, bench_iv, 12,
                           "AES-192-GCM-enc", "AES-192-GCM-dec");
 #endif
 #ifdef WOLFSSL_AES_256
-    bench_aesgcm_internal(doAsync, bench_key, 32, bench_iv, 12,
+    bench_aesgcm_internal(useDeviceID, bench_key, 32, bench_iv, 12,
                           "AES-256-GCM-enc", "AES-256-GCM-dec");
 #endif
 }
@@ -2997,8 +2969,8 @@ void bench_gmac(void)
 #endif /* HAVE_AESGCM */
 
 
-#ifdef WOLFSSL_AES_DIRECT
-static void bench_aesecb_internal(int doAsync, const byte* key, word32 keySz,
+#ifdef HAVE_AES_ECB
+static void bench_aesecb_internal(int useDeviceID, const byte* key, word32 keySz,
                                   const char* encLabel, const char* decLabel)
 {
     int    ret = 0, i, count = 0, times, pending = 0;
@@ -3011,7 +2983,7 @@ static void bench_aesecb_internal(int doAsync, const byte* key, word32 keySz,
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_AesInit(&enc[i], HEAP_HINT,
-                                doAsync ? devId : INVALID_DEVID)) != 0) {
+                                useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("AesInit failed, ret = %d\n", ret);
             goto exit;
         }
@@ -3032,7 +3004,12 @@ static void bench_aesecb_internal(int doAsync, const byte* key, word32 keySz,
             for (i = 0; i < BENCH_MAX_PENDING; i++) {
                 if (bench_async_check(&ret, BENCH_ASYNC_GET_DEV(&enc[i]), 0,
                                                  &times, numBlocks, &pending)) {
+                #ifdef HAVE_FIPS
                     wc_AesEncryptDirect(&enc[i], bench_cipher, bench_plain);
+                #else
+                    wc_AesEcbEncrypt(&enc[i], bench_cipher, bench_plain,
+                        AES_BLOCK_SIZE);
+                #endif
                     ret = 0;
                     if (!bench_async_handle(&ret, BENCH_ASYNC_GET_DEV(&enc[i]),
                                                          0, &times, &pending)) {
@@ -3044,7 +3021,7 @@ static void bench_aesecb_internal(int doAsync, const byte* key, word32 keySz,
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_enc:
-    bench_stats_sym_finish(encLabel, doAsync, count, AES_BLOCK_SIZE,
+    bench_stats_sym_finish(encLabel, useDeviceID, count, AES_BLOCK_SIZE,
                            start, ret);
 
 #ifdef HAVE_AES_DECRYPT
@@ -3066,7 +3043,12 @@ exit_aes_enc:
             for (i = 0; i < BENCH_MAX_PENDING; i++) {
                 if (bench_async_check(&ret, BENCH_ASYNC_GET_DEV(&enc[i]), 0,
                                                  &times, numBlocks, &pending)) {
+                #ifdef HAVE_FIPS
                     wc_AesDecryptDirect(&enc[i], bench_plain, bench_cipher);
+                #else
+                    wc_AesEcbDecrypt(&enc[i], bench_plain, bench_cipher,
+                        AES_BLOCK_SIZE);
+                #endif
                     ret = 0;
                     if (!bench_async_handle(&ret, BENCH_ASYNC_GET_DEV(&enc[i]),
                                                          0, &times, &pending)) {
@@ -3078,7 +3060,7 @@ exit_aes_enc:
         count += times;
     } while (bench_stats_sym_check(start));
 exit_aes_dec:
-    bench_stats_sym_finish(decLabel, doAsync, count, AES_BLOCK_SIZE,
+    bench_stats_sym_finish(decLabel, useDeviceID, count, AES_BLOCK_SIZE,
                            start, ret);
 
 #endif /* HAVE_AES_DECRYPT */
@@ -3090,22 +3072,22 @@ exit:
     }
 }
 
-void bench_aesecb(int doAsync)
+void bench_aesecb(int useDeviceID)
 {
 #ifdef WOLFSSL_AES_128
-    bench_aesecb_internal(doAsync, bench_key, 16,
+    bench_aesecb_internal(useDeviceID, bench_key, 16,
                  "AES-128-ECB-enc", "AES-128-ECB-dec");
 #endif
 #ifdef WOLFSSL_AES_192
-    bench_aesecb_internal(doAsync, bench_key, 24,
+    bench_aesecb_internal(useDeviceID, bench_key, 24,
                  "AES-192-ECB-enc", "AES-192-ECB-dec");
 #endif
 #ifdef WOLFSSL_AES_256
-    bench_aesecb_internal(doAsync, bench_key, 32,
+    bench_aesecb_internal(useDeviceID, bench_key, 32,
                  "AES-256-ECB-enc", "AES-256-ECB-dec");
 #endif
 }
-#endif /* WOLFSSL_AES_DIRECT */
+#endif /* HAVE_AES_ECB */
 
 #ifdef WOLFSSL_AES_CFB
 static void bench_aescfb_internal(const byte* key, word32 keySz, const byte* iv,
@@ -3317,6 +3299,11 @@ void bench_aesccm(void)
     XMEMSET(bench_tag, 0, AES_AUTH_TAG_SZ);
     XMEMSET(bench_additional, 0, AES_AUTH_ADD_SZ);
 
+    if ((ret = wc_AesInit(&enc, HEAP_HINT, devId)) != 0) {
+        printf("wc_AesInit failed, ret = %d\n", ret);
+        goto exit;
+    }
+
     if ((ret = wc_AesCcmSetKey(&enc, bench_key, 16)) != 0) {
         printf("wc_AesCcmSetKey failed, ret = %d\n", ret);
         goto exit;
@@ -3325,24 +3312,32 @@ void bench_aesccm(void)
     bench_stats_start(&count, &start);
     do {
         for (i = 0; i < numBlocks; i++) {
-            wc_AesCcmEncrypt(&enc, bench_cipher, bench_plain, BENCH_SIZE,
+            ret |= wc_AesCcmEncrypt(&enc, bench_cipher, bench_plain, BENCH_SIZE,
                 bench_iv, 12, bench_tag, AES_AUTH_TAG_SZ,
                 bench_additional, aesAuthAddSz);
         }
         count += i;
     } while (bench_stats_sym_check(start));
     bench_stats_sym_finish("AES-CCM-Enc", 0, count, bench_size, start, ret);
+    if (ret != 0) {
+        printf("wc_AesCcmEncrypt failed, ret = %d\n", ret);
+        goto exit;
+    }
 
     bench_stats_start(&count, &start);
     do {
         for (i = 0; i < numBlocks; i++) {
-            wc_AesCcmDecrypt(&enc, bench_plain, bench_cipher, BENCH_SIZE,
+            ret |= wc_AesCcmDecrypt(&enc, bench_plain, bench_cipher, BENCH_SIZE,
                 bench_iv, 12, bench_tag, AES_AUTH_TAG_SZ,
                 bench_additional, aesAuthAddSz);
         }
         count += i;
     } while (bench_stats_sym_check(start));
     bench_stats_sym_finish("AES-CCM-Dec", 0, count, bench_size, start, ret);
+    if (ret != 0) {
+        printf("wc_AesCcmEncrypt failed, ret = %d\n", ret);
+        goto exit;
+    }
 
   exit:
 
@@ -3489,7 +3484,7 @@ void bench_camellia(void)
 
 
 #ifndef NO_DES3
-void bench_des(int doAsync)
+void bench_des(int useDeviceID)
 {
     int    ret = 0, i, count = 0, times, pending = 0;
     Des3   enc[BENCH_MAX_PENDING];
@@ -3501,7 +3496,7 @@ void bench_des(int doAsync)
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_Des3Init(&enc[i], HEAP_HINT,
-                                doAsync ? devId : INVALID_DEVID)) != 0) {
+                                useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("Des3Init failed, ret = %d\n", ret);
             goto exit;
         }
@@ -3534,7 +3529,7 @@ void bench_des(int doAsync)
         count += times;
     } while (bench_stats_sym_check(start));
 exit_3des:
-    bench_stats_sym_finish("3DES", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("3DES", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -3546,7 +3541,7 @@ exit:
 
 
 #ifndef NO_RC4
-void bench_arc4(int doAsync)
+void bench_arc4(int useDeviceID)
 {
     int    ret = 0, i, count = 0, times, pending = 0;
     Arc4   enc[BENCH_MAX_PENDING];
@@ -3558,7 +3553,7 @@ void bench_arc4(int doAsync)
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         if ((ret = wc_Arc4Init(&enc[i], HEAP_HINT,
-                            doAsync ? devId : INVALID_DEVID)) != 0) {
+                            useDeviceID ? devId : INVALID_DEVID)) != 0) {
             printf("Arc4Init failed, ret = %d\n", ret);
             goto exit;
         }
@@ -3591,7 +3586,7 @@ void bench_arc4(int doAsync)
         count += times;
     } while (bench_stats_sym_check(start));
 exit_arc4:
-    bench_stats_sym_finish("ARC4", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("ARC4", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -3650,12 +3645,13 @@ void bench_chacha20_poly1305_aead(void)
 
 
 #ifndef NO_MD5
-void bench_md5(int doAsync)
+void bench_md5(int useDeviceID)
 {
     wc_Md5 hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_MD5_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_MD5_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -3664,7 +3660,7 @@ void bench_md5(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitMd5_ex(&hash[i], HEAP_HINT,
-                        doAsync ? devId : INVALID_DEVID);
+                        useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitMd5_ex failed, ret = %d\n", ret);
                 goto exit;
@@ -3727,7 +3723,7 @@ void bench_md5(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_md5:
-    bench_stats_sym_finish("MD5", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("MD5", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -3743,12 +3739,13 @@ exit:
 
 
 #ifndef NO_SHA
-void bench_sha(int doAsync)
+void bench_sha(int useDeviceID)
 {
     wc_Sha hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -3757,7 +3754,7 @@ void bench_sha(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha_ex(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha failed, ret = %d\n", ret);
                 goto exit;
@@ -3820,7 +3817,7 @@ void bench_sha(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha:
-    bench_stats_sym_finish("SHA", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -3834,12 +3831,13 @@ exit:
 
 
 #ifdef WOLFSSL_SHA224
-void bench_sha224(int doAsync)
+void bench_sha224(int useDeviceID)
 {
     wc_Sha224 hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA224_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA224_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -3848,7 +3846,7 @@ void bench_sha224(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha224_ex(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha224_ex failed, ret = %d\n", ret);
                 goto exit;
@@ -3907,7 +3905,7 @@ void bench_sha224(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha224:
-    bench_stats_sym_finish("SHA-224", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA-224", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -3920,12 +3918,13 @@ exit:
 #endif
 
 #ifndef NO_SHA256
-void bench_sha256(int doAsync)
+void bench_sha256(int useDeviceID)
 {
     wc_Sha256 hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA256_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA256_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -3934,7 +3933,7 @@ void bench_sha256(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha256_ex(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha256_ex failed, ret = %d\n", ret);
                 goto exit;
@@ -3996,7 +3995,7 @@ void bench_sha256(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha256:
-    bench_stats_sym_finish("SHA-256", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA-256", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4009,12 +4008,13 @@ exit:
 #endif
 
 #ifdef WOLFSSL_SHA384
-void bench_sha384(int doAsync)
+void bench_sha384(int useDeviceID)
 {
     wc_Sha384 hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA384_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA384_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4023,7 +4023,7 @@ void bench_sha384(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha384_ex(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha384_ex failed, ret = %d\n", ret);
                 goto exit;
@@ -4082,7 +4082,7 @@ void bench_sha384(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha384:
-    bench_stats_sym_finish("SHA-384", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA-384", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4095,12 +4095,13 @@ exit:
 #endif
 
 #ifdef WOLFSSL_SHA512
-void bench_sha512(int doAsync)
+void bench_sha512(int useDeviceID)
 {
     wc_Sha512 hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA512_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA512_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4109,7 +4110,7 @@ void bench_sha512(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha512_ex(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha512_ex failed, ret = %d\n", ret);
                 goto exit;
@@ -4168,7 +4169,7 @@ void bench_sha512(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha512:
-    bench_stats_sym_finish("SHA-512", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA-512", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4183,12 +4184,13 @@ exit:
 
 #ifdef WOLFSSL_SHA3
 #ifndef WOLFSSL_NOSHA3_224
-void bench_sha3_224(int doAsync)
+void bench_sha3_224(int useDeviceID)
 {
     wc_Sha3   hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_224_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_224_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4197,7 +4199,7 @@ void bench_sha3_224(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha3_224(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha3_224 failed, ret = %d\n", ret);
                 goto exit;
@@ -4256,7 +4258,7 @@ void bench_sha3_224(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha3_224:
-    bench_stats_sym_finish("SHA3-224", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA3-224", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4269,12 +4271,13 @@ exit:
 #endif /* WOLFSSL_NOSHA3_224 */
 
 #ifndef WOLFSSL_NOSHA3_256
-void bench_sha3_256(int doAsync)
+void bench_sha3_256(int useDeviceID)
 {
     wc_Sha3   hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_256_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_256_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4283,7 +4286,7 @@ void bench_sha3_256(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha3_256(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha3_256 failed, ret = %d\n", ret);
                 goto exit;
@@ -4342,7 +4345,7 @@ void bench_sha3_256(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha3_256:
-    bench_stats_sym_finish("SHA3-256", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA3-256", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4355,12 +4358,13 @@ exit:
 #endif /* WOLFSSL_NOSHA3_256 */
 
 #ifndef WOLFSSL_NOSHA3_384
-void bench_sha3_384(int doAsync)
+void bench_sha3_384(int useDeviceID)
 {
     wc_Sha3   hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_384_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_384_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4369,7 +4373,7 @@ void bench_sha3_384(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha3_384(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha3_384 failed, ret = %d\n", ret);
                 goto exit;
@@ -4428,7 +4432,7 @@ void bench_sha3_384(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha3_384:
-    bench_stats_sym_finish("SHA3-384", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA3-384", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4441,12 +4445,13 @@ exit:
 #endif /* WOLFSSL_NOSHA3_384 */
 
 #ifndef WOLFSSL_NOSHA3_512
-void bench_sha3_512(int doAsync)
+void bench_sha3_512(int useDeviceID)
 {
     wc_Sha3   hash[BENCH_MAX_PENDING];
     double start;
     int    ret = 0, i, count = 0, times, pending = 0;
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_512_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_SHA3_512_DIGEST_SIZE, HEAP_HINT);
 
     /* clear for done cleanup */
     XMEMSET(hash, 0, sizeof(hash));
@@ -4455,7 +4460,7 @@ void bench_sha3_512(int doAsync)
         /* init keys */
         for (i = 0; i < BENCH_MAX_PENDING; i++) {
             ret = wc_InitSha3_512(&hash[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
             if (ret != 0) {
                 printf("InitSha3_512 failed, ret = %d\n", ret);
                 goto exit;
@@ -4514,7 +4519,7 @@ void bench_sha3_512(int doAsync)
         } while (bench_stats_sym_check(start));
     }
 exit_sha3_512:
-    bench_stats_sym_finish("SHA3-512", doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish("SHA3-512", useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4713,14 +4718,39 @@ static void bench_cmac_helper(int keySz, const char* outMsg)
     word32  digestSz = sizeof(digest);
     double  start;
     int     ret, i, count;
+#ifdef WOLFSSL_SECO_CAAM
+    unsigned int keyID;
+    int keyGroup = 1; /* group one was chosen arbitrarily */
+    int keyInfo = CAAM_KEY_TRANSIENT;
+    int keyType = CAAM_KEYTYPE_AES128;
+    byte pubKey[AES_256_KEY_SIZE];
+
+    if (keySz == AES_256_KEY_SIZE) {
+        keyType = CAAM_KEYTYPE_AES256;
+    }
+
+    if (wc_SECO_GenerateKey(CAAM_GENERATE_KEY, keyGroup, pubKey, 0, keyType,
+        keyInfo, &keyID) != 0) {
+        printf("Error generating key in hsm\n");
+        return;
+    }
+#endif
 
     bench_stats_start(&count, &start);
     do {
+    #ifdef HAVE_FIPS
         ret = wc_InitCmac(&cmac, bench_key, keySz, WC_CMAC_AES, NULL);
+    #else
+        ret = wc_InitCmac_ex(&cmac, bench_key, keySz, WC_CMAC_AES, NULL,
+            HEAP_HINT, devId);
+    #endif
         if (ret != 0) {
             printf("InitCmac failed, ret = %d\n", ret);
             return;
         }
+    #ifdef WOLFSSL_SECO_CAAM
+        wc_SECO_CMACSetKeyID(&cmac, keyID);
+    #endif
 
         for (i = 0; i < numBlocks; i++) {
             ret = wc_CmacUpdate(&cmac, bench_plain, BENCH_SIZE);
@@ -4780,7 +4810,7 @@ exit:
 
 #ifndef NO_HMAC
 
-static void bench_hmac(int doAsync, int type, int digestSz,
+static void bench_hmac(int useDeviceID, int type, int digestSz,
                        byte* key, word32 keySz, const char* label)
 {
     Hmac   hmac[BENCH_MAX_PENDING];
@@ -4788,6 +4818,7 @@ static void bench_hmac(int doAsync, int type, int digestSz,
     int    ret = 0, i, count = 0, times, pending = 0;
 #ifdef WOLFSSL_ASYNC_CRYPT
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_MAX_DIGEST_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, WC_MAX_DIGEST_SIZE, HEAP_HINT);
 #else
     byte digest[BENCH_MAX_PENDING][WC_MAX_DIGEST_SIZE];
 #endif
@@ -4800,7 +4831,7 @@ static void bench_hmac(int doAsync, int type, int digestSz,
     /* init keys */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         ret = wc_HmacInit(&hmac[i], HEAP_HINT,
-                doAsync ? devId : INVALID_DEVID);
+                useDeviceID ? devId : INVALID_DEVID);
         if (ret != 0) {
             printf("wc_HmacInit failed for %s, ret = %d\n", label, ret);
             goto exit;
@@ -4849,7 +4880,7 @@ static void bench_hmac(int doAsync, int type, int digestSz,
         } while (pending > 0);
     } while (bench_stats_sym_check(start));
 exit_hmac:
-    bench_stats_sym_finish(label, doAsync, count, bench_size, start, ret);
+    bench_stats_sym_finish(label, useDeviceID, count, bench_size, start, ret);
 
 exit:
 
@@ -4864,12 +4895,12 @@ exit:
 
 #ifndef NO_MD5
 
-void bench_hmac_md5(int doAsync)
+void bench_hmac_md5(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_MD5, WC_MD5_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_MD5, WC_MD5_DIGEST_SIZE, key, sizeof(key),
                "HMAC-MD5");
 }
 
@@ -4877,13 +4908,13 @@ void bench_hmac_md5(int doAsync)
 
 #ifndef NO_SHA
 
-void bench_hmac_sha(int doAsync)
+void bench_hmac_sha(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_SHA, WC_SHA_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_SHA, WC_SHA_DIGEST_SIZE, key, sizeof(key),
                "HMAC-SHA");
 }
 
@@ -4891,14 +4922,14 @@ void bench_hmac_sha(int doAsync)
 
 #ifdef WOLFSSL_SHA224
 
-void bench_hmac_sha224(int doAsync)
+void bench_hmac_sha224(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_SHA224, WC_SHA224_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_SHA224, WC_SHA224_DIGEST_SIZE, key, sizeof(key),
                "HMAC-SHA224");
 }
 
@@ -4906,14 +4937,14 @@ void bench_hmac_sha224(int doAsync)
 
 #ifndef NO_SHA256
 
-void bench_hmac_sha256(int doAsync)
+void bench_hmac_sha256(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_SHA256, WC_SHA256_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_SHA256, WC_SHA256_DIGEST_SIZE, key, sizeof(key),
                "HMAC-SHA256");
 }
 
@@ -4921,7 +4952,7 @@ void bench_hmac_sha256(int doAsync)
 
 #ifdef WOLFSSL_SHA384
 
-void bench_hmac_sha384(int doAsync)
+void bench_hmac_sha384(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -4930,7 +4961,7 @@ void bench_hmac_sha384(int doAsync)
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_SHA384, WC_SHA384_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_SHA384, WC_SHA384_DIGEST_SIZE, key, sizeof(key),
                "HMAC-SHA384");
 }
 
@@ -4938,7 +4969,7 @@ void bench_hmac_sha384(int doAsync)
 
 #ifdef WOLFSSL_SHA512
 
-void bench_hmac_sha512(int doAsync)
+void bench_hmac_sha512(int useDeviceID)
 {
     byte key[] = { 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -4949,7 +4980,7 @@ void bench_hmac_sha512(int doAsync)
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
                    0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b };
 
-    bench_hmac(doAsync, WC_SHA512, WC_SHA512_DIGEST_SIZE, key, sizeof(key),
+    bench_hmac(useDeviceID, WC_SHA512, WC_SHA512_DIGEST_SIZE, key, sizeof(key),
                "HMAC-SHA512");
 }
 
@@ -5013,7 +5044,7 @@ void bench_siphash(void)
 #ifndef NO_RSA
 
 #if defined(WOLFSSL_KEY_GEN)
-static void bench_rsaKeyGen_helper(int doAsync, int keySz)
+static void bench_rsaKeyGen_helper(int useDeviceID, int keySz)
 {
     RsaKey genKey[BENCH_MAX_PENDING];
     double start;
@@ -5035,8 +5066,7 @@ static void bench_rsaKeyGen_helper(int doAsync, int keySz)
                                                0, &times, genTimes, &pending)) {
 
                     wc_FreeRsaKey(&genKey[i]);
-                    ret = wc_InitRsaKey_ex(&genKey[i], HEAP_HINT,
-                        doAsync ? devId : INVALID_DEVID);
+                    ret = wc_InitRsaKey_ex(&genKey[i], HEAP_HINT, devId);
                     if (ret < 0) {
                         goto exit;
                     }
@@ -5052,7 +5082,7 @@ static void bench_rsaKeyGen_helper(int doAsync, int keySz)
         count += times;
     } while (bench_stats_sym_check(start));
 exit:
-    bench_stats_asym_finish("RSA", keySz, desc[2], doAsync, count, start, ret);
+    bench_stats_asym_finish("RSA", keySz, desc[2], useDeviceID, count, start, ret);
 
     /* cleanup */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
@@ -5060,7 +5090,7 @@ exit:
     }
 }
 
-void bench_rsaKeyGen(int doAsync)
+void bench_rsaKeyGen(int useDeviceID)
 {
     int    k, keySz;
 #if !defined(WOLFSSL_SP_MATH) || defined(WOLFSSL_SP_MATH_ALL)
@@ -5071,14 +5101,14 @@ void bench_rsaKeyGen(int doAsync)
 
     for (k = 0; k < (int)(sizeof(keySizes)/sizeof(int)); k++) {
         keySz = keySizes[k];
-        bench_rsaKeyGen_helper(doAsync, keySz);
+        bench_rsaKeyGen_helper(useDeviceID, keySz);
     }
 }
 
 
-void bench_rsaKeyGen_size(int doAsync, int keySz)
+void bench_rsaKeyGen_size(int useDeviceID, int keySz)
 {
-    bench_rsaKeyGen_helper(doAsync, keySz);
+    bench_rsaKeyGen_helper(useDeviceID, keySz);
 }
 #endif /* WOLFSSL_KEY_GEN */
 
@@ -5189,7 +5219,7 @@ static unsigned char rsa_3072_sig[] = {
 #endif
 #endif /* WOLFSSL_RSA_VERIFY_INLINE || WOLFSSL_RSA_PUBLIC_ONLY */
 
-static void bench_rsa_helper(int doAsync, RsaKey rsaKey[BENCH_MAX_PENDING],
+static void bench_rsa_helper(int useDeviceID, RsaKey rsaKey[BENCH_MAX_PENDING],
         int rsaKeySz)
 {
     int         ret = 0, i, times, count = 0, pending = 0;
@@ -5267,7 +5297,7 @@ static void bench_rsa_helper(int doAsync, RsaKey rsaKey[BENCH_MAX_PENDING],
             count += times;
         } while (bench_stats_sym_check(start));
 exit_rsa_verify:
-        bench_stats_asym_finish("RSA", rsaKeySz, desc[0], doAsync, count,
+        bench_stats_asym_finish("RSA", rsaKeySz, desc[0], useDeviceID, count,
                                                                     start, ret);
 #endif /* !WOLFSSL_RSA_VERIFY_ONLY */
 
@@ -5302,7 +5332,7 @@ exit_rsa_verify:
             count += times;
         } while (bench_stats_sym_check(start));
 exit_rsa_pub:
-        bench_stats_asym_finish("RSA", rsaKeySz, desc[1], doAsync, count,
+        bench_stats_asym_finish("RSA", rsaKeySz, desc[1], useDeviceID, count,
                                                                     start, ret);
 #endif /* !WOLFSSL_RSA_PUBLIC_ONLY */
     }
@@ -5331,7 +5361,7 @@ exit_rsa_pub:
             count += times;
         } while (bench_stats_sym_check(start));
 exit_rsa_sign:
-        bench_stats_asym_finish("RSA", rsaKeySz, desc[4], doAsync, count, start,
+        bench_stats_asym_finish("RSA", rsaKeySz, desc[4], useDeviceID, count, start,
                                                                            ret);
 
         if (ret < 0) {
@@ -5384,7 +5414,7 @@ exit_rsa_sign:
             count += times;
         } while (bench_stats_sym_check(start));
 exit_rsa_verifyinline:
-        bench_stats_asym_finish("RSA", rsaKeySz, desc[5], doAsync, count,
+        bench_stats_asym_finish("RSA", rsaKeySz, desc[5], useDeviceID, count,
                                                                     start, ret);
     }
 
@@ -5397,7 +5427,7 @@ exit:
     WC_FREE_VAR(message, HEAP_HINT);
 }
 
-void bench_rsa(int doAsync)
+void bench_rsa(int useDeviceID)
 {
     int         i;
     RsaKey      rsaKey[BENCH_MAX_PENDING];
@@ -5432,7 +5462,7 @@ void bench_rsa(int doAsync)
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         /* setup an async context for each key */
         ret = wc_InitRsaKey_ex(&rsaKey[i], HEAP_HINT,
-                               doAsync ? devId : INVALID_DEVID);
+            useDeviceID ? devId : INVALID_DEVID);
         if (ret < 0) {
             goto exit_bench_rsa;
         }
@@ -5477,7 +5507,7 @@ void bench_rsa(int doAsync)
     }
 
     if (rsaKeySz > 0) {
-        bench_rsa_helper(doAsync, rsaKey, rsaKeySz);
+        bench_rsa_helper(useDeviceID, rsaKey, rsaKeySz);
     }
 
     (void)bytes;
@@ -5493,7 +5523,7 @@ exit_bench_rsa:
 
 #ifdef WOLFSSL_KEY_GEN
 /* bench any size of RSA key */
-void bench_rsa_key(int doAsync, int rsaKeySz)
+void bench_rsa_key(int useDeviceID, int rsaKeySz)
 {
     int     ret = 0, i, pending = 0;
     RsaKey  rsaKey[BENCH_MAX_PENDING];
@@ -5512,7 +5542,7 @@ void bench_rsa_key(int doAsync, int rsaKeySz)
                                   * wc_MakeRsaKey again */
                 /* setup an async context for each key */
                 if (wc_InitRsaKey_ex(&rsaKey[i], HEAP_HINT,
-                                     doAsync ? devId : INVALID_DEVID) < 0) {
+                        useDeviceID ? devId : INVALID_DEVID) < 0) {
                     goto exit_bench_rsa_key;
                 }
 
@@ -5536,7 +5566,7 @@ void bench_rsa_key(int doAsync, int rsaKeySz)
         } /* for i */
     } while (pending > 0);
 
-    bench_rsa_helper(doAsync, rsaKey, rsaKeySz);
+    bench_rsa_helper(useDeviceID, rsaKey, rsaKeySz);
 exit_bench_rsa_key:
 
     /* cleanup */
@@ -5572,7 +5602,7 @@ exit_bench_rsa_key:
 #endif
 #define BENCH_DH_PRIV_SIZE (BENCH_DH_KEY_SIZE/8)
 
-void bench_dh(int doAsync)
+void bench_dh(int useDeviceID)
 {
     int    ret = 0, i;
     int    count = 0, times, pending = 0;
@@ -5603,6 +5633,11 @@ void bench_dh(int doAsync)
     WC_DECLARE_ARRAY(agree, byte, BENCH_MAX_PENDING, BENCH_DH_KEY_SIZE, HEAP_HINT);
     WC_DECLARE_ARRAY(priv, byte, BENCH_MAX_PENDING, BENCH_DH_PRIV_SIZE, HEAP_HINT);
     WC_DECLARE_VAR(priv2, byte, BENCH_DH_PRIV_SIZE, HEAP_HINT);
+
+    WC_INIT_ARRAY(pub, byte, BENCH_MAX_PENDING, BENCH_DH_KEY_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(agree, byte, BENCH_MAX_PENDING, BENCH_DH_KEY_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(priv, byte, BENCH_MAX_PENDING, BENCH_DH_PRIV_SIZE, HEAP_HINT);
+
 #ifdef WC_DECLARE_VAR_IS_HEAP_ALLOC
     if (pub[0] == NULL || pub2 == NULL || agree[0] == NULL || priv[0] == NULL || priv2 == NULL) {
         ret = MEMORY_E;
@@ -5670,7 +5705,7 @@ void bench_dh(int doAsync)
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
         /* setup an async context for each key */
         ret = wc_InitDhKey_ex(&dhKey[i], HEAP_HINT,
-                        doAsync ? devId : INVALID_DEVID);
+                        useDeviceID ? devId : INVALID_DEVID);
         if (ret != 0)
             goto exit;
 
@@ -5728,7 +5763,7 @@ void bench_dh(int doAsync)
     } while (bench_stats_sym_check(start));
     PRIVATE_KEY_LOCK();
 exit_dh_gen:
-    bench_stats_asym_finish("DH", dhKeySz, desc[2], doAsync, count, start, ret);
+    bench_stats_asym_finish("DH", dhKeySz, desc[2], useDeviceID, count, start, ret);
 
     if (ret < 0) {
         goto exit;
@@ -5766,7 +5801,7 @@ exit_dh_gen:
     } while (bench_stats_sym_check(start));
     PRIVATE_KEY_LOCK();
 exit:
-    bench_stats_asym_finish("DH", dhKeySz, desc[3], doAsync, count, start, ret);
+    bench_stats_asym_finish("DH", dhKeySz, desc[3], useDeviceID, count, start, ret);
 
     /* cleanup */
     for (i = 0; i < BENCH_MAX_PENDING; i++) {
@@ -5814,7 +5849,7 @@ void bench_ecc_curve(int curveId)
 }
 
 
-void bench_eccMakeKey(int doAsync, int curveId)
+void bench_eccMakeKey(int useDeviceID, int curveId)
 {
     int ret = 0, i, times, count, pending = 0;
     int deviceID;
@@ -5825,7 +5860,7 @@ void bench_eccMakeKey(int doAsync, int curveId)
     const char**desc = bench_desc_words[lng_index];
 
 #ifdef WOLFSSL_ASYNC_CRYPT
-    deviceID = doAsync ? devId : INVALID_DEVID;
+    deviceID = useDeviceID ? devId : INVALID_DEVID;
 #else
     deviceID = devId;
 #endif
@@ -5867,7 +5902,7 @@ void bench_eccMakeKey(int doAsync, int curveId)
 exit:
     XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECC   [%15s]",
             wc_ecc_get_name(curveId));
-    bench_stats_asym_finish(name, keySize * 8, desc[2], doAsync, count, start,
+    bench_stats_asym_finish(name, keySize * 8, desc[2], useDeviceID, count, start,
             ret);
 
     /* cleanup */
@@ -5877,7 +5912,7 @@ exit:
 }
 
 
-void bench_ecc(int doAsync, int curveId)
+void bench_ecc(int useDeviceID, int curveId)
 {
     int ret = 0, i, times, count, pending = 0;
     int deviceID;
@@ -5904,8 +5939,16 @@ void bench_ecc(int doAsync, int curveId)
     WC_DECLARE_ARRAY(digest, byte, BENCH_MAX_PENDING, MAX_ECC_BYTES, HEAP_HINT);
 #endif
 
+#ifdef HAVE_ECC_DHE
+    WC_INIT_ARRAY(shared, byte, BENCH_MAX_PENDING, MAX_ECC_BYTES, HEAP_HINT);
+#endif
+#if !defined(NO_ASN) && defined(HAVE_ECC_SIGN)
+    WC_INIT_ARRAY(sig, byte, BENCH_MAX_PENDING, ECC_MAX_SIG_SIZE, HEAP_HINT);
+    WC_INIT_ARRAY(digest, byte, BENCH_MAX_PENDING, MAX_ECC_BYTES, HEAP_HINT);
+#endif
+
 #ifdef WOLFSSL_ASYNC_CRYPT
-    deviceID = doAsync ? devId : INVALID_DEVID;
+    deviceID = useDeviceID ? devId : INVALID_DEVID;
 #else
     deviceID = devId;
 #endif
@@ -5979,7 +6022,7 @@ void bench_ecc(int doAsync, int curveId)
 exit_ecdhe:
     XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDHE [%15s]", wc_ecc_get_name(curveId));
 
-    bench_stats_asym_finish(name, keySize * 8, desc[3], doAsync, count, start,
+    bench_stats_asym_finish(name, keySize * 8, desc[3], useDeviceID, count, start,
             ret);
 
     if (ret < 0) {
@@ -6023,7 +6066,7 @@ exit_ecdhe:
 exit_ecdsa_sign:
     XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDSA [%15s]", wc_ecc_get_name(curveId));
 
-    bench_stats_asym_finish(name, keySize * 8, desc[4], doAsync, count, start,
+    bench_stats_asym_finish(name, keySize * 8, desc[4], useDeviceID, count, start,
             ret);
 
     if (ret < 0) {
@@ -6059,7 +6102,7 @@ exit_ecdsa_sign:
 exit_ecdsa_verify:
     XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDSA [%15s]", wc_ecc_get_name(curveId));
 
-    bench_stats_asym_finish(name, keySize * 8, desc[5], doAsync, count, start,
+    bench_stats_asym_finish(name, keySize * 8, desc[5], useDeviceID, count, start,
             ret);
 #endif /* HAVE_ECC_VERIFY */
 #endif /* !NO_ASN && HAVE_ECC_SIGN */
@@ -6082,7 +6125,7 @@ exit:
     WC_FREE_ARRAY(digest, BENCH_MAX_PENDING, HEAP_HINT);
 #endif
 
-    (void)doAsync;
+    (void)useDeviceID;
     (void)pending;
     (void)x;
     (void)count;
@@ -6226,8 +6269,8 @@ void bench_curve25519KeyAgree(void)
     const char**desc = bench_desc_words[lng_index];
     word32 x = 0;
 
-    wc_curve25519_init(&genKey);
-    wc_curve25519_init(&genKey2);
+    wc_curve25519_init_ex(&genKey,  HEAP_HINT, devId);
+    wc_curve25519_init_ex(&genKey2, HEAP_HINT, devId);
 
     ret = wc_curve25519_make_key(&gRng, 32, &genKey);
     if (ret != 0) {
@@ -7731,6 +7774,7 @@ int main(int argc, char** argv)
                     optMatched = 1;
                 }
             }
+        #if defined(HAVE_PQC)
             /* Known asymmetric post-quantum algorithms */
             for (i=0; !optMatched && bench_pq_asym_opt[i].str != NULL; i++) {
                 if (string_matches(argv[1], bench_pq_asym_opt[i].str)) {
@@ -7739,6 +7783,7 @@ int main(int argc, char** argv)
                     optMatched = 1;
                 }
             }
+        #endif
             /* Other known cryptographic algorithms */
             for (i=0; !optMatched && bench_other_opt[i].str != NULL; i++) {
                 if (string_matches(argv[1], bench_other_opt[i].str)) {
@@ -7783,6 +7828,6 @@ int main(int argc, char** argv)
 
 #else
     #ifndef NO_MAIN_DRIVER
-        int main() { return 0; }
+        int main(void) { return 0; }
     #endif
 #endif /* !NO_CRYPT_BENCHMARK */

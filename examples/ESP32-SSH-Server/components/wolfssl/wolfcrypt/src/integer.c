@@ -511,7 +511,7 @@ void mp_zero (mp_int * a)
   a->used = 0;
 
   tmp = a->dp;
-  for (n = 0; n < a->alloc; n++) {
+  for (n = 0; tmp != NULL && n < a->alloc; n++) {
      *tmp++ = 0;
   }
 }
@@ -1390,6 +1390,9 @@ int mp_cmp_mag (mp_int * a, mp_int * b)
     return MP_LT;
   }
 
+  if (a->used == 0)
+      return MP_EQ;
+
   /* alias for a */
   tmpa = a->dp + (a->used - 1);
 
@@ -1710,7 +1713,7 @@ int s_mp_add (mp_int * a, mp_int * b, mp_int * c)
   }
 
   /* init result */
-  if (c->alloc < max_ab + 1) {
+  if (c->dp == NULL || c->alloc < max_ab + 1) {
     if ((res = mp_grow (c, max_ab + 1)) != MP_OKAY) {
       return res;
     }
@@ -1754,7 +1757,7 @@ int s_mp_add (mp_int * a, mp_int * b, mp_int * c)
     if (min_ab != max_ab) {
       for (; i < max_ab; i++) {
         /* T[i] = X[i] + U */
-          *tmpc = x->dp[i] + u; // NOLINT(clang-analyzer-core.NullDereference) /* clang-tidy 13 false positive */
+          *tmpc = x->dp[i] + u;
 
         /* U = carry bit of T[i] */
         u = *tmpc >> ((mp_digit)DIGIT_BIT);
@@ -2959,7 +2962,7 @@ int mp_mul_d (mp_int * a, mp_digit b, mp_int * c)
   int      ix, res, olduse;
 
   /* make sure c is big enough to hold a*b */
-  if (c->alloc < a->used + 1) {
+  if (c->dp == NULL || c->alloc < a->used + 1) {
     if ((res = mp_grow (c, a->used + 1)) != MP_OKAY) {
       return res;
     }
@@ -3477,23 +3480,25 @@ int fast_s_mp_mul_digs (mp_int * a, mp_int * b, mp_int * c, int digs)
       int      iy;
       mp_digit *tmpx, *tmpy;
 
-      /* get offsets into the two bignums */
-      ty = MIN(b->used-1, ix);
-      tx = ix - ty;
+      if ((a->used > 0) && (b->used > 0)) {
+          /* get offsets into the two bignums */
+          ty = MIN(b->used-1, ix);
+          tx = ix - ty;
 
-      /* setup temp aliases */
-      tmpx = a->dp + tx;
-      tmpy = b->dp + ty;
+          /* setup temp aliases */
+          tmpx = a->dp + tx;
+          tmpy = b->dp + ty;
 
-      /* this is the number of times the loop will iterate, essentially
-         while (tx++ < a->used && ty-- >= 0) { ... }
-       */
-      iy = MIN(a->used-tx, ty+1);
+          /* this is the number of times the loop will iterate, essentially
+             while (tx++ < a->used && ty-- >= 0) { ... }
+          */
+          iy = MIN(a->used-tx, ty+1);
 
-      /* execute loop */
-      for (iz = 0; iz < iy; ++iz) {
-         _W += ((mp_word)*tmpx++)*((mp_word)*tmpy--);
+          /* execute loop */
+          for (iz = 0; iz < iy; ++iz) {
+              _W += ((mp_word)*tmpx++)*((mp_word)*tmpy--);
 
+          }
       }
 
       /* store term */
@@ -4373,6 +4378,10 @@ int mp_add_d (mp_int* a, mp_digit b, mp_int* c) // NOLINT(misc-no-recursion)
   /* destination alias */
   tmpc    = c->dp;
 
+  if (tmpa == NULL || tmpc == NULL) {
+    return MP_MEM;
+  }
+
   /* if a is positive */
   if (a->sign == MP_ZPOS) {
      /* add digit, after this we're propagating
@@ -4456,6 +4465,10 @@ int mp_sub_d (mp_int * a, mp_digit b, mp_int * c) // NOLINT(misc-no-recursion)
   oldused = c->used;
   tmpa    = a->dp;
   tmpc    = c->dp;
+
+  if (tmpa == NULL || tmpc == NULL) {
+    return MP_MEM;
+  }
 
   /* if a <= b simply fix the single digit */
   if ((a->used == 1 && a->dp[0] <= b) || a->used == 0) {
@@ -4905,6 +4918,7 @@ int mp_prime_is_prime_ex (mp_int * a, int t, int *result, WC_RNG *rng)
   mp_int  b, c;
   int     ix, err, res;
   byte*   base = NULL;
+  word32  bitSz = 0;
   word32  baseSz = 0;
 
   /* default to no */
@@ -4912,6 +4926,10 @@ int mp_prime_is_prime_ex (mp_int * a, int t, int *result, WC_RNG *rng)
 
   /* valid value of t? */
   if (t <= 0 || t > PRIME_SIZE) {
+    return MP_VAL;
+  }
+
+  if (a->sign == MP_NEG) {
     return MP_VAL;
   }
 
@@ -4947,8 +4965,9 @@ int mp_prime_is_prime_ex (mp_int * a, int t, int *result, WC_RNG *rng)
     return err;
   }
 
-  baseSz = mp_count_bits(a);
-  baseSz = (baseSz / 8) + ((baseSz % 8) ? 1 : 0);
+  bitSz = mp_count_bits(a);
+  baseSz = (bitSz / 8) + ((bitSz % 8) ? 1 : 0);
+  bitSz %= 8;
 
   base = (byte*)XMALLOC(baseSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
   if (base == NULL) {
@@ -4966,6 +4985,11 @@ int mp_prime_is_prime_ex (mp_int * a, int t, int *result, WC_RNG *rng)
     /* Set a test candidate. */
     if ((err = wc_RNG_GenerateBlock(rng, base, baseSz)) != 0) {
         goto LBL_B;
+    }
+
+    /* Clear bits higher than those in a. */
+    if (bitSz > 0) {
+        base[0] &= (1 << bitSz) - 1;
     }
 
     if ((err = mp_read_unsigned_bin(&b, base, baseSz)) != MP_OKAY) {
@@ -5000,12 +5024,12 @@ LBL_B:mp_clear (&b);
 
 static const int USE_BBS = 1;
 
-int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap)
+int mp_rand_prime(mp_int* a, int len, WC_RNG* rng, void* heap)
 {
     int   err, res, type;
     byte* buf;
 
-    if (N == NULL || rng == NULL)
+    if (a == NULL || rng == NULL)
         return MP_VAL;
 
     /* get type */
@@ -5045,7 +5069,7 @@ int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap)
         buf[len-1] |= 0x01 | ((type & USE_BBS) ? 0x02 : 0x00);
 
         /* load value */
-        if ((err = mp_read_unsigned_bin(N, buf, len)) != MP_OKAY) {
+        if ((err = mp_read_unsigned_bin(a, buf, len)) != MP_OKAY) {
             XFREE(buf, heap, DYNAMIC_TYPE_RSA);
             return err;
         }
@@ -5055,7 +5079,7 @@ int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap)
          * of a 1024-bit candidate being a false positive, when it is our
          * prime candidate. (Note 4.49 of Handbook of Applied Cryptography.)
          * Using 8 because we've always used 8. */
-        if ((err = mp_prime_is_prime_ex(N, 8, &res, rng)) != MP_OKAY) {
+        if ((err = mp_prime_is_prime_ex(a, 8, &res, rng)) != MP_OKAY) {
             XFREE(buf, heap, DYNAMIC_TYPE_RSA);
             return err;
         }

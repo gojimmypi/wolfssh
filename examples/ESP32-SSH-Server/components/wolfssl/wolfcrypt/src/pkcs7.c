@@ -360,7 +360,7 @@ static int wc_PKCS7_SetMaxStream(PKCS7* pkcs7, byte* in, word32 defSz)
     #ifdef ASN_BER_TO_DER
         if (length == 0 && ret == 0) {
             idx = 0;
-            if ((ret = wc_BerToDer(pt, defSz, NULL,
+            if ((ret = wc_BerToDer(pt, maxIdx, NULL,
                             (word32*)&length)) != LENGTH_ONLY_E) {
                 return ret;
             }
@@ -1762,29 +1762,37 @@ static int wc_PKCS7_RsaSign(PKCS7* pkcs7, byte* in, word32 inSz, ESD* esd)
             idx = 0;
             ret = wc_RsaPrivateKeyDecode(pkcs7->privateKey, &idx, privKey,
                                          pkcs7->privateKeySz);
+            /* If not using old FIPS or CAVP selftest, or not using FAST,
+             * or USER RSA, able to check RSA key. */
+            if (ret == 0) {
+        #if !defined(WOLFSSL_RSA_PUBLIC_ONLY) && !defined(HAVE_FAST_RSA) && \
+            !defined(HAVE_USER_RSA) && (!defined(HAVE_FIPS) || \
+            (defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2))) && \
+            !defined(HAVE_SELFTEST) && !defined(HAVE_INTEL_QA)
+
+            #if defined(WOLFSSL_KEY_GEN) && !defined(WOLFSSL_NO_RSA_KEY_CHECK)
+                /* verify imported private key is a valid key before using it */
+                ret = wc_CheckRsaKey(privKey);
+                if (ret != 0) {
+                    WOLFSSL_MSG("Invalid RSA private key, check "
+                                "pkcs7->privateKey");
+                }
+            #endif
+        #endif
+            }
+        #ifdef WOLF_CRYPTO_CB
+            else if (ret == ASN_PARSE_E && pkcs7->devId != INVALID_DEVID) {
+                /* if using crypto callbacks, try public key decode */
+                idx = 0;
+                ret = wc_RsaPublicKeyDecode(pkcs7->privateKey, &idx, privKey,
+                                            pkcs7->privateKeySz);
+            }
+        #endif
         }
         else if (pkcs7->devId == INVALID_DEVID) {
             ret = BAD_FUNC_ARG;
         }
     }
-
-    /* If not using old FIPS or CAVP selftest, or not using FAST,
-       or USER RSA, able to check RSA key. */
-#if !defined(WOLFSSL_RSA_PUBLIC_ONLY) && !defined(HAVE_FAST_RSA) && \
-    !defined(HAVE_USER_RSA) && (!defined(HAVE_FIPS) || \
-    (defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2))) && \
-    !defined(HAVE_SELFTEST) && !defined(HAVE_INTEL_QA)
-
-    #if defined(WOLFSSL_KEY_GEN) && !defined(WOLFSSL_NO_RSA_KEY_CHECK)
-    /* verify imported private key is a valid key before using it */
-    if (ret == 0) {
-        ret = wc_CheckRsaKey(privKey);
-        if (ret != 0) {
-            WOLFSSL_MSG("Invalid RSA private key, check pkcs7->privateKey");
-        }
-    }
-    #endif
-#endif
 
     if (ret == 0) {
     #ifdef WOLFSSL_ASYNC_CRYPT
@@ -1844,17 +1852,25 @@ static int wc_PKCS7_EcdsaSign(PKCS7* pkcs7, byte* in, word32 inSz, ESD* esd)
             idx = 0;
             ret = wc_EccPrivateKeyDecode(pkcs7->privateKey, &idx, privKey,
                                          pkcs7->privateKeySz);
+            /* verify imported private key is a valid key before using it */
+            if (ret == 0) {
+                ret = wc_ecc_check_key(privKey);
+                if (ret != 0) {
+                    WOLFSSL_MSG("Invalid ECC private key, check "
+                                "pkcs7->privateKey");
+                }
+            }
+        #ifdef WOLF_CRYPTO_CB
+            else if (ret == ASN_PARSE_E && pkcs7->devId != INVALID_DEVID) {
+                /* if using crypto callbacks, try public key decode */
+                idx = 0;
+                ret = wc_EccPublicKeyDecode(pkcs7->privateKey, &idx, privKey,
+                                            pkcs7->privateKeySz);
+            }
+        #endif
         }
         else if (pkcs7->devId == INVALID_DEVID) {
             ret = BAD_FUNC_ARG;
-        }
-    }
-
-    /* verify imported private key is a valid key before using it */
-    if (ret == 0) {
-        ret = wc_ecc_check_key(privKey);
-        if (ret != 0) {
-            WOLFSSL_MSG("Invalid ECC private key, check pkcs7->privateKey");
         }
     }
 
@@ -2608,6 +2624,11 @@ static int PKCS7_EncodeSigned(PKCS7* pkcs7, ESD* esd,
 
     if (totalSz > *outputSz) {
         if (*outputSz == 0) {
+        #ifdef HAVE_ECC
+            if (pkcs7->publicKeyOID == ECDSAk) {
+                totalSz += ECC_MAX_PAD_SZ; /* signatures size can vary */
+            }
+        #endif
             *outputSz = totalSz;
             idx = totalSz;
             goto out;
@@ -3409,6 +3430,8 @@ static int wc_PKCS7_RsaVerify(PKCS7* pkcs7, byte* sig, int sigSz,
             if (XMEMCMP(digest, hash, hashSz) == 0) {
                 /* found signer that successfully verified signature */
                 verified = 1;
+                pkcs7->verifyCert   = pkcs7->cert[i];
+                pkcs7->verifyCertSz = pkcs7->certSz[i];
                 break;
             }
         }
@@ -3532,6 +3555,8 @@ static int wc_PKCS7_EcdsaVerify(PKCS7* pkcs7, byte* sig, int sigSz,
         if (ret == 0 && res == 1) {
             /* found signer that successfully verified signature */
             verified = 1;
+            pkcs7->verifyCert   = pkcs7->cert[i];
+            pkcs7->verifyCertSz = pkcs7->certSz[i];
             break;
         }
     }
@@ -4396,7 +4421,7 @@ static int PKCS7_VerifySignedData(PKCS7* pkcs7, const byte* hashBuf,
 
 #ifdef ASN_BER_TO_DER
     if (pkcs7->derSz > 0 && pkcs7->der) {
-        pkiMsg = in = pkcs7->der;
+        pkiMsg = pkcs7->der;
     }
 #endif
 
@@ -4590,8 +4615,13 @@ static int PKCS7_VerifySignedData(PKCS7* pkcs7, const byte* hashBuf,
                     ret = ASN_PARSE_E;
                 }
                 /* if indef, skip EOF */
-                if (isIndef && pkiMsg[idx] == ASN_EOC && pkiMsg[idx+1] == 0) {
-                    idx += 2; /* skip EOF + zero byte */
+                if (isIndef) {
+                    if (idx + 1 >= pkiMsgSz) {
+                        ret = ASN_PARSE_E;
+                    }
+                    else if (pkiMsg[idx] == ASN_EOC && pkiMsg[idx+1] == 0) {
+                        idx += 2; /* skip EOF + zero byte */
+                    }
                 }
             }
 
@@ -7436,8 +7466,12 @@ static int wc_PKCS7_PwriKek_KeyWrap(PKCS7* pkcs7, const byte* kek, word32 kekSz,
 
     /* get encryption algorithm block size */
     blockSz = wc_PKCS7_GetOIDBlockSize(algID);
-    if (blockSz < 0)
-        return blockSz;
+    if (blockSz <= 0) {
+        if (blockSz < 0)
+            return blockSz;
+        else
+            return ALGO_ID_E;
+    }
 
     /* get pad bytes needed to block boundary */
     padSz = blockSz - ((4 + cekSz) % blockSz);
@@ -7520,9 +7554,12 @@ static int wc_PKCS7_PwriKek_KeyUnWrap(PKCS7* pkcs7, const byte* kek,
 
     /* get encryption algorithm block size */
     blockSz = wc_PKCS7_GetOIDBlockSize(algID);
-    if (blockSz < 0) {
+    if (blockSz <= 0) {
         XFREE(outTmp, pkcs7->heap, DYNAMIC_TYPE_TMP_BUFFER);
-        return blockSz;
+        if (blockSz < 0)
+            return blockSz;
+        else
+            return ALGO_ID_E;
     }
 
     /* input needs to be blockSz multiple and at least 2 * blockSz */

@@ -4385,31 +4385,49 @@ int sp_init_multi(sp_int* n1, sp_int* n2, sp_int* n3, sp_int* n4, sp_int* n5,
         _sp_zero(n1);
         n1->dp[0] = 0;
         n1->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n1->raw);
+    #endif
     }
     if (n2 != NULL) {
         _sp_zero(n2);
         n2->dp[0] = 0;
         n2->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n2->raw);
+    #endif
     }
     if (n3 != NULL) {
         _sp_zero(n3);
         n3->dp[0] = 0;
         n3->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n3->raw);
+    #endif
     }
     if (n4 != NULL) {
         _sp_zero(n4);
         n4->dp[0] = 0;
         n4->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n4->raw);
+    #endif
     }
     if (n5 != NULL) {
         _sp_zero(n5);
         n5->dp[0] = 0;
         n5->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n5->raw);
+    #endif
     }
     if (n6 != NULL) {
         _sp_zero(n6);
         n6->dp[0] = 0;
         n6->size = SP_INT_DIGITS;
+    #ifdef HAVE_WOLF_BIGINT
+        wc_bigint_init(&n6->raw);
+    #endif
     }
 
     return MP_OKAY;
@@ -5219,11 +5237,13 @@ static int _sp_add_d(sp_int* a, sp_int_digit d, sp_int* r)
             }
         }
         if (i == a->used) {
-            r->used++;
-            if (i < r->size)
+            if (i < r->size) {
+                r->used++;
                 r->dp[i] = 1;
-            else
+            }
+            else {
                 err = MP_VAL;
+            }
         }
     }
     if (err == MP_OKAY) {
@@ -6712,8 +6732,13 @@ int sp_div(sp_int* a, sp_int* d, sp_int* r, sp_int* rem)
     if ((err == MP_OKAY) && (r != NULL) && (r->size < a->used - d->used + 2)) {
         err = MP_VAL;
     }
-    if ((err == MP_OKAY) && (rem != NULL) && (rem->size < a->used + 1)) {
-        err = MP_VAL;
+    if ((err == MP_OKAY) && (rem != NULL)) {
+        if ((a->used <= d->used) && (rem->size < a->used + 1)) {
+            err = MP_VAL;
+        }
+        else if ((a->used > d->used) && (rem->size < d->used + 1)) {
+            err = MP_VAL;
+        }
     }
     /* May need to shift number being divided left into a new word. */
     if ((err == MP_OKAY) && (a->used == SP_INT_DIGITS)) {
@@ -11528,6 +11553,9 @@ int sp_mod_2d(sp_int* a, int e, sp_int* r)
         if (a != r) {
             XMEMCPY(r->dp, a->dp, digits * sizeof(sp_int_digit));
             r->used = a->used;
+        #ifdef WOLFSSL_SP_INT_NEGATIVE
+            r->sign = a->sign;
+        #endif
         }
     #ifndef WOLFSSL_SP_INT_NEGATIVE
         if (digits <= a->used)
@@ -14499,8 +14527,8 @@ int sp_mont_setup(sp_int* m, sp_int_digit* rho)
     #endif /* SP_WORD_SIZE >= 32 */
     #endif /* SP_WORD_SIZE >= 16 */
 
-        /* rho = -1/m mod b */
-        *rho = -x;
+        /* rho = -1/m mod b, subtract x (unsigned) from 0, assign negative */
+        *rho = (sp_int_digit) ((sp_int_digit)0 - (sp_int_digit)x);
     }
 
     return err;
@@ -14729,7 +14757,7 @@ int sp_to_unsigned_bin_len(sp_int* a, byte* out, int outSz)
             for (i = 0; (j >= 0) && (i < a->used); i++) {
                 int b;
                 for (b = 0; b < SP_WORD_SIZE; b += 8) {
-                    out[j--] = a->dp[i] >> b;
+                    out[j--] = (byte) (a->dp[i] >> b);
                     if (j < 0) {
                         break;
                     }
@@ -14881,7 +14909,10 @@ static int _sp_read_radix_10(sp_int* a, const char* in)
         if (err != MP_OKAY) {
             break;
         }
-        (void)_sp_add_d(a, ch, a);
+        err = _sp_add_d(a, ch, a);
+        if (err != MP_OKAY) {
+            break;
+        }
     }
 #ifdef WOLFSSL_SP_INT_NEGATIVE
     if ((err == MP_OKAY) && sp_iszero(a)) {
@@ -15008,11 +15039,11 @@ int sp_tohex(sp_int* a, char* str)
     #endif /* WC_DISABLE_RADIX_ZERO_PAD */
             /* Most-significant word. */
             for (; j >= 0; j -= 4) {
-                *(str++) = ByteToHex(a->dp[i] >> j);
+                *(str++) = ByteToHex((byte) (a->dp[i] >> j));
             }
             for (--i; i >= 0; i--) {
                 for (j = SP_WORD_SIZE - 4; j >= 0; j -= 4) {
-                    *(str++) = ByteToHex(a->dp[i] >> j);
+                    *(str++) = (byte) ByteToHex((byte) (a->dp[i] >> j));
                 }
             }
             *str = '\0';
@@ -15072,14 +15103,14 @@ int sp_todecimal(sp_int* a, char* str)
             i = 0;
             while (!sp_iszero(t)) {
                 sp_div_d(t, 10, t, &d);
-                str[i++] = '0' + d;
+                str[i++] = (char) ('0' + d);
             }
             str[i] = '\0';
 
             for (j = 0; j <= (i - 1) / 2; j++) {
                 int c = (unsigned char)str[j];
                 str[j] = str[i - 1 - j];
-                str[i - 1 - j] = c;
+                str[i - 1 - j] = (char) c;
             }
         }
 
@@ -15632,6 +15663,12 @@ int sp_prime_is_prime_ex(sp_int* a, int t, int* result, WC_RNG* rng)
         err = MP_VAL;
     }
 
+#ifdef WOLFSSL_SP_INT_NEGATIVE
+    if ((err == MP_OKAY) && (a->sign == MP_NEG)) {
+        err = MP_VAL;
+    }
+#endif
+
     if ((err == MP_OKAY) && sp_isone(a)) {
         ret = MP_NO;
         haveRes = 1;
@@ -15700,6 +15737,7 @@ int sp_prime_is_prime_ex(sp_int* a, int t, int* result, WC_RNG* rng)
                 /* Ensure the top word has no more bits than necessary. */
                 if (bits > 0) {
                     b->dp[b->used - 1] &= ((sp_digit)1 << bits) - 1;
+                    sp_clamp(b);
                 }
 
                 if ((sp_cmp_d(b, 2) != MP_GT) || (_sp_cmp(b, c) != MP_LT)) {

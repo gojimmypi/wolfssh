@@ -317,9 +317,60 @@ int EmbedSend(WOLFSSL* ssl, char *buf, int sz, void *ctx)
 
 #include <wolfssl/wolfcrypt/sha.h>
 
-#define SENDTO_FUNCTION sendto
-#define RECVFROM_FUNCTION recvfrom
+#ifndef DTLS_SENDTO_FUNCTION
+    #define DTLS_SENDTO_FUNCTION sendto
+#endif
+#ifndef DTLS_RECVFROM_FUNCTION
+    #define DTLS_RECVFROM_FUNCTION recvfrom
+#endif
 
+static int sockAddrEqual(
+    SOCKADDR_S *a, XSOCKLENT aLen, SOCKADDR_S *b, XSOCKLENT bLen)
+{
+    if (aLen != bLen)
+        return 0;
+
+    if (a->ss_family != b->ss_family)
+        return 0;
+
+    if (a->ss_family == AF_INET) {
+
+        if (aLen < sizeof(SOCKADDR_IN))
+            return 0;
+
+        if (((SOCKADDR_IN*)a)->sin_port != ((SOCKADDR_IN*)b)->sin_port)
+            return 0;
+
+        if (((SOCKADDR_IN*)a)->sin_addr.s_addr !=
+            ((SOCKADDR_IN*)b)->sin_addr.s_addr)
+            return 0;
+
+        return 1;
+    }
+
+#ifdef WOLFSSL_IPV6
+    if (a->ss_family == AF_INET6) {
+        SOCKADDR_IN6 *a6, *b6;
+
+        if (aLen < sizeof(SOCKADDR_IN6))
+            return 0;
+
+        a6 = (SOCKADDR_IN6*)a;
+        b6 = (SOCKADDR_IN6*)b;
+
+        if (((SOCKADDR_IN6*)a)->sin6_port != ((SOCKADDR_IN6*)b)->sin6_port)
+            return 0;
+
+        if (XMEMCMP((void*)&a6->sin6_addr, (void*)&b6->sin6_addr,
+                sizeof(a6->sin6_addr)) != 0)
+            return 0;
+
+        return 1;
+    }
+#endif /* WOLFSSL_HAVE_IPV6 */
+
+    return 0;
+}
 
 /* The receive embedded callback
  *  return : nb bytes read, or error
@@ -366,7 +417,9 @@ int EmbedReceiveFrom(WOLFSSL *ssl, char *buf, int sz, void *ctx)
     }
 #endif /* !NO_ASN_TIME */
 
-    recvd = (int)RECVFROM_FUNCTION(sd, buf, sz, ssl->rflags,
+    XMEMSET(&peer, 0, sizeof(peer));
+
+    recvd = (int)DTLS_RECVFROM_FUNCTION(sd, buf, sz, ssl->rflags,
                                   (SOCKADDR*)&peer, &peerSz);
 
     recvd = TranslateReturnCode(recvd, sd);
@@ -381,9 +434,10 @@ int EmbedReceiveFrom(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         return recvd;
     }
     else {
-        if (dtlsCtx->peer.sz > 0
-                && peerSz != (XSOCKLENT)dtlsCtx->peer.sz
-                && XMEMCMP(&peer, dtlsCtx->peer.sa, peerSz) != 0) {
+        if (dtlsCtx->peer.sz > 0 &&
+            (peerSz != (XSOCKLENT)dtlsCtx->peer.sz ||
+                !sockAddrEqual(&peer, peerSz, (SOCKADDR_S*)dtlsCtx->peer.sa,
+                    dtlsCtx->peer.sz))) {
             WOLFSSL_MSG("    Ignored packet from invalid peer");
             return WOLFSSL_CBIO_ERR_WANT_READ;
         }
@@ -407,7 +461,7 @@ int EmbedSendTo(WOLFSSL* ssl, char *buf, int sz, void *ctx)
 
     WOLFSSL_ENTER("EmbedSendTo()");
 
-    sent = (int)SENDTO_FUNCTION(sd, buf, sz, ssl->wflags,
+    sent = (int)DTLS_SENDTO_FUNCTION(sd, buf, sz, ssl->wflags,
                                 (const SOCKADDR*)dtlsCtx->peer.sa,
                                 dtlsCtx->peer.sz);
 
@@ -435,7 +489,7 @@ int EmbedReceiveFromMcast(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 
     WOLFSSL_ENTER("EmbedReceiveFromMcast()");
 
-    recvd = (int)RECVFROM_FUNCTION(sd, buf, sz, ssl->rflags, NULL, NULL);
+    recvd = (int)DTLS_RECVFROM_FUNCTION(sd, buf, sz, ssl->rflags, NULL, NULL);
 
     recvd = TranslateReturnCode(recvd, sd);
 
@@ -758,7 +812,7 @@ int wolfIO_Send(SOCKET_T sd, char *buf, int sz, int wrFlags)
         ret = select(nfds, &rfds, &wfds, NULL, &timeout);
         if (ret == 0) {
         #ifdef DEBUG_HTTP
-            printf("Timeout: %d\n", ret);
+            fprintf(stderr, "Timeout: %d\n", ret);
         #endif
             return HTTP_TIMEOUT;
         }
@@ -2445,11 +2499,11 @@ int uIPSend(WOLFSSL* ssl, char* buf, int sz, void* _ctx)
         unsigned int bytes_left = sz - total_written;
         max_sendlen = tcp_socket_max_sendlen(&ctx->conn.tcp);
         if (bytes_left > max_sendlen) {
-            printf("Send limited by buffer\r\n");
+            fprintf(stderr, "uIPSend: Send limited by buffer\r\n");
             bytes_left = max_sendlen;
         }
         if (bytes_left == 0) {
-            printf("Buffer full!\r\n");
+            fprintf(stderr, "uIPSend: Buffer full!\r\n");
             break;
         }
         ret = tcp_socket_send(&ctx->conn.tcp, (unsigned char *)buf + total_written, bytes_left);

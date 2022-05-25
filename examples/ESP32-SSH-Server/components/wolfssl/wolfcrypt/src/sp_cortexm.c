@@ -3433,10 +3433,7 @@ static int sp_2048_mod_exp_32(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -3588,10 +3585,7 @@ static int sp_2048_mod_exp_32(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -4426,10 +4420,7 @@ static int sp_2048_mod_exp_64(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -4572,10 +4563,7 @@ static int sp_2048_mod_exp_64(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -5025,6 +5013,12 @@ int sp_RsaPrivate_2048(const byte* in, word32 inLen, const mp_int* dm,
         err = MP_READ_E;
     }
     else if (mp_iseven(mm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(pm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(qm)) {
         err = MP_VAL;
     }
 
@@ -5644,7 +5638,7 @@ static int sp_2048_mod_exp_2_64(sp_digit* r, const sp_digit* e, int bits,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -8951,10 +8945,7 @@ static int sp_3072_mod_exp_48(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -9106,10 +9097,7 @@ static int sp_3072_mod_exp_48(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -10028,10 +10016,7 @@ static int sp_3072_mod_exp_96(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -10174,10 +10159,7 @@ static int sp_3072_mod_exp_96(sp_digit* r, const sp_digit* a, const sp_digit* e,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -10627,6 +10609,12 @@ int sp_RsaPrivate_3072(const byte* in, word32 inLen, const mp_int* dm,
         err = MP_READ_E;
     }
     else if (mp_iseven(mm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(pm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(qm)) {
         err = MP_VAL;
     }
 
@@ -11442,7 +11430,7 @@ static int sp_3072_mod_exp_2_96(sp_digit* r, const sp_digit* e, int bits,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -12539,7 +12527,7 @@ SP_NOINLINE static void sp_4096_mul_128(sp_digit* r, const sp_digit* a,
     u += sp_4096_add_128(r + 64, r + 64, z1);
     XMEMSET(a1 + 1, 0, sizeof(sp_digit) * (64 - 1));
     a1[0] = u;
-    (void)sp_4096_add_64(r + 192, r + 192, a1);
+    (void)sp_2048_add_64(r + 192, r + 192, a1);
 }
 
 /* Square a and put result in r. (r = a * a)
@@ -13805,10 +13793,7 @@ static int sp_4096_mod_exp_128(sp_digit* r, const sp_digit* a, const sp_digit* e
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -13951,10 +13936,7 @@ static int sp_4096_mod_exp_128(sp_digit* r, const sp_digit* a, const sp_digit* e
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
-        err = MP_VAL;
-    }
-    else if (bits == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -14405,6 +14387,12 @@ int sp_RsaPrivate_4096(const byte* in, word32 inLen, const mp_int* dm,
         err = MP_READ_E;
     }
     else if (mp_iseven(mm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(pm)) {
+        err = MP_VAL;
+    }
+    else if (mp_iseven(qm)) {
         err = MP_VAL;
     }
 
@@ -15416,7 +15404,7 @@ static int sp_4096_mod_exp_2_128(sp_digit* r, const sp_digit* e, int bits,
     byte y;
     int err = MP_OKAY;
 
-    if ((m[0] & 1) == 0) {
+    if (bits == 0) {
         err = MP_VAL;
     }
 
@@ -18740,8 +18728,7 @@ static void sp_256_map_8(sp_point_256* r, const sp_point_256* p,
     sp_256_mont_reduce_8(r->x, p256_mod, p256_mp_mod);
     /* Reduce x to less than modulus */
     n = sp_256_cmp_8(r->x, p256_mod);
-    sp_256_cond_sub_8(r->x, r->x, p256_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_256_cond_sub_8(r->x, r->x, p256_mod, ~(n >> 31));
     sp_256_norm_8(r->x);
 
     /* y /= z^3 */
@@ -18750,8 +18737,7 @@ static void sp_256_map_8(sp_point_256* r, const sp_point_256* p,
     sp_256_mont_reduce_8(r->y, p256_mod, p256_mp_mod);
     /* Reduce y to less than modulus */
     n = sp_256_cmp_8(r->y, p256_mod);
-    sp_256_cond_sub_8(r->y, r->y, p256_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_256_cond_sub_8(r->y, r->y, p256_mod, ~(n >> 31));
     sp_256_norm_8(r->y);
 
     XMEMSET(r->z, 0, sizeof(r->z) / 2);
@@ -19336,6 +19322,17 @@ static int sp_256_cmp_equal_8(const sp_digit* a, const sp_digit* b)
             (a[6] ^ b[6]) | (a[7] ^ b[7])) == 0;
 }
 
+/* Returns 1 if the number of zero.
+ * Implementation is constant time.
+ *
+ * a  Number to check.
+ * returns 1 if the number is zero and 0 otherwise.
+ */
+static int sp_256_iszero_8(const sp_digit* a)
+{
+    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7]) == 0;
+}
+
 /* Add two Montgomery form projective points.
  *
  * r  Result of addition.
@@ -19395,7 +19392,8 @@ static int sp_256_proj_point_add_8_nb(sp_ecc_ctx_t* sp_ctx, sp_point_256* r,
         /* Check double */
         (void)sp_256_sub_8(ctx->t1, p256_mod, q->y);
         sp_256_norm_8(ctx->t1);
-        if ((sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
+        if ((~p->infinity & ~q->infinity &
+            sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
             (sp_256_cmp_equal_8(p->y, q->y) | sp_256_cmp_equal_8(p->y, ctx->t1))) != 0)
         {
             XMEMSET(&ctx->dbl_ctx, 0, sizeof(ctx->dbl_ctx));
@@ -19563,7 +19561,8 @@ static void sp_256_proj_point_add_8(sp_point_256* r,
     /* Check double */
     (void)sp_256_sub_8(t1, p256_mod, q->y);
     sp_256_norm_8(t1);
-    if ((sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
         (sp_256_cmp_equal_8(p->y, q->y) | sp_256_cmp_equal_8(p->y, t1))) != 0) {
         sp_256_proj_point_dbl_8(r, p, t);
     }
@@ -19575,6 +19574,10 @@ static void sp_256_proj_point_add_8(sp_point_256* r,
         sp_digit* y = t1;
         sp_digit* z = t2;
         int i;
+
+        maskp = 0 - (q->infinity & (!p->infinity));
+        maskq = 0 - (p->infinity & (!q->infinity));
+        maskt = ~(maskp | maskq);
 
         /* U1 = X1*Z2^2 */
         sp_256_mont_sqr_8(t1, q->z, p256_mod, p256_mp_mod);
@@ -19592,37 +19595,43 @@ static void sp_256_proj_point_add_8(sp_point_256* r,
         sp_256_mont_sub_8(t2, t2, t1, p256_mod);
         /* R = S2 - S1 */
         sp_256_mont_sub_8(t4, t4, t3, p256_mod);
-        /* X3 = R^2 - H^3 - 2*U1*H^2 */
-        sp_256_mont_sqr_8(t5, t2, p256_mod, p256_mp_mod);
-        sp_256_mont_mul_8(y, t1, t5, p256_mod, p256_mp_mod);
-        sp_256_mont_mul_8(t5, t5, t2, p256_mod, p256_mp_mod);
-        /* Z3 = H*Z1*Z2 */
-        sp_256_mont_mul_8(z, p->z, t2, p256_mod, p256_mp_mod);
-        sp_256_mont_mul_8(z, z, q->z, p256_mod, p256_mp_mod);
-        sp_256_mont_sqr_8(x, t4, p256_mod, p256_mp_mod);
-        sp_256_mont_sub_8(x, x, t5, p256_mod);
-        sp_256_mont_mul_8(t5, t5, t3, p256_mod, p256_mp_mod);
-        sp_256_mont_dbl_8(t3, y, p256_mod);
-        sp_256_mont_sub_8(x, x, t3, p256_mod);
-        /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
-        sp_256_mont_sub_lower_8(y, y, x, p256_mod);
-        sp_256_mont_mul_8(y, y, t4, p256_mod, p256_mp_mod);
-        sp_256_mont_sub_8(y, y, t5, p256_mod);
+        if (~p->infinity & ~q->infinity &
+            sp_256_iszero_8(t2) & sp_256_iszero_8(t4) & maskt) {
+            sp_256_proj_point_dbl_8(r, p, t);
+        }
+        else {
+            /* X3 = R^2 - H^3 - 2*U1*H^2 */
+            sp_256_mont_sqr_8(t5, t2, p256_mod, p256_mp_mod);
+            sp_256_mont_mul_8(y, t1, t5, p256_mod, p256_mp_mod);
+            sp_256_mont_mul_8(t5, t5, t2, p256_mod, p256_mp_mod);
+            /* Z3 = H*Z1*Z2 */
+            sp_256_mont_mul_8(z, p->z, t2, p256_mod, p256_mp_mod);
+            sp_256_mont_mul_8(z, z, q->z, p256_mod, p256_mp_mod);
+            sp_256_mont_sqr_8(x, t4, p256_mod, p256_mp_mod);
+            sp_256_mont_sub_8(x, x, t5, p256_mod);
+            sp_256_mont_mul_8(t5, t5, t3, p256_mod, p256_mp_mod);
+            sp_256_mont_dbl_8(t3, y, p256_mod);
+            sp_256_mont_sub_8(x, x, t3, p256_mod);
+            /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
+            sp_256_mont_sub_lower_8(y, y, x, p256_mod);
+            sp_256_mont_mul_8(y, y, t4, p256_mod, p256_mp_mod);
+            sp_256_mont_sub_8(y, y, t5, p256_mod);
 
-        maskp = 0 - (q->infinity & (!p->infinity));
-        maskq = 0 - (p->infinity & (!q->infinity));
-        maskt = ~(maskp | maskq);
-        for (i = 0; i < 8; i++) {
-            r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) | (x[i] & maskt);
+            for (i = 0; i < 8; i++) {
+                r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) |
+                          (x[i] & maskt);
+            }
+            for (i = 0; i < 8; i++) {
+                r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) |
+                          (y[i] & maskt);
+            }
+            for (i = 0; i < 8; i++) {
+                r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) |
+                          (z[i] & maskt);
+            }
+            r->z[0] |= p->infinity & q->infinity;
+            r->infinity = p->infinity & q->infinity;
         }
-        for (i = 0; i < 8; i++) {
-            r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) | (y[i] & maskt);
-        }
-        for (i = 0; i < 8; i++) {
-            r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) | (z[i] & maskt);
-        }
-        r->z[0] |= p->infinity & q->infinity;
-        r->infinity = p->infinity & q->infinity;
     }
 }
 
@@ -19891,7 +19900,7 @@ static int sp_256_ecc_mulmod_fast_8(sp_point_256* r, const sp_point_256* g, cons
  * n  Number of times to double
  * t  Temporary ordinate data.
  */
-static void sp_256_proj_point_dbl_n_8(sp_point_256* p, int n,
+static void sp_256_proj_point_dbl_n_8(sp_point_256* p, int i,
     sp_digit* t)
 {
     sp_digit* w = t;
@@ -19902,6 +19911,7 @@ static void sp_256_proj_point_dbl_n_8(sp_point_256* p, int n,
     sp_digit* x;
     sp_digit* y;
     sp_digit* z;
+    volatile int n = i;
 
     x = p->x;
     y = p->y;
@@ -20028,7 +20038,8 @@ static void sp_256_proj_point_add_qz1_8(sp_point_256* r, const sp_point_256* p,
     /* Check double */
     (void)sp_256_sub_8(t1, p256_mod, q->y);
     sp_256_norm_8(t1);
-    if ((sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_256_cmp_equal_8(p->x, q->x) & sp_256_cmp_equal_8(p->z, q->z) &
         (sp_256_cmp_equal_8(p->y, q->y) | sp_256_cmp_equal_8(p->y, t1))) != 0) {
         sp_256_proj_point_dbl_8(r, p, t);
     }
@@ -22578,17 +22589,6 @@ int sp_ecc_mulmod_base_add_256(const mp_int* km, const ecc_point* am,
 
 #if defined(WOLFSSL_VALIDATE_ECC_KEYGEN) || defined(HAVE_ECC_SIGN) || \
                                                         defined(HAVE_ECC_VERIFY)
-/* Returns 1 if the number of zero.
- * Implementation is constant time.
- *
- * a  Number to check.
- * returns 1 if the number is zero and 0 otherwise.
- */
-static int sp_256_iszero_8(const sp_digit* a)
-{
-    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7]) == 0;
-}
-
 #endif /* WOLFSSL_VALIDATE_ECC_KEYGEN | HAVE_ECC_SIGN | HAVE_ECC_VERIFY */
 /* Add 1 to a. (a = a + 1)
  *
@@ -26025,8 +26025,7 @@ static void sp_384_map_12(sp_point_384* r, const sp_point_384* p,
     sp_384_mont_reduce_12(r->x, p384_mod, p384_mp_mod);
     /* Reduce x to less than modulus */
     n = sp_384_cmp_12(r->x, p384_mod);
-    sp_384_cond_sub_12(r->x, r->x, p384_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_384_cond_sub_12(r->x, r->x, p384_mod, ~(n >> 31));
     sp_384_norm_12(r->x);
 
     /* y /= z^3 */
@@ -26035,8 +26034,7 @@ static void sp_384_map_12(sp_point_384* r, const sp_point_384* p,
     sp_384_mont_reduce_12(r->y, p384_mod, p384_mp_mod);
     /* Reduce y to less than modulus */
     n = sp_384_cmp_12(r->y, p384_mod);
-    sp_384_cond_sub_12(r->y, r->y, p384_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_384_cond_sub_12(r->y, r->y, p384_mod, ~(n >> 31));
     sp_384_norm_12(r->y);
 
     XMEMSET(r->z, 0, sizeof(r->z) / 2);
@@ -26430,6 +26428,18 @@ static int sp_384_cmp_equal_12(const sp_digit* a, const sp_digit* b)
             (a[9] ^ b[9]) | (a[10] ^ b[10]) | (a[11] ^ b[11])) == 0;
 }
 
+/* Returns 1 if the number of zero.
+ * Implementation is constant time.
+ *
+ * a  Number to check.
+ * returns 1 if the number is zero and 0 otherwise.
+ */
+static int sp_384_iszero_12(const sp_digit* a)
+{
+    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
+            a[8] | a[9] | a[10] | a[11]) == 0;
+}
+
 /* Add two Montgomery form projective points.
  *
  * r  Result of addition.
@@ -26489,7 +26499,8 @@ static int sp_384_proj_point_add_12_nb(sp_ecc_ctx_t* sp_ctx, sp_point_384* r,
         /* Check double */
         (void)sp_384_sub_12(ctx->t1, p384_mod, q->y);
         sp_384_norm_12(ctx->t1);
-        if ((sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
+        if ((~p->infinity & ~q->infinity &
+            sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
             (sp_384_cmp_equal_12(p->y, q->y) | sp_384_cmp_equal_12(p->y, ctx->t1))) != 0)
         {
             XMEMSET(&ctx->dbl_ctx, 0, sizeof(ctx->dbl_ctx));
@@ -26657,7 +26668,8 @@ static void sp_384_proj_point_add_12(sp_point_384* r,
     /* Check double */
     (void)sp_384_sub_12(t1, p384_mod, q->y);
     sp_384_norm_12(t1);
-    if ((sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
         (sp_384_cmp_equal_12(p->y, q->y) | sp_384_cmp_equal_12(p->y, t1))) != 0) {
         sp_384_proj_point_dbl_12(r, p, t);
     }
@@ -26669,6 +26681,10 @@ static void sp_384_proj_point_add_12(sp_point_384* r,
         sp_digit* y = t1;
         sp_digit* z = t2;
         int i;
+
+        maskp = 0 - (q->infinity & (!p->infinity));
+        maskq = 0 - (p->infinity & (!q->infinity));
+        maskt = ~(maskp | maskq);
 
         /* U1 = X1*Z2^2 */
         sp_384_mont_sqr_12(t1, q->z, p384_mod, p384_mp_mod);
@@ -26686,37 +26702,43 @@ static void sp_384_proj_point_add_12(sp_point_384* r,
         sp_384_mont_sub_12(t2, t2, t1, p384_mod);
         /* R = S2 - S1 */
         sp_384_mont_sub_12(t4, t4, t3, p384_mod);
-        /* X3 = R^2 - H^3 - 2*U1*H^2 */
-        sp_384_mont_sqr_12(t5, t2, p384_mod, p384_mp_mod);
-        sp_384_mont_mul_12(y, t1, t5, p384_mod, p384_mp_mod);
-        sp_384_mont_mul_12(t5, t5, t2, p384_mod, p384_mp_mod);
-        /* Z3 = H*Z1*Z2 */
-        sp_384_mont_mul_12(z, p->z, t2, p384_mod, p384_mp_mod);
-        sp_384_mont_mul_12(z, z, q->z, p384_mod, p384_mp_mod);
-        sp_384_mont_sqr_12(x, t4, p384_mod, p384_mp_mod);
-        sp_384_mont_sub_12(x, x, t5, p384_mod);
-        sp_384_mont_mul_12(t5, t5, t3, p384_mod, p384_mp_mod);
-        sp_384_mont_dbl_12(t3, y, p384_mod);
-        sp_384_mont_sub_12(x, x, t3, p384_mod);
-        /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
-        sp_384_mont_sub_lower_12(y, y, x, p384_mod);
-        sp_384_mont_mul_12(y, y, t4, p384_mod, p384_mp_mod);
-        sp_384_mont_sub_12(y, y, t5, p384_mod);
+        if (~p->infinity & ~q->infinity &
+            sp_384_iszero_12(t2) & sp_384_iszero_12(t4) & maskt) {
+            sp_384_proj_point_dbl_12(r, p, t);
+        }
+        else {
+            /* X3 = R^2 - H^3 - 2*U1*H^2 */
+            sp_384_mont_sqr_12(t5, t2, p384_mod, p384_mp_mod);
+            sp_384_mont_mul_12(y, t1, t5, p384_mod, p384_mp_mod);
+            sp_384_mont_mul_12(t5, t5, t2, p384_mod, p384_mp_mod);
+            /* Z3 = H*Z1*Z2 */
+            sp_384_mont_mul_12(z, p->z, t2, p384_mod, p384_mp_mod);
+            sp_384_mont_mul_12(z, z, q->z, p384_mod, p384_mp_mod);
+            sp_384_mont_sqr_12(x, t4, p384_mod, p384_mp_mod);
+            sp_384_mont_sub_12(x, x, t5, p384_mod);
+            sp_384_mont_mul_12(t5, t5, t3, p384_mod, p384_mp_mod);
+            sp_384_mont_dbl_12(t3, y, p384_mod);
+            sp_384_mont_sub_12(x, x, t3, p384_mod);
+            /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
+            sp_384_mont_sub_lower_12(y, y, x, p384_mod);
+            sp_384_mont_mul_12(y, y, t4, p384_mod, p384_mp_mod);
+            sp_384_mont_sub_12(y, y, t5, p384_mod);
 
-        maskp = 0 - (q->infinity & (!p->infinity));
-        maskq = 0 - (p->infinity & (!q->infinity));
-        maskt = ~(maskp | maskq);
-        for (i = 0; i < 12; i++) {
-            r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) | (x[i] & maskt);
+            for (i = 0; i < 12; i++) {
+                r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) |
+                          (x[i] & maskt);
+            }
+            for (i = 0; i < 12; i++) {
+                r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) |
+                          (y[i] & maskt);
+            }
+            for (i = 0; i < 12; i++) {
+                r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) |
+                          (z[i] & maskt);
+            }
+            r->z[0] |= p->infinity & q->infinity;
+            r->infinity = p->infinity & q->infinity;
         }
-        for (i = 0; i < 12; i++) {
-            r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) | (y[i] & maskt);
-        }
-        for (i = 0; i < 12; i++) {
-            r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) | (z[i] & maskt);
-        }
-        r->z[0] |= p->infinity & q->infinity;
-        r->infinity = p->infinity & q->infinity;
     }
 }
 
@@ -27009,7 +27031,7 @@ static int sp_384_ecc_mulmod_fast_12(sp_point_384* r, const sp_point_384* g, con
  * n  Number of times to double
  * t  Temporary ordinate data.
  */
-static void sp_384_proj_point_dbl_n_12(sp_point_384* p, int n,
+static void sp_384_proj_point_dbl_n_12(sp_point_384* p, int i,
     sp_digit* t)
 {
     sp_digit* w = t;
@@ -27020,6 +27042,7 @@ static void sp_384_proj_point_dbl_n_12(sp_point_384* p, int n,
     sp_digit* x;
     sp_digit* y;
     sp_digit* z;
+    volatile int n = i;
 
     x = p->x;
     y = p->y;
@@ -27146,7 +27169,8 @@ static void sp_384_proj_point_add_qz1_12(sp_point_384* r, const sp_point_384* p,
     /* Check double */
     (void)sp_384_sub_12(t1, p384_mod, q->y);
     sp_384_norm_12(t1);
-    if ((sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_384_cmp_equal_12(p->x, q->x) & sp_384_cmp_equal_12(p->z, q->z) &
         (sp_384_cmp_equal_12(p->y, q->y) | sp_384_cmp_equal_12(p->y, t1))) != 0) {
         sp_384_proj_point_dbl_12(r, p, t);
     }
@@ -29728,18 +29752,6 @@ int sp_ecc_mulmod_base_add_384(const mp_int* km, const ecc_point* am,
 
 #if defined(WOLFSSL_VALIDATE_ECC_KEYGEN) || defined(HAVE_ECC_SIGN) || \
                                                         defined(HAVE_ECC_VERIFY)
-/* Returns 1 if the number of zero.
- * Implementation is constant time.
- *
- * a  Number to check.
- * returns 1 if the number is zero and 0 otherwise.
- */
-static int sp_384_iszero_12(const sp_digit* a)
-{
-    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
-            a[8] | a[9] | a[10] | a[11]) == 0;
-}
-
 #endif /* WOLFSSL_VALIDATE_ECC_KEYGEN | HAVE_ECC_SIGN | HAVE_ECC_VERIFY */
 /* Add 1 to a. (a = a + 1)
  *
@@ -33383,8 +33395,7 @@ static void sp_521_map_17(sp_point_521* r, const sp_point_521* p,
     sp_521_mont_reduce_17(r->x, p521_mod, p521_mp_mod);
     /* Reduce x to less than modulus */
     n = sp_521_cmp_17(r->x, p521_mod);
-    sp_521_cond_sub_17(r->x, r->x, p521_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_521_cond_sub_17(r->x, r->x, p521_mod, ~(n >> 31));
     sp_521_norm_17(r->x);
 
     /* y /= z^3 */
@@ -33393,8 +33404,7 @@ static void sp_521_map_17(sp_point_521* r, const sp_point_521* p,
     sp_521_mont_reduce_17(r->y, p521_mod, p521_mp_mod);
     /* Reduce y to less than modulus */
     n = sp_521_cmp_17(r->y, p521_mod);
-    sp_521_cond_sub_17(r->y, r->y, p521_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_521_cond_sub_17(r->y, r->y, p521_mod, ~(n >> 31));
     sp_521_norm_17(r->y);
 
     XMEMSET(r->z, 0, sizeof(r->z) / 2);
@@ -34112,6 +34122,19 @@ static int sp_521_cmp_equal_17(const sp_digit* a, const sp_digit* b)
             (a[15] ^ b[15]) | (a[16] ^ b[16])) == 0;
 }
 
+/* Returns 1 if the number of zero.
+ * Implementation is constant time.
+ *
+ * a  Number to check.
+ * returns 1 if the number is zero and 0 otherwise.
+ */
+static int sp_521_iszero_17(const sp_digit* a)
+{
+    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
+            a[8] | a[9] | a[10] | a[11] | a[12] | a[13] | a[14] | a[15] |
+            a[16]) == 0;
+}
+
 /* Add two Montgomery form projective points.
  *
  * r  Result of addition.
@@ -34171,7 +34194,8 @@ static int sp_521_proj_point_add_17_nb(sp_ecc_ctx_t* sp_ctx, sp_point_521* r,
         /* Check double */
         (void)sp_521_sub_17(ctx->t1, p521_mod, q->y);
         sp_521_norm_17(ctx->t1);
-        if ((sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
+        if ((~p->infinity & ~q->infinity &
+            sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
             (sp_521_cmp_equal_17(p->y, q->y) | sp_521_cmp_equal_17(p->y, ctx->t1))) != 0)
         {
             XMEMSET(&ctx->dbl_ctx, 0, sizeof(ctx->dbl_ctx));
@@ -34339,7 +34363,8 @@ static void sp_521_proj_point_add_17(sp_point_521* r,
     /* Check double */
     (void)sp_521_sub_17(t1, p521_mod, q->y);
     sp_521_norm_17(t1);
-    if ((sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
         (sp_521_cmp_equal_17(p->y, q->y) | sp_521_cmp_equal_17(p->y, t1))) != 0) {
         sp_521_proj_point_dbl_17(r, p, t);
     }
@@ -34351,6 +34376,10 @@ static void sp_521_proj_point_add_17(sp_point_521* r,
         sp_digit* y = t1;
         sp_digit* z = t2;
         int i;
+
+        maskp = 0 - (q->infinity & (!p->infinity));
+        maskq = 0 - (p->infinity & (!q->infinity));
+        maskt = ~(maskp | maskq);
 
         /* U1 = X1*Z2^2 */
         sp_521_mont_sqr_17(t1, q->z, p521_mod, p521_mp_mod);
@@ -34368,37 +34397,43 @@ static void sp_521_proj_point_add_17(sp_point_521* r,
         sp_521_mont_sub_17(t2, t2, t1, p521_mod);
         /* R = S2 - S1 */
         sp_521_mont_sub_17(t4, t4, t3, p521_mod);
-        /* X3 = R^2 - H^3 - 2*U1*H^2 */
-        sp_521_mont_sqr_17(t5, t2, p521_mod, p521_mp_mod);
-        sp_521_mont_mul_17(y, t1, t5, p521_mod, p521_mp_mod);
-        sp_521_mont_mul_17(t5, t5, t2, p521_mod, p521_mp_mod);
-        /* Z3 = H*Z1*Z2 */
-        sp_521_mont_mul_17(z, p->z, t2, p521_mod, p521_mp_mod);
-        sp_521_mont_mul_17(z, z, q->z, p521_mod, p521_mp_mod);
-        sp_521_mont_sqr_17(x, t4, p521_mod, p521_mp_mod);
-        sp_521_mont_sub_17(x, x, t5, p521_mod);
-        sp_521_mont_mul_17(t5, t5, t3, p521_mod, p521_mp_mod);
-        sp_521_mont_dbl_17(t3, y, p521_mod);
-        sp_521_mont_sub_17(x, x, t3, p521_mod);
-        /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
-        sp_521_mont_sub_lower_17(y, y, x, p521_mod);
-        sp_521_mont_mul_17(y, y, t4, p521_mod, p521_mp_mod);
-        sp_521_mont_sub_17(y, y, t5, p521_mod);
+        if (~p->infinity & ~q->infinity &
+            sp_521_iszero_17(t2) & sp_521_iszero_17(t4) & maskt) {
+            sp_521_proj_point_dbl_17(r, p, t);
+        }
+        else {
+            /* X3 = R^2 - H^3 - 2*U1*H^2 */
+            sp_521_mont_sqr_17(t5, t2, p521_mod, p521_mp_mod);
+            sp_521_mont_mul_17(y, t1, t5, p521_mod, p521_mp_mod);
+            sp_521_mont_mul_17(t5, t5, t2, p521_mod, p521_mp_mod);
+            /* Z3 = H*Z1*Z2 */
+            sp_521_mont_mul_17(z, p->z, t2, p521_mod, p521_mp_mod);
+            sp_521_mont_mul_17(z, z, q->z, p521_mod, p521_mp_mod);
+            sp_521_mont_sqr_17(x, t4, p521_mod, p521_mp_mod);
+            sp_521_mont_sub_17(x, x, t5, p521_mod);
+            sp_521_mont_mul_17(t5, t5, t3, p521_mod, p521_mp_mod);
+            sp_521_mont_dbl_17(t3, y, p521_mod);
+            sp_521_mont_sub_17(x, x, t3, p521_mod);
+            /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
+            sp_521_mont_sub_lower_17(y, y, x, p521_mod);
+            sp_521_mont_mul_17(y, y, t4, p521_mod, p521_mp_mod);
+            sp_521_mont_sub_17(y, y, t5, p521_mod);
 
-        maskp = 0 - (q->infinity & (!p->infinity));
-        maskq = 0 - (p->infinity & (!q->infinity));
-        maskt = ~(maskp | maskq);
-        for (i = 0; i < 17; i++) {
-            r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) | (x[i] & maskt);
+            for (i = 0; i < 17; i++) {
+                r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) |
+                          (x[i] & maskt);
+            }
+            for (i = 0; i < 17; i++) {
+                r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) |
+                          (y[i] & maskt);
+            }
+            for (i = 0; i < 17; i++) {
+                r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) |
+                          (z[i] & maskt);
+            }
+            r->z[0] |= p->infinity & q->infinity;
+            r->infinity = p->infinity & q->infinity;
         }
-        for (i = 0; i < 17; i++) {
-            r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) | (y[i] & maskt);
-        }
-        for (i = 0; i < 17; i++) {
-            r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) | (z[i] & maskt);
-        }
-        r->z[0] |= p->infinity & q->infinity;
-        r->infinity = p->infinity & q->infinity;
     }
 }
 
@@ -34725,7 +34760,7 @@ static int sp_521_ecc_mulmod_fast_17(sp_point_521* r, const sp_point_521* g, con
  * n  Number of times to double
  * t  Temporary ordinate data.
  */
-static void sp_521_proj_point_dbl_n_17(sp_point_521* p, int n,
+static void sp_521_proj_point_dbl_n_17(sp_point_521* p, int i,
     sp_digit* t)
 {
     sp_digit* w = t;
@@ -34736,6 +34771,7 @@ static void sp_521_proj_point_dbl_n_17(sp_point_521* p, int n,
     sp_digit* x;
     sp_digit* y;
     sp_digit* z;
+    volatile int n = i;
 
     x = p->x;
     y = p->y;
@@ -34862,7 +34898,8 @@ static void sp_521_proj_point_add_qz1_17(sp_point_521* r, const sp_point_521* p,
     /* Check double */
     (void)sp_521_sub_17(t1, p521_mod, q->y);
     sp_521_norm_17(t1);
-    if ((sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_521_cmp_equal_17(p->x, q->x) & sp_521_cmp_equal_17(p->z, q->z) &
         (sp_521_cmp_equal_17(p->y, q->y) | sp_521_cmp_equal_17(p->y, t1))) != 0) {
         sp_521_proj_point_dbl_17(r, p, t);
     }
@@ -38028,19 +38065,6 @@ int sp_ecc_mulmod_base_add_521(const mp_int* km, const ecc_point* am,
 
 #if defined(WOLFSSL_VALIDATE_ECC_KEYGEN) || defined(HAVE_ECC_SIGN) || \
                                                         defined(HAVE_ECC_VERIFY)
-/* Returns 1 if the number of zero.
- * Implementation is constant time.
- *
- * a  Number to check.
- * returns 1 if the number is zero and 0 otherwise.
- */
-static int sp_521_iszero_17(const sp_digit* a)
-{
-    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
-            a[8] | a[9] | a[10] | a[11] | a[12] | a[13] | a[14] | a[15] |
-            a[16]) == 0;
-}
-
 #endif /* WOLFSSL_VALIDATE_ECC_KEYGEN | HAVE_ECC_SIGN | HAVE_ECC_VERIFY */
 /* Add 1 to a. (a = a + 1)
  *
@@ -42742,8 +42766,7 @@ static void sp_1024_map_32(sp_point_1024* r, const sp_point_1024* p,
     sp_1024_mont_reduce_32(r->x, p1024_mod, p1024_mp_mod);
     /* Reduce x to less than modulus */
     n = sp_1024_cmp_32(r->x, p1024_mod);
-    sp_1024_cond_sub_32(r->x, r->x, p1024_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_1024_cond_sub_32(r->x, r->x, p1024_mod, ~(n >> 31));
     sp_1024_norm_32(r->x);
 
     /* y /= z^3 */
@@ -42752,8 +42775,7 @@ static void sp_1024_map_32(sp_point_1024* r, const sp_point_1024* p,
     sp_1024_mont_reduce_32(r->y, p1024_mod, p1024_mp_mod);
     /* Reduce y to less than modulus */
     n = sp_1024_cmp_32(r->y, p1024_mod);
-    sp_1024_cond_sub_32(r->y, r->y, p1024_mod, 0 - ((n >= 0) ?
-                (sp_digit)1 : (sp_digit)0));
+    sp_1024_cond_sub_32(r->y, r->y, p1024_mod, ~(n >> 31));
     sp_1024_norm_32(r->y);
 
     XMEMSET(r->z, 0, sizeof(r->z) / 2);
@@ -44109,6 +44131,20 @@ static int sp_1024_cmp_equal_32(const sp_digit* a, const sp_digit* b)
             (a[30] ^ b[30]) | (a[31] ^ b[31])) == 0;
 }
 
+/* Returns 1 if the number of zero.
+ * Implementation is constant time.
+ *
+ * a  Number to check.
+ * returns 1 if the number is zero and 0 otherwise.
+ */
+static int sp_1024_iszero_32(const sp_digit* a)
+{
+    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
+            a[8] | a[9] | a[10] | a[11] | a[12] | a[13] | a[14] | a[15] |
+            a[16] | a[17] | a[18] | a[19] | a[20] | a[21] | a[22] | a[23] |
+            a[24] | a[25] | a[26] | a[27] | a[28] | a[29] | a[30] | a[31]) == 0;
+}
+
 /* Add two Montgomery form projective points.
  *
  * r  Result of addition.
@@ -44168,7 +44204,8 @@ static int sp_1024_proj_point_add_32_nb(sp_ecc_ctx_t* sp_ctx, sp_point_1024* r,
         /* Check double */
         (void)sp_1024_sub_32(ctx->t1, p1024_mod, q->y);
         sp_1024_norm_32(ctx->t1);
-        if ((sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
+        if ((~p->infinity & ~q->infinity &
+            sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
             (sp_1024_cmp_equal_32(p->y, q->y) | sp_1024_cmp_equal_32(p->y, ctx->t1))) != 0)
         {
             XMEMSET(&ctx->dbl_ctx, 0, sizeof(ctx->dbl_ctx));
@@ -44336,7 +44373,8 @@ static void sp_1024_proj_point_add_32(sp_point_1024* r,
     /* Check double */
     (void)sp_1024_mont_sub_32(t1, p1024_mod, q->y, p1024_mod);
     sp_1024_norm_32(t1);
-    if ((sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
         (sp_1024_cmp_equal_32(p->y, q->y) | sp_1024_cmp_equal_32(p->y, t1))) != 0) {
         sp_1024_proj_point_dbl_32(r, p, t);
     }
@@ -44348,6 +44386,10 @@ static void sp_1024_proj_point_add_32(sp_point_1024* r,
         sp_digit* y = t1;
         sp_digit* z = t2;
         int i;
+
+        maskp = 0 - (q->infinity & (!p->infinity));
+        maskq = 0 - (p->infinity & (!q->infinity));
+        maskt = ~(maskp | maskq);
 
         /* U1 = X1*Z2^2 */
         sp_1024_mont_sqr_32(t1, q->z, p1024_mod, p1024_mp_mod);
@@ -44365,37 +44407,43 @@ static void sp_1024_proj_point_add_32(sp_point_1024* r,
         sp_1024_mont_sub_32(t2, t2, t1, p1024_mod);
         /* R = S2 - S1 */
         sp_1024_mont_sub_32(t4, t4, t3, p1024_mod);
-        /* X3 = R^2 - H^3 - 2*U1*H^2 */
-        sp_1024_mont_sqr_32(t5, t2, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_mul_32(y, t1, t5, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_mul_32(t5, t5, t2, p1024_mod, p1024_mp_mod);
-        /* Z3 = H*Z1*Z2 */
-        sp_1024_mont_mul_32(z, p->z, t2, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_mul_32(z, z, q->z, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_sqr_32(x, t4, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_sub_32(x, x, t5, p1024_mod);
-        sp_1024_mont_mul_32(t5, t5, t3, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_dbl_32(t3, y, p1024_mod);
-        sp_1024_mont_sub_32(x, x, t3, p1024_mod);
-        /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
-        sp_1024_mont_sub_lower_32(y, y, x, p1024_mod);
-        sp_1024_mont_mul_32(y, y, t4, p1024_mod, p1024_mp_mod);
-        sp_1024_mont_sub_32(y, y, t5, p1024_mod);
+        if (~p->infinity & ~q->infinity &
+            sp_1024_iszero_32(t2) & sp_1024_iszero_32(t4) & maskt) {
+            sp_1024_proj_point_dbl_32(r, p, t);
+        }
+        else {
+            /* X3 = R^2 - H^3 - 2*U1*H^2 */
+            sp_1024_mont_sqr_32(t5, t2, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_mul_32(y, t1, t5, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_mul_32(t5, t5, t2, p1024_mod, p1024_mp_mod);
+            /* Z3 = H*Z1*Z2 */
+            sp_1024_mont_mul_32(z, p->z, t2, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_mul_32(z, z, q->z, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_sqr_32(x, t4, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_sub_32(x, x, t5, p1024_mod);
+            sp_1024_mont_mul_32(t5, t5, t3, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_dbl_32(t3, y, p1024_mod);
+            sp_1024_mont_sub_32(x, x, t3, p1024_mod);
+            /* Y3 = R*(U1*H^2 - X3) - S1*H^3 */
+            sp_1024_mont_sub_lower_32(y, y, x, p1024_mod);
+            sp_1024_mont_mul_32(y, y, t4, p1024_mod, p1024_mp_mod);
+            sp_1024_mont_sub_32(y, y, t5, p1024_mod);
 
-        maskp = 0 - (q->infinity & (!p->infinity));
-        maskq = 0 - (p->infinity & (!q->infinity));
-        maskt = ~(maskp | maskq);
-        for (i = 0; i < 32; i++) {
-            r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) | (x[i] & maskt);
+            for (i = 0; i < 32; i++) {
+                r->x[i] = (p->x[i] & maskp) | (q->x[i] & maskq) |
+                          (x[i] & maskt);
+            }
+            for (i = 0; i < 32; i++) {
+                r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) |
+                          (y[i] & maskt);
+            }
+            for (i = 0; i < 32; i++) {
+                r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) |
+                          (z[i] & maskt);
+            }
+            r->z[0] |= p->infinity & q->infinity;
+            r->infinity = p->infinity & q->infinity;
         }
-        for (i = 0; i < 32; i++) {
-            r->y[i] = (p->y[i] & maskp) | (q->y[i] & maskq) | (y[i] & maskt);
-        }
-        for (i = 0; i < 32; i++) {
-            r->z[i] = (p->z[i] & maskp) | (q->z[i] & maskq) | (z[i] & maskt);
-        }
-        r->z[0] |= p->infinity & q->infinity;
-        r->infinity = p->infinity & q->infinity;
     }
 }
 
@@ -44552,7 +44600,7 @@ static int sp_1024_ecc_mulmod_fast_32(sp_point_1024* r, const sp_point_1024* g, 
  * n  Number of times to double
  * t  Temporary ordinate data.
  */
-static void sp_1024_proj_point_dbl_n_32(sp_point_1024* p, int n,
+static void sp_1024_proj_point_dbl_n_32(sp_point_1024* p, int i,
     sp_digit* t)
 {
     sp_digit* w = t;
@@ -44563,6 +44611,7 @@ static void sp_1024_proj_point_dbl_n_32(sp_point_1024* p, int n,
     sp_digit* x;
     sp_digit* y;
     sp_digit* z;
+    volatile int n = i;
 
     x = p->x;
     y = p->y;
@@ -44689,7 +44738,8 @@ static void sp_1024_proj_point_add_qz1_32(sp_point_1024* r, const sp_point_1024*
     /* Check double */
     (void)sp_1024_mont_sub_32(t1, p1024_mod, q->y, p1024_mod);
     sp_1024_norm_32(t1);
-    if ((sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
+    if ((~p->infinity & ~q->infinity &
+        sp_1024_cmp_equal_32(p->x, q->x) & sp_1024_cmp_equal_32(p->z, q->z) &
         (sp_1024_cmp_equal_32(p->y, q->y) | sp_1024_cmp_equal_32(p->y, t1))) != 0) {
         sp_1024_proj_point_dbl_32(r, p, t);
     }
@@ -52769,20 +52819,6 @@ int sp_Pairing_precomp_1024(const ecc_point* pm, const ecc_point* qm,
 }
 
 #endif /* WOLFSSL_SP_SMALL */
-/* Returns 1 if the number of zero.
- * Implementation is constant time.
- *
- * a  Number to check.
- * returns 1 if the number is zero and 0 otherwise.
- */
-static int sp_1024_iszero_32(const sp_digit* a)
-{
-    return (a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7] |
-            a[8] | a[9] | a[10] | a[11] | a[12] | a[13] | a[14] | a[15] |
-            a[16] | a[17] | a[18] | a[19] | a[20] | a[21] | a[22] | a[23] |
-            a[24] | a[25] | a[26] | a[27] | a[28] | a[29] | a[30] | a[31]) == 0;
-}
-
 #ifdef HAVE_ECC_CHECK_KEY
 /* Read big endian unsigned byte array into r.
  *
@@ -52865,8 +52901,7 @@ static int sp_1024_ecc_is_point_32(const sp_point_1024* point,
         sp_1024_mont_add_32(t1, t1, point->x, p1024_mod);
 
         n = sp_1024_cmp_32(t1, p1024_mod);
-        sp_1024_cond_sub_32(t1, t1, p1024_mod, 0 - ((n >= 0) ?
-            (sp_digit)1 : (sp_digit)0));
+        sp_1024_cond_sub_32(t1, t1, p1024_mod, ~(n >> 31));
         sp_1024_norm_32(t1);
         if (!sp_1024_iszero_32(t1)) {
             err = MP_VAL;

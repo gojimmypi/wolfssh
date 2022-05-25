@@ -161,6 +161,9 @@ int wc_RNG_GenerateByte(WC_RNG* rng, byte* b)
 #elif defined(WOLFSSL_ZEPHYR)
 #elif defined(WOLFSSL_TELIT_M2MB)
 #elif defined(WOLFSSL_SCE) && !defined(WOLFSSL_SCE_NO_TRNG)
+#elif defined(WOLFSSL_GETRANDOM)
+    #include <errno.h>
+    #include <sys/random.h>
 #else
     /* include headers that may be needed to get good seed */
     #include <fcntl.h>
@@ -598,7 +601,7 @@ static WC_INLINE void array_add(byte* d, word32 dLen, const byte* s, word32 sLen
             dIdx--;
         }
 
-        for (; carry != 0 && dIdx >= 0; dIdx--) {
+        for (; dIdx >= 0; dIdx--) {
             carry += (word16)d[dIdx];
             d[dIdx] = (byte)carry;
             carry >>= 8;
@@ -1404,7 +1407,6 @@ int wc_InitNetRandom(const char* configFile, wnr_hmac_key hmac_cb, int timeout)
 
     /* create/init polling mechanism */
     if (wnr_poll_create() != WNR_ERROR_NONE) {
-        printf("ERROR: wnr_poll_create() failed\n");
         WOLFSSL_MSG("Error initializing netRandom polling mechanism");
         wnr_destroy(wnr_ctx);
         wnr_ctx = NULL;
@@ -2133,7 +2135,7 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
     #endif /* WOLFSSL_STM32_CUBEMX */
 
 #elif defined(WOLFSSL_TIRTOS)
-
+    #warning "potential for not enough entropy, currently being used for testing"
     #include <xdc/runtime/Timestamp.h>
     #include <stdlib.h>
     int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
@@ -2384,7 +2386,8 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
         return 0;
     }
 
-#elif (defined(WOLFSSL_IMX6_CAAM) || defined(WOLFSSL_IMX6_CAAM_RNG))
+#elif (defined(WOLFSSL_IMX6_CAAM) || defined(WOLFSSL_IMX6_CAAM_RNG) || \
+       defined(WOLFSSL_SECO_CAAM))
 
     #include <wolfssl/wolfcrypt/port/caam/wolfcaam.h>
 
@@ -2682,6 +2685,36 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
                 output[i] = (byte)rand();
             return 0;
         }
+
+#elif defined(WOLFSSL_GETRANDOM)
+
+    /* getrandom() was added to the Linux kernel in version 3.17.
+     * Added to glibc in version 2.25. */
+    int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+    {
+        int ret = 0;
+        int len = 0;
+        (void)os;
+
+        while (sz) {
+            errno = 0;
+            len = (int)getrandom(output, sz, 0);
+            if (len == -1) {
+                if (errno == EINTR) {
+                    /* interrupted, call getrandom again */
+                    continue;
+                }
+                else {
+                    ret = READ_RAN_E;
+                }
+                break;
+            }
+
+            sz     -= len;
+            output += len;
+        }
+        return ret;
+    }
 
 #elif defined(NO_DEV_RANDOM)
 

@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"  
+
 
 #ifndef WOLFSSL_CALLBACKS_H
 #define WOLFSSL_CALLBACKS_H

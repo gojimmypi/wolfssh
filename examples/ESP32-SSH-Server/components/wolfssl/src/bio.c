@@ -2545,7 +2545,9 @@ int wolfSSL_BIO_flush(WOLFSSL_BIO* bio)
         bio->num = (int)bio->mem_buf->max;
         bio->wrSz = len;
         bio->ptr = bio->mem_buf->data;
-        XMEMCPY(bio->ptr, buf, len);
+        if (len > 0 && bio->ptr != NULL) {
+            XMEMCPY(bio->ptr, buf, len);
+        }
 
         return bio;
     }
@@ -2864,6 +2866,10 @@ void *wolfSSL_BIO_get_ex_data(WOLFSSL_BIO *bio, int idx)
 
 #if defined(OPENSSL_EXTRA)
 /* returns amount printed on success, negative in fail case */
+#ifdef __clang__
+/* tell clang argument 2 is format */
+__attribute__((__format__ (__printf__, 2, 0)))
+#endif
 int wolfSSL_BIO_vprintf(WOLFSSL_BIO* bio, const char* format, va_list args)
 {
     int ret = -1;
@@ -2927,6 +2933,10 @@ int wolfSSL_BIO_vprintf(WOLFSSL_BIO* bio, const char* format, va_list args)
 }
 
 /* returns amount printed on success, negative in fail case */
+#ifdef __clang__
+/* tell clang argument 2 is format */
+__attribute__((__format__ (__printf__, 2, 0)))
+#endif
 int wolfSSL_BIO_printf(WOLFSSL_BIO* bio, const char* format, ...)
 {
     int ret;

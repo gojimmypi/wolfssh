@@ -215,8 +215,8 @@
     #endif
 #endif
 
-#ifndef CHAR_BIT
-    /* Needed for DTLS without big math */
+#if !defined(CHAR_BIT) || (defined(OPENSSL_EXTRA) && !defined(INT_MAX))
+    /* Needed for DTLS without big math and INT_MAX */
     #include <limits.h>
 #endif
 
@@ -1761,8 +1761,8 @@ WOLFSSL_LOCAL int SNI_Callback(WOLFSSL* ssl);
 #endif
 #endif
 
-WOLFSSL_LOCAL int DecryptTls(WOLFSSL* ssl, byte* plain, const byte* input,
-                             word16 sz, int doAlert);
+WOLFSSL_LOCAL int ChachaAEADEncrypt(WOLFSSL* ssl, byte* out, const byte* input,
+                              word16 sz); /* needed by sniffer */
 
 #ifdef WOLFSSL_TLS13
 WOLFSSL_LOCAL int  DecryptTls13(WOLFSSL* ssl, byte* output, const byte* input,
@@ -2905,6 +2905,7 @@ struct WOLFSSL_CTX {
     CallbackSetPeer CBSetPeer;
 #endif
     VerifyCallback  verifyCallback;     /* cert verification callback */
+    void*           verifyCbCtx;        /* cert verify callback user ctx*/
 #ifdef OPENSSL_ALL
     CertVerifyCallback verifyCertCb;
     void*              verifyCertCbArg;
@@ -2914,7 +2915,8 @@ struct WOLFSSL_CTX {
     void*           protoMsgCtx;        /* user set context with msg callback */
 #endif
     word32          timeout;            /* session timeout */
-#if defined(HAVE_ECC) || defined(HAVE_CURVE25519) || defined(HAVE_ED448)
+#if defined(HAVE_ECC) || defined(HAVE_ED25519) || defined(HAVE_CURVE25519) || \
+    defined(HAVE_ED448)
     word32          ecdhCurveOID;       /* curve Ecc_Sum */
 #endif
 #ifdef HAVE_ECC
@@ -3017,6 +3019,7 @@ struct WOLFSSL_CTX {
     #ifdef HAVE_ECC
         CallbackEccKeyGen EccKeyGenCb;  /* User EccKeyGen Callback Handler */
         CallbackEccSign   EccSignCb;    /* User EccSign   Callback handler */
+        void*             EccSignCtx;   /* Ecc Sign       Callback Context */
         CallbackEccVerify EccVerifyCb;  /* User EccVerify Callback handler */
         CallbackEccSharedSecret EccSharedSecretCb; /* User EccVerify Callback handler */
     #endif /* HAVE_ECC */
@@ -3077,7 +3080,9 @@ struct WOLFSSL_CTX {
 #ifdef HAVE_EXT_CACHE
     WOLFSSL_SESSION*(*get_sess_cb)(WOLFSSL*, const unsigned char*, int, int*);
     int (*new_sess_cb)(WOLFSSL*, WOLFSSL_SESSION*);
-    void (*rem_sess_cb)(WOLFSSL_CTX*, WOLFSSL_SESSION*);
+#endif
+#if defined(HAVE_EXT_CACHE) || defined(HAVE_EX_DATA)
+    Rem_Sess_Cb rem_sess_cb;
 #endif
 #if defined(OPENSSL_EXTRA) && defined(WOLFCRYPT_HAVE_SRP) && !defined(NO_SHA256)
     Srp*  srp;  /* TLS Secure Remote Password Protocol*/
@@ -3349,6 +3354,10 @@ struct WOLFSSL_SESSION {
 #endif
     byte               altSessionID[ID_LEN];
     byte               haveAltSessionID:1;
+#ifdef HAVE_EX_DATA
+    byte               ownExData:1;
+    Rem_Sess_Cb        rem_sess_cb;
+#endif
     void*              heap;
     /* WARNING The above fields (up to and including the heap) are not copied
      *         in wolfSSL_DupSession. Place new fields after the heap
@@ -3441,9 +3450,9 @@ WOLFSSL_LOCAL WOLFSSL_SESSION* wolfSSL_NewSession(void* heap);
 WOLFSSL_LOCAL WOLFSSL_SESSION* wolfSSL_GetSession(
     WOLFSSL* ssl, byte* masterSecret, byte restoreSessionCerts);
 WOLFSSL_LOCAL void AddSession(WOLFSSL* ssl);
-WOLFSSL_LOCAL int AddSessionToCache(WOLFSSL_SESSION* addSession, const byte* id,
-                      byte idSz, int* sessionIndex, int side, word16 useTicket,
-                      ClientSession** clientCacheEntry);
+WOLFSSL_LOCAL int AddSessionToCache(WOLFSSL_CTX* ssl,
+    WOLFSSL_SESSION* addSession, const byte* id, byte idSz, int* sessionIndex,
+    int side, word16 useTicket, ClientSession** clientCacheEntry);
 #ifndef NO_CLIENT_CACHE
 WOLFSSL_LOCAL ClientSession* AddSessionToClientCache(int side, int row, int idx,
                       byte* serverID, word16 idLen, const byte* sessionID,
@@ -3453,7 +3462,8 @@ WOLFSSL_LOCAL
 WOLFSSL_SESSION* ClientSessionToSession(const WOLFSSL_SESSION* session);
 WOLFSSL_LOCAL int wolfSSL_GetSessionFromCache(WOLFSSL* ssl, WOLFSSL_SESSION* output);
 WOLFSSL_LOCAL int wolfSSL_SetSession(WOLFSSL* ssl, WOLFSSL_SESSION* session);
-WOLFSSL_LOCAL void wolfSSL_FreeSession(WOLFSSL_SESSION* session);
+WOLFSSL_LOCAL void wolfSSL_FreeSession(WOLFSSL_CTX* ctx,
+        WOLFSSL_SESSION* session);
 WOLFSSL_LOCAL int wolfSSL_DupSession(const WOLFSSL_SESSION* input,
         WOLFSSL_SESSION* output, int avoidSysCalls);
 
@@ -4357,7 +4367,8 @@ struct WOLFSSL {
 #if defined(HAVE_ECC) || defined(HAVE_ED25519) || defined(HAVE_ED448)
     int             eccVerifyRes;
 #endif
-#if defined(HAVE_ECC) || defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)
+#if defined(HAVE_ECC) || defined(HAVE_ED25519) || defined(HAVE_CURVE25519) || \
+    defined(HAVE_ED448) || defined(HAVE_CURVE448)
     word32          ecdhCurveOID;            /* curve Ecc_Sum     */
     ecc_key*        eccTempKey;              /* private ECDHE key */
     byte            eccTempKeyPresent;       /* also holds type */
@@ -4369,7 +4380,8 @@ struct WOLFSSL {
     word16          eccTempKeySz;            /* in octets 20 - 66 */
     byte            peerEccDsaKeyPresent;
 #endif
-#if defined(HAVE_ECC) || defined(HAVE_ED25519) || defined(HAVE_CURVE448)
+#if defined(HAVE_ECC) || defined(HAVE_ED25519) || \
+    defined(HAVE_CURVE448) || defined(HAVE_ED448)
     word32          pkCurveOID;              /* curve Ecc_Sum     */
 #endif
 #ifdef HAVE_ED25519
@@ -4575,7 +4587,7 @@ struct WOLFSSL {
     #endif /* NO_RSA */
     void* GenPreMasterCtx;   /* Generate Premaster Callback Context */
     void* GenMasterCtx;      /* Generate Master Callback Context */
-    void* GenSessionKeyCtx;  /* Generate Sesssion Key Callback Context */
+    void* GenSessionKeyCtx;  /* Generate Session Key Callback Context */
     void* EncryptKeysCtx;    /* Set Encrypt keys Callback Context */
     void* TlsFinishedCtx;    /* Generate Tls Finished Callback Context */
     void* VerifyMacCtx;      /* Verify mac Callback Context */
@@ -4615,7 +4627,7 @@ struct WOLFSSL {
 #ifdef WOLFSSL_STATIC_EPHEMERAL
     StaticKeyExchangeInfo_t staticKE;
 #endif
-#if defined(OPENSSL_ALL) || defined(WOLFSSL_HAPROXY) || defined(WOLFSSL_WPAS)
+#ifdef WOLFSSL_HAVE_TLS_UNIQUE
     /* Added in libest port: allow applications to get the 'tls-unique' Channel
      * Binding Type (https://tools.ietf.org/html/rfc5929#section-3). This is
      * used in the EST protocol to bind an enrollment to a TLS session through
@@ -5166,6 +5178,39 @@ WOLFSSL_LOCAL word32 nid2oid(int nid, int grp);
 
 #ifdef WOLFSSL_STATIC_EPHEMERAL
 WOLFSSL_LOCAL int wolfSSL_StaticEphemeralKeyLoad(WOLFSSL* ssl, int keyAlgo, void* keyPtr);
+#endif
+
+#ifndef NO_CERTS
+#if defined(OPENSSL_ALL) || defined(OPENSSL_EXTRA) || \
+    defined(OPENSSL_EXTRA_X509_SMALL)
+WOLFSSL_LOCAL int wolfSSL_ASN1_STRING_canon(WOLFSSL_ASN1_STRING* asn_out,
+    const WOLFSSL_ASN1_STRING* asn_in);
+#endif
+#endif
+
+#if defined(HAVE_EX_DATA) && \
+    (defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX) || \
+    defined(WOLFSSL_HAPROXY) || defined(OPENSSL_EXTRA) || \
+    defined(HAVE_LIGHTY)) || defined(HAVE_EX_DATA) || \
+    defined(WOLFSSL_WPAS_SMALL)
+WOLFSSL_LOCAL int wolfssl_get_ex_new_index(int class_index);
+#endif
+
+#if !defined(WC_NO_RNG) && (defined(OPENSSL_EXTRA) || \
+    (defined(OPENSSL_EXTRA_X509_SMALL) && !defined(NO_RSA)))
+WOLFSSL_LOCAL WC_RNG* wolfssl_get_global_rng(void);
+#endif
+
+#if !defined(WOLFCRYPT_ONLY) && defined(OPENSSL_EXTRA)
+#if defined(WOLFSSL_KEY_GEN) && defined(WOLFSSL_PEM_TO_DER)
+WOLFSSL_LOCAL int EncryptDerKey(byte *der, int *derSz, const EVP_CIPHER* cipher,
+    unsigned char* passwd, int passwdSz, byte **cipherInfo, int maxDerSz);
+#endif
+#endif
+
+#if defined(WOLFSSL_KEY_GEN) && !defined(NO_RSA) && !defined(HAVE_USER_RSA)
+WOLFSSL_LOCAL int wolfSSL_RSA_To_Der(WOLFSSL_RSA* rsa, byte** outBuf,
+    int publicKey, void* heap);
 #endif
 
 #ifdef __cplusplus
