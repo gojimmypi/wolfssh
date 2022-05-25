@@ -6,12 +6,12 @@ cmake_minimum_required(VERSION 3.5)
 # we also assume that the file is added to the local .gitignore
 # to ensure it is never inadvertantly shared
 
-if(EXISTS "/c/workspace/my_private_config.h") 
+if(EXISTS "/c/workspace/my_private_config.h")
    message(STATUS "found SYSPROGS_MY_PRIVATE_CONFIG")
    add_definitions( -DSYSPROGS_MY_PRIVATE_CONFIG="/c/workspace/my_private_config.h" )
 endif()
 
-if(EXISTS "/workspace/my_private_config.h") 
+if(EXISTS "/workspace/my_private_config.h")
    message(STATUS "found WINDOWS_MY_PRIVATE_CONFIG")
    add_definitions( -DWINDOWS_MY_PRIVATE_CONFIG="/workspace/my_private_config.h" )
 endif()
@@ -30,8 +30,9 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# copy enc28j60 component
-if(EXISTS "${CMAKE_HOME_DIRECTORY}/components/enc28j60")
+
+# copy enc28j60 component. This section can be removed if never using the enc28j60
+if(EXISTS "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60")
     message(STATUS  "Found directory ${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60")
 else()
     message(STATUS  "Making directory ${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60")
@@ -47,13 +48,29 @@ elseif(EXISTS "$ENV{IDF_PATH}/examples/ethernet/enc28j60/components/eth_enc28j60
       file(COPY "$ENV{IDF_PATH}/examples/ethernet/enc28j60/components/eth_enc28j60/" DESTINATION "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60/" FILES_MATCHING PATTERN  "*")
 
 elseif (EXISTS "$ENV{IDF_PATH}/examples/ethernet/enc28j60/main/")
-    # some versions of the ESP-IDF (typically prior to 4.4) don't have the eth_enc28j60 in a component directory,rather just an example         
+    # some versions of the ESP-IDF (typically prior to 4.4) don't have the eth_enc28j60 in a component directory,rather just an example
     file(COPY "$ENV{IDF_PATH}/examples/ethernet/enc28j60/main/enc28j60.h"             DESTINATION "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60/")
     file(COPY "$ENV{IDF_PATH}/examples/ethernet/enc28j60/main/esp_eth_enc28j60.h"     DESTINATION "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60/")
     file(COPY "$ENV{IDF_PATH}/examples/ethernet/enc28j60/main/esp_eth_mac_enc28j60.c" DESTINATION "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60/")
     file(COPY "$ENV{IDF_PATH}/examples/ethernet/enc28j60/main/esp_eth_phy_enc28j60.c" DESTINATION "${CMAKE_HOME_DIRECTORY}/components/eth_enc28j60/")
 endif()
+# END OF enc28j60
 
 project(ESP32-SSH-Server)
 
 
+# check to see if there's both a local copy and EDP-IDF copy of the wolfssl and/or wolfssh components
+if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
+    message(STATUS  "") 
+    message(STATUS  "WARNING: Found components/wolfssl in both local project and IDF_PATH")
+    message(STATUS  "") 
+endif()
+
+if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssh/" AND EXISTS "$ENV{IDF_PATH}/components/wolfssh/" ) 
+    message(STATUS  "") 
+    message(STATUS  "WARNING: Found components/wolfssh in both local project and IDF_PATH")
+    message(STATUS  "") 
+endif()
+# end multiple component check
+
+# END

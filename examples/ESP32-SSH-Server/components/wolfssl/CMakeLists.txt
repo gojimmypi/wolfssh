@@ -53,3 +53,11 @@ set(COMPONENT_SRCEXCLUDE
     )
 
 register_component()
+
+# check to see if there's both a local copy and EDP-IDF copy of the wolfssl components
+if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
+    message(STATUS  "") 
+    message(STATUS  "WARNING: Found components/wolfssl in both local project and IDF_PATH")
+    message(STATUS  "") 
+endif()
+# end multiple component check
