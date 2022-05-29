@@ -16,6 +16,4 @@ int Get_ExternalTransmitBuffer(byte **ToData);
 int Set_ExternalTransmitBuffer(byte *FromData, int sz);
 
 int Set_ExternalReceiveBuffer(byte *FromData, int sz);
-    
 
-    

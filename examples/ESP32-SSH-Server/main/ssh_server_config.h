@@ -20,9 +20,9 @@
 #pragma once
 
 /* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
- * see CMakeLists.txt 
+ * see CMakeLists.txt
  */
-#define WOLFSSL_USER_SETTINGS 
+#define WOLFSSL_USER_SETTINGS
 
 #include <driver/gpio.h>
 
@@ -38,8 +38,8 @@
 #define DEBUG_WOLFSSH
 
 
-/* Edgerouter is 57600, others are typically 115200 
- *  
+/* Edgerouter is 57600, others are typically 115200
+ *
  **/
 #define BAUD_RATE (57600)
 
@@ -55,9 +55,9 @@
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-#define USE_ENC28J60    
+#define USE_ENC28J60
 
-/* wifi can be either STA or AP 
+/* wifi can be either STA or AP
  *  #define WOLFSSH_SERVER_IS_AP
  *  #define WOLFSSH_SERVER_IS_STA
  **/
@@ -104,20 +104,20 @@
 
 
 /*
- * Time server settings. 
- * 
+ * Time server settings.
+ *
  * Accurate time is often important in cryptocgraphic key exchange.
- * 
+ *
  * see https://tf.nist.gov/tf-cgi/servers.cgi
- */ 
+ */
 #define NTP_SERVER_LIST ( (char*[]) {        \
                                      "pool.ntp.org",         \
                                      "time.nist.gov",        \
                                      "utcnist.colorado.edu"  \
                                      }                       \
-                        ) 
+                        )
 
-    
+
 #define TIME_ZONE "PST-8"
 
 
@@ -155,29 +155,29 @@
 #endif
 #define SCRATCH_BUFFER_SZ 1200
 
-    
-/* NELEMS(x) number of elements 
- * To determine the number of elements in the array, we can divide the total size of 
- * the array by the size of the array element 
+
+/* NELEMS(x) number of elements
+ * To determine the number of elements in the array, we can divide the total size of
+ * the array by the size of the array element
  * See https://stackoverflow.com/questions/37538/how-do-i-determine-the-size-of-my-array-in-c
  **/
 #define NELEMS(x)  ( (int)(sizeof(x) / sizeof((x)[0])) )
-    
+
 /* #define NTP_SERVER_COUNT  (int)(sizeof(NTP_SERVER_LIST) / sizeof(NTP_SERVER_LIST[0])) */
 #define NTP_SERVER_COUNT NELEMS(NTP_SERVER_LIST)
 
 // extern char* ntpServerList[NTP_SERVER_COUNT];
 extern char* ntpServerList[NTP_SERVER_COUNT];
 
-    
-    
+
+
 #ifdef  WOLFSSH_SERVER_IS_AP
     #ifdef WOLFSSH_SERVER_IS_STA
         #error "Concurrent WOLFSSH_SERVER_IS_AP and WOLFSSH_SERVER_IS_STA"
         #error "not supported. Pick one. Disable the other."
     #endif
 #endif
-  
+
 void ssh_server_config_init();
 
 /* sanity checks */

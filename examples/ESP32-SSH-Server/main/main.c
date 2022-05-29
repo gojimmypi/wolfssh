@@ -16,24 +16,24 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * Adapted from Public Domain Expressif ENC28J60 Example
- * 
+ *
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
- * 
+ *
  *
  * WARNING: although this code makes use of the UART #2 (as UART_NUM_0)
- * 
+ *
  * DO NOT LEAVE ANYTHING CONNECTED TO TXD2 (GPIO 15) and RXD2 (GPIO 13)
- * 
+ *
  * In particular, GPIO 15 must not be high during programming.
- * 
+ *
  */
 
 /* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
- * see CMakeLists.txt 
+ * see CMakeLists.txt
  */
-#define WOLFSSL_USER_SETTINGS 
+#define WOLFSSL_USER_SETTINGS
 
 #include "sdkconfig.h"
 
@@ -56,15 +56,15 @@
  * wolfSSL
  *
  * IMPORTANT: Ensure wolfSSL settings.h appears before any other wolfSSL headers
- * 
+ *
  * Example locations:
 
  *   Standard ESP-IDF:
  *   C:\Users\[username]\Desktop\esp-idf\components\wolfssh\wolfssl\wolfcrypt\settings.h
- * 
+ *
  *   VisualGDB
  *   C:\SysGCC\esp32\esp-idf\[version]\components\wolfssl\wolfcrypt\settings.h
- *   
+ *
  **/
 #ifdef WOLFSSL_STALE_EXAMPLE
     #warning "This project is configured using local, stale wolfSSL code. See Makefile."
@@ -85,18 +85,18 @@
 #define WC_RSA_PSS
 #define WOLFSSH_TEST_THREADING
 
-/*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM 
- *  and "access an actual filesystem via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM 
+/*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM
+ *  and "access an actual filesystem via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
  *  we'll typically have neither on an embedded device:
  */
 #define NO_FILESYSTEM
 #define WOLFSSH_NO_FILESYSTEM
 
 /* TODO check wolfSSL config
- * #include <wolfssl/include/user_settings.h> 
- * make sure this appears before any other wolfSSL headers 
+ * #include <wolfssl/include/user_settings.h>
+ * make sure this appears before any other wolfSSL headers
  */
-    
+
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 
@@ -108,12 +108,12 @@
 
 #include "ssh_server.h"
 
-/* logging 
- * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html 
+/* logging
+ * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
  */
 #ifdef LOG_LOCAL_LEVEL
     #undef LOG_LOCAL_LEVEL
-#endif    
+#endif
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
@@ -173,7 +173,7 @@ int set_time() {
 #include "driver/uart.h"
 
 void init_UART(void) {
-    ESP_LOGI(TAG, "Begin init_UART.");    
+    ESP_LOGI(TAG, "Begin init_UART.");
     const uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -183,16 +183,16 @@ void init_UART(void) {
         .source_clk = UART_SCLK_APB,
     };
     int intr_alloc_flags = 0;
-    
+
 #if CONFIG_UART_ISR_IN_IRAM
     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-#endif    
+#endif
     /* We won't use a buffer for sending data. */
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
-    ESP_LOGI(TAG, "End init_UART.");    
+    ESP_LOGI(TAG, "End init_UART.");
 }
 
 void server_session(void* args)
@@ -214,18 +214,18 @@ bool NoEthernet()
     bool ret = true;
 #ifdef USE_ENC28J60
     /* the ENC28J60 is only available if one has been installed  */
-    if (EthernetReady_ENC28J60()) { 
+    if (EthernetReady_ENC28J60()) {
         ret = false;
     }
 #endif
-    
+
 #ifndef USE_ENC28J60
     /* WiFi is pretty much always available on the ESP32 */
     if (wifi_ready()) {
         ret = false;
     }
 #endif
-    
+
     return ret;
 }
 
@@ -233,10 +233,10 @@ bool NoEthernet()
 void init_nvsflash() {
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES 
-          || 
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES
+          ||
         ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-            
+
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -251,13 +251,13 @@ void init() {
     TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
 
     ESP_LOGI(TAG, "Begin main init.");
-    
+
 #ifdef DEBUG_WOLFSSH
     ESP_LOGI(TAG, "wolfSSH debugging on.");
     wolfSSH_Debugging_ON();
 #endif
 
-    
+
 #ifdef DEBUG_WOLFSSL
     ESP_LOGI(TAG, "wolfSSL debugging on.");
     wolfSSL_Debugging_ON();
@@ -266,14 +266,14 @@ void init() {
 #endif
 
     init_UART();
-    
+
     /*
      * here we have one of three options:
-     * 
+     *
      * Wired Ethernet: USE_ENC28J60
-     * 
+     *
      * WiFi Access Point: WOLFSSH_SERVER_IS_AP
-     * 
+     *
      * WiFi Station: WOLFSSH_SERVER_IS_STA
      **/
 #if defined(USE_ENC28J60)
@@ -289,7 +289,7 @@ void init() {
 
 #elif defined(WOLFSSH_SERVER_IS_STA)
     init_nvsflash();
-    
+
     ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
     ESP_LOGI(TAG, "End setup WiFi STA.");
@@ -299,20 +299,20 @@ void init() {
         WOLFSSL_ERROR_MSG("ERROR: No network is defined... choose USE_ENC28J60, \
                           WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
-    }    
+    }
 #endif
-    
+
     while (NoEthernet()) {
         WOLFSSL_MSG("Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
-    
+
     /* one of the most important aspects of security is the time and date values */
     set_time();
 
     WOLFSSL_MSG("inet_pton"); /* TODO */
-    
-    wolfSSH_Init(); 
+
+    wolfSSH_Init();
 }
 
 /**
@@ -332,24 +332,24 @@ void app_main(void) {
     /* note that by the time we get here, the scheduler is already running!
      * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
      * Unlike Vanilla FreeRTOS, users must not call vTaskStartScheduler();
-     *        
+     *
      * all of the tasks are at the same, highest idle priority, so they will all get equal attention
      * when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
      */
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL, 
-                tskIDLE_PRIORITY, NULL);
-    
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL, 
+    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL, 
+    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-    
+    xTaskCreate(server_session, "server_session", 6024 * 2, NULL,
+                tskIDLE_PRIORITY, NULL);
+
+
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
         WOLFSSL_MSG("wolfSSH Server main loop heartbeat!");
-        
+
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
     }

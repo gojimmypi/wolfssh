@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  */
 #include "uart_helper.h"
 #include "tx_rx_buffer.h"
@@ -31,9 +31,9 @@
 #define DEBUG_WOLFSSH
 #include <wolfssl/wolfcrypt/logging.h>
 
-/* portTICK_PERIOD_MS is ( ( TickType_t ) 1000 / configTICK_RATE_HZ ) 
- * configTICK_RATE_HZ is CONFIG_FREERTOS_HZ 
- * CONFIG_FREERTOS_HZ is 100 
+/* portTICK_PERIOD_MS is ( ( TickType_t ) 1000 / configTICK_RATE_HZ )
+ * configTICK_RATE_HZ is CONFIG_FREERTOS_HZ
+ * CONFIG_FREERTOS_HZ is 100
  **/
 #define UART_TICKS_TO_WAIT (20 / portTICK_RATE_MS)
 
@@ -50,7 +50,7 @@ static SemaphoreHandle_t xUART_Semaphore = NULL;
 /*
  * startupMessage is the message before actually connecting to UART in server task thread.
  */
-static char startupMessage[] = 
+static char startupMessage[] =
       "\n"
       "Welcome to ESP32 SSH Server!"
       "\n\n"
@@ -70,61 +70,61 @@ void uart_send_welcome() {
  */
 int sendData(const char* logName, const char* data) {
     const int len = strlen(data);
-    
+
     /* note we are always using UART_NUM_1 but the GPIO pins may vary */
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
-    
+
     ESP_LOGI(logName, "Wrote %d bytes", txBytes);
 
     return txBytes;
 }
 
 /*
- *  if the external Receive Buffer has data (e.g. from SSH client) 
+ *  if the external Receive Buffer has data (e.g. from SSH client)
  *  then send that data to the UART (ExternalReceiveBufferSz bytes)
  */
 void uart_tx_task(void *arg) {
-    /* 
+    /*
      * when we receive chars from ssh, we'll send them out the UART
     */
     static const char *TX_TASK_TAG = "TX_TASK";
     esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
-    
+
     /* this RTOS task will never exit */
     while (1) {
         if (ExternalReceiveBufferSz() > 0)
         {
             WOLFSSL_MSG("UART Send Data");
-            
-            /* we don't want to send 0x7f as a backspace, we want a real backspace 
+
+            /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
             if ((byte)ExternalReceiveBuffer() == 0x7f && ExternalReceiveBufferSz()  == 1) {
                 sendData(TX_TASK_TAG, backspace);
-            } 
+            }
             else
             {
                 sendData(TX_TASK_TAG, (char*)ExternalReceiveBuffer());
             }
-            
+
             /* once we sent data, reset the pointer to zedro to indicate empty queue */
             Set_ExternalReceiveBufferSz(0);
         }
-       
+
         /* yield. let's not be greedy */
         taskYIELD();
     }
 }
 
-/* 
+/*
  * reading and writing memory from different threads requires coordination.
  * we'll use exclusive mutex semaphores for this.
  */
-void InitSemaphore() 
+void InitSemaphore()
 {
     if (xUART_Semaphore == NULL) {
         xUART_Semaphore = xSemaphoreCreateMutex();
     }
-    
+
 #ifdef configUSE_RECURSIVE_MUTEXES
     /* this may be interesting; see semphr.h */
     WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
@@ -141,9 +141,9 @@ void uart_rx_task(void *arg) {
     /* TODO do we really want malloc? probably not.
      * but in this thread, it only gets allocated once.
      **/
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1); 
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
 
-    /* 
+    /*
      * when we receive chars from UART, we'll send them out SSH
      */
     static const char *RX_TASK_TAG = "RX_TASK";
@@ -152,34 +152,34 @@ void uart_rx_task(void *arg) {
 
     /* TODO this should be interrupt driven, rather than polling */
     while (1) {
-        /* note some examples have UART_TICKS_TO_WAIT = 1000, 
+        /* note some examples have UART_TICKS_TO_WAIT = 1000,
          * which results in very sluggish response.
          * a known good value is (20 / portTICK_RATE_MS) */
-        const int rxBytes = uart_read_bytes(UART_NUM_1, 
-                                            data, 
-                                            RX_BUF_SIZE, 
+        const int rxBytes = uart_read_bytes(UART_NUM_1,
+                                            data,
+                                            RX_BUF_SIZE,
                                             UART_TICKS_TO_WAIT);
-        
+
         if (rxBytes > 0) {
             WOLFSSL_MSG("UART Rx Data!");
             data[rxBytes] = 0;
-            
+
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes:", rxBytes);
-            
-            /* this can be helpful during debug, but causes a bit of 
+
+            /* this can be helpful during debug, but causes a bit of
              * sluggish performance as it is not very RTOS friendly:
              *
              * ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
              * ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
              */
-            
-            Set_ExternalTransmitBuffer(data, rxBytes);           
+
+            Set_ExternalTransmitBuffer(data, rxBytes);
         } /* (rxBytes > 0) */
-        
+
         /* yield. let's not be greedy */
         taskYIELD();
     }
-    
+
     /* we never actually get here */
     free(data);
 }

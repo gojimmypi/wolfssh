@@ -44,9 +44,9 @@ typedef struct {
 } thread_ctx_t;
 
 
-/* find a byte character [str] of length [bufSz] within [buf]; 
- * returns byte position if found, otherise zero 
- * TODO what if bufSz > 255? 
+/* find a byte character [str] of length [bufSz] within [buf];
+ * returns byte position if found, otherise zero
+ * TODO what if bufSz > 255?
  */
 static byte find_char(const byte* str, const byte* buf, word32 bufSz) {
     const byte* cur;
@@ -143,7 +143,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     int sockfd;
     int select_ret = 0;
     WOLFSSL_MSG("Start NonBlockSSH_accept");
-    
+
     ret = wolfSSH_accept(ssh);
     error = wolfSSH_get_error(ssh);
     sockfd = (int)wolfSSH_get_fd(ssh);
@@ -151,8 +151,8 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
 
     while (ret != WS_SUCCESS &&
             (error == WS_WANT_READ || error == WS_WANT_WRITE)) {
-        
-        max_wait--;  
+
+        max_wait--;
         if (max_wait < 0) {
             error = WS_FATAL_ERROR;
         }
@@ -162,7 +162,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         else if (error == WS_WANT_WRITE)
             WOLFSSL_ERROR_MSG("... client would write block\n");
 */
-                
+
         select_ret = tcp_select(sockfd, 1);
         if (select_ret == WS_SELECT_RECV_READY  ||
             select_ret == WS_SELECT_ERROR_READY ||
@@ -197,8 +197,8 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
  **/
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     int ret;
-    
-    /* we'll create a local instance of threadCtx since it will be 
+
+    /* we'll create a local instance of threadCtx since it will be
      * handed off to potentially multiple separate threads
      */
     thread_ctx_t* threadCtx = (thread_ctx_t*)vArgs;
@@ -231,14 +231,14 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
     if (ret == WS_SUCCESS) {
         byte* this_rx_buf = NULL;
-        
+
         int bufSz, backlogSz = 0, rxSz, txSz, stop = 0, txSum;
 
-        
+
         init_tx_rx_buffer(TXD_PIN, RXD_PIN);
-    
+
         /*
-         * we'll stay in this loop then entire time this worker thread has 
+         * we'll stay in this loop then entire time this worker thread has
          * a valid SSH connection open
          */
         do {
@@ -247,7 +247,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
             this_rx_buf = (byte*)&sshStreamReceiveBufferArray;
             // this_tx_buf = (byte*)&sshStreamTransmitBufferArray;
-            
+
 //            tmpBuf = (byte*)realloc(buf, bufSz); /* reminder If ptr is NULL, the behavior is the same as calling malloc(new_size). */
 //            if (tmpBuf == NULL)
 //                stop = 1;
@@ -258,11 +258,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
             int has_err = 0;
             if (!stop) {
                 do {
-                    
+
                     int error = 0;
                     socklen_t len = sizeof(error);
                     int retval = getsockopt(threadCtx->fd, SOL_SOCKET, SO_ERROR, &error, &len);
-                    
+
                     if (retval != 0) {
                         /* if we can't even call getsockopt, give up */
                         stop = 1;
@@ -272,8 +272,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         /* socket has a non zero error status */
                         WOLFSSL_ERROR_MSG("ERROR: getsockopt returned error socket fd!");
                         stop = 1;
-                    }                    
-                    
+                    }
+
                     /* this is a blocking call, awaiting an SSH keypress
                      * unless nonBlock = 1 (normally we are NOT blocking) */
                     rxSz = wolfSSH_stream_read(threadCtx->ssh,
@@ -294,10 +294,10 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                             WOLFSSL_ERROR_MSG("wolfSSH_stream_read error!");
                         }
                     }
-                    
+
                     taskYIELD();
                     esp_task_wdt_reset();
-                    
+
                 } while ((WOLFSSL_NONBLOCK == 0) /* we'll wait only when not using non-blocking socket */
                          &&
                          (rxSz == WS_WANT_READ || rxSz == WS_WANT_WRITE));
@@ -308,22 +308,22 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                  */
                 if (ExternalTransmitBufferSz() > 0) {
                     WOLFSSL_MSG("Tx UART!");
-                    
+
                     /* our actual transit buffer array is not on the local stack
                      * to minimze RTOS requirements; we'll setup a pointer to it.
-                     * 
+                     *
                      * Note this is a *different* buffer from the external (UART)
                      * which may change during RTOS threads, and future interrpt code.
                      * */
                     byte* sshStreamTransmitBuffer = (byte*)&sshStreamTransmitBufferArray;
-                    
-                    /* We'll get a copy of the buffer and 
+
+                    /* We'll get a copy of the buffer and
                      * set _ExternalTransmitBufferSz to zero
-                     * 
+                     *
                      * Note this is thread safe, getting both data and size.
                      */
-                    int thisSize = Get_ExternalTransmitBuffer(&sshStreamTransmitBuffer); 
-                        
+                    int thisSize = Get_ExternalTransmitBuffer(&sshStreamTransmitBuffer);
+
                     if (sshStreamTransmitBuffer == NULL) {
                         /* TODO this is an error as the buffer should never
                          * be null if the size was garger than zero */
@@ -336,24 +336,24 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                                             sshStreamTransmitBuffer,
                                             thisSize);
                     }
-                    
-                    
+
+
                 }
-                    
+
                 /*
                  * if we received any data from the SSH client, we'll store it in the
-                 * External REceived Buffer for later sending to the UART 
-                 * 
+                 * External REceived Buffer for later sending to the UART
+                 *
                  * Reminder negative values for WS_WANT_READ || WS_WANT_WRITE
                  */
                 if (rxSz > 0) {
-                    /* append external data, for something such as UART forwarding 
+                    /* append external data, for something such as UART forwarding
                      * note any prior data saved in the buffer was _ExternalReceiveBufferSz
-                     * 
+                     *
                      * Here we perform the thread-safe equvalent of:
-                     * 
-                        memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz], 
-                               buf, 
+                     *
+                        memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
+                               buf,
                                rxSz);
                         _ExternalReceiveBufferSz = rxSz;
                      */
@@ -371,7 +371,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                          **/
                         if (SSH_SERVER_ECHO == 1) {
                             /* reminder we moved data from external buffer
-                             * to our local buf, and this is ECHO  
+                             * to our local buf, and this is ECHO
                              */
                             txSz = wolfSSH_stream_send(threadCtx->ssh,
                                                        this_rx_buf + txSum,
@@ -380,39 +380,39 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         else {
                             txSz = backlogSz - txSum;
                         }
-                        
+
                         if (txSz > 0) {
                             byte c;
                             const byte matches[] = { 0x03, 0x05, 0x06, 0x00 };
 
                             c = find_char(matches, this_rx_buf + txSum, txSz);
-                            
+
                             switch (c) {
-                                
+
                             case 0x03:
                                 stop = 1;
                                 break;
-                                
+
                             case 0x06:
                                 if (wolfSSH_TriggerKeyExchange(threadCtx->ssh)
                                         != WS_SUCCESS) {
                                     stop = 1;
                                 }
                                 break;
-                                
+
                             case 0x05:
                                 if (dump_stats(threadCtx) <= 0) {
                                     stop = 1;
                                 }
                                 break;
                             }
-                            
+
                             txSum += txSz;
                         }
                         else if (txSz != WS_REKEYING) {
                             stop = 1;
                         }
-                        
+
                         taskYIELD();
                         esp_task_wdt_reset();
                     } /* while */
@@ -431,13 +431,13 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     }
                 }
             }
-            
+
         // taskYIELD();
         //vTaskDelay(pdMS_TO_TICKS(10));
         //    esp_task_wdt_reset();
         } while (!stop);
     } /* if (ret == WS_SUCCESS) */
-    
+
     else if (ret == WS_SCP_COMPLETE) {
         WOLFSSL_ERROR_MSG("scp file transfer completed\n");
 #if defined(WOLFSSH_SCP) && defined(NO_FILESYSTEM)
@@ -460,7 +460,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     else if (ret == WS_SFTP_COMPLETE) {
         WOLFSSL_ERROR_MSG("Use example/echoserver/echoserver for SFTP\n");
     }
-    
+
     wolfSSH_stream_exit(threadCtx->ssh, 0);
 
     // check if open before closing
@@ -468,7 +468,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
         WOLFSSL_MSG("Close sockfd socket");
         close(threadCtx->fd);
     }
-    
+
     wolfSSH_free(threadCtx->ssh);
     free(threadCtx);
 
@@ -919,14 +919,14 @@ static int my_IORecv(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     ID  cepid;
     if (ctx != NULL)cepid = *(ID *)ctx;
     else return WS_CBIO_ERR_GENERAL;
-    
+
     ret = tcp_rcv_dat(cepid, buff, sz, TMO_FEVR);
     byte* buf = NULL;
     int backlogSz = 0;
-    
+
     ret = wolfSSH_stream_read(threadCtx->ssh,
         buf + backlogSz,
-        EXAMPLE_BUFFER_SZ); 
+        EXAMPLE_BUFFER_SZ);
     ret = WOLFSSL_SUCCESS;
     return ret;
 }
@@ -936,17 +936,17 @@ static int my_IORecv(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
 static int my_IOSend(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
     int ret;
     ID  cepid;
-    
+
     if (ctx != NULL)cepid = *(ID *)ctx;
     else return WS_CBIO_ERR_GENERAL;
 
     ret = tcp_snd_dat(cepid, buff, sz, TMO_FEVR);
     ret = WOLFSSL_SUCCESS;
-    
+
     return ret;
 }
 */
- 
+
 static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
 {
     #ifdef USE_WINDOWS_API
@@ -983,7 +983,7 @@ void server_test(void *arg) {
 #ifdef HAVE_SIGNAL
     signal(SIGINT, sig_handler);
 #endif
-    
+
 #ifdef DEBUG_WOLFSSL
     wolfSSL_Debugging_ON();
     WOLFSSL_MSG("Debug ON v0.2c");
@@ -995,12 +995,12 @@ void server_test(void *arg) {
     //ShowCiphers();
 #endif /* DEBUG_WOLFSSL */
 
-    
+
 #ifndef WOLFSSL_TLS13
     ret = WOLFSSL_FAILURE;
    WOLFSSL_ERROR_MSG("\r\nERROR: Example requires TLS v1.3.\n");
 #endif /* WOLFSSL_TLS13 */
-    
+
     /* Initialize the server address struct with zeros */
     memset(&servAddr, 0, sizeof(servAddr));
 
@@ -1009,86 +1009,86 @@ void server_test(void *arg) {
     servAddr.sin_port        = htons(DEFAULT_PORT); /* on DEFAULT_PORT */
     servAddr.sin_addr.s_addr = INADDR_ANY; /* from anywhere   */
 
-    /* 
+    /*
     ***************************************************************************
     * Create a socket that uses an internet IPv4 address,
     * Sets the socket to be stream based (TCP),
     * 0 means choose the default protocol.
-    * 
+    *
     *  #include <sys/socket.h>
     *
-    *  int socket(int domain, int type, int protocol);  
-    *  
-    *  The socket() function shall create an unbound socket in a communications 
-    *  domain, and return a file descriptor that can be used in later function 
+    *  int socket(int domain, int type, int protocol);
+    *
+    *  The socket() function shall create an unbound socket in a communications
+    *  domain, and return a file descriptor that can be used in later function
     *  calls that operate on sockets.
-    *  
+    *
     *  The socket() function takes the following arguments:
-    *    domain     Specifies the communications domain in which a 
+    *    domain     Specifies the communications domain in which a
     *                 socket is to be created.
     *    type       Specifies the type of socket to be created.
-    *    protocol   Specifies a particular protocol to be used with the socket. 
-    *               Specifying a protocol of 0 causes socket() to use an 
-    *               unspecified default protocol appropriate for the 
+    *    protocol   Specifies a particular protocol to be used with the socket.
+    *               Specifying a protocol of 0 causes socket() to use an
+    *               unspecified default protocol appropriate for the
     *               requested socket type.
-    *               
-    *    The domain argument specifies the address family used in the 
-    *    communications domain. The address families supported by the system 
+    *
+    *    The domain argument specifies the address family used in the
+    *    communications domain. The address families supported by the system
     *    are implementation-defined.
-    *    
+    *
     *    Symbolic constants that can be used for the domain argument are
     *    defined in the <sys/socket.h> header.
     *
-    *  The type argument specifies the socket type, which determines the semantics 
-    *  of communication over the socket. The following socket types are defined; 
+    *  The type argument specifies the socket type, which determines the semantics
+    *  of communication over the socket. The following socket types are defined;
     *  implementations may specify additional socket types:
     *
-    *    SOCK_STREAM    Provides sequenced, reliable, bidirectional, 
-    *                   connection-mode byte streams, and may provide a 
+    *    SOCK_STREAM    Provides sequenced, reliable, bidirectional,
+    *                   connection-mode byte streams, and may provide a
     *                   transmission mechanism for out-of-band data.
     *    SOCK_DGRAM     Provides datagrams, which are connectionless-mode,
     *                   unreliable messages of fixed maximum length.
-    *    SOCK_SEQPACKET Provides sequenced, reliable, bidirectional, 
-    *                   connection-mode transmission paths for records. 
-    *                   A record can be sent using one or more output 
-    *                   operations and received using one or more input 
-    *                   operations, but a single operation never transfers 
-    *                   part of more than one record. Record boundaries 
+    *    SOCK_SEQPACKET Provides sequenced, reliable, bidirectional,
+    *                   connection-mode transmission paths for records.
+    *                   A record can be sent using one or more output
+    *                   operations and received using one or more input
+    *                   operations, but a single operation never transfers
+    *                   part of more than one record. Record boundaries
     *                   are visible to the receiver via the MSG_EOR flag.
-    *    
-    *                   If the protocol argument is non-zero, it shall 
-    *                   specify a protocol that is supported by the address 
+    *
+    *                   If the protocol argument is non-zero, it shall
+    *                   specify a protocol that is supported by the address
     *                   family. If the protocol argument is zero, the default
     *                   protocol for this address family and type shall be
-    *                   used. The protocols supported by the system are 
+    *                   used. The protocols supported by the system are
     *                   implementation-defined.
-    *    
+    *
     *    The process may need to have appropriate privileges to use the socket() function or to create some sockets.
-    *    
+    *
     *  Return Value
-    *    Upon successful completion, socket() shall return a non-negative integer, 
-    *    the socket file descriptor. Otherwise, a value of -1 shall be returned 
+    *    Upon successful completion, socket() shall return a non-negative integer,
+    *    the socket file descriptor. Otherwise, a value of -1 shall be returned
     *    and errno set to indicate the error.
-    *    
+    *
     *  Errors; The socket() function shall fail if:
-    *  
+    *
     *    EAFNOSUPPORT    The implementation does not support the specified address family.
     *    EMFILE          No more file descriptors are available for this process.
     *    ENFILE          No more file descriptors are available for the system.
     *    EPROTONOSUPPORT The protocol is not supported by the address family, or the protocol is not supported by the implementation.
     *    EPROTOTYPE      The socket type is not supported by the protocol.
-    *    
+    *
     *  The socket() function may fail if:
-    *  
+    *
     *    EACCES  The process does not have appropriate privileges.
     *    ENOBUFS Insufficient resources were available in the system to perform the operation.
     *    ENOMEM  Insufficient memory was available to fulfill the request.
-    *    
+    *
     *  see: https://linux.die.net/man/3/socket
     ***************************************************************************
     */
     if (ret == WOLFSSL_SUCCESS) {
-        /* Upon successful completion, socket() shall return 
+        /* Upon successful completion, socket() shall return
          * a non-negative integer, the socket file descriptor.
         */
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1096,7 +1096,7 @@ void server_test(void *arg) {
             WOLFSSL_MSG("socket creation successful");
         }
         else {
-            // TODO show errno 
+            // TODO show errno
             ret = WOLFSSL_FAILURE;
            WOLFSSL_ERROR_MSG("\r\nERROR: failed to create a socket.\n");
         }
@@ -1109,7 +1109,7 @@ void server_test(void *arg) {
     /*
     ***************************************************************************
     * set SO_REUSEADDR on socket
-    * 
+    *
     *  #include <sys/types.h>
     *  # include <sys / socket.h>
     *  int getsockopt(int sockfd,
@@ -1121,19 +1121,19 @@ void server_test(void *arg) {
     *    int optname,
     *    const void *optval,
     *    socklen_t optlen);
-    *    
-    *  setsockopt() manipulates options for the socket referred to by the file 
-    *  descriptor sockfd. Options may exist at multiple protocol levels; they 
+    *
+    *  setsockopt() manipulates options for the socket referred to by the file
+    *  descriptor sockfd. Options may exist at multiple protocol levels; they
     *  are always present at the uppermost socket level.
-    *  
-    *  When manipulating socket options, the level at which the option resides 
-    *  and the name of the option must be specified. To manipulate options at 
-    *  the sockets API level, level is specified as SOL_SOCKET. To manipulate 
-    *  options at any other level the protocol number of the appropriate 
-    *  protocol controlling the option is supplied. For example, to indicate 
-    *  that an option is to be interpreted by the TCP protocol, level should 
+    *
+    *  When manipulating socket options, the level at which the option resides
+    *  and the name of the option must be specified. To manipulate options at
+    *  the sockets API level, level is specified as SOL_SOCKET. To manipulate
+    *  options at any other level the protocol number of the appropriate
+    *  protocol controlling the option is supplied. For example, to indicate
+    *  that an option is to be interpreted by the TCP protocol, level should
     *  be set to the protocol number of TCP
-    *  
+    *
     *  Return Value
     *    On success, zero is returned. On error, -1 is returned, and errno is set appropriately.
     *
@@ -1155,12 +1155,12 @@ void server_test(void *arg) {
             SO_REUSEADDR,
             (char*)&on,
             (socklen_t)sizeof(on));
-        
+
         if (soc_ret == 0) {
             WOLFSSL_MSG("setsockopt re-use addr successful");
         }
         else {
-            // TODO show errno 
+            // TODO show errno
             ret = WOLFSSL_FAILURE;
             WOLFSSL_ERROR_MSG("\r\nERROR: failed to setsockopt addr on socket.\n");
         }
@@ -1168,7 +1168,7 @@ void server_test(void *arg) {
     else {
         WOLFSSL_ERROR_MSG("Skipping setsockopt addr\n");
     }
-        
+
 #ifdef SO_REUSEPORT
     /* see above for details on getsockopt  */
     if (ret == WOLFSSL_SUCCESS) {
@@ -1177,43 +1177,43 @@ void server_test(void *arg) {
             SO_REUSEPORT,
             (char*)&on,
             (socklen_t)sizeof(on));
-            
+
         if (soc_ret == 0) {
             WOLFSSL_MSG("setsockopt re-use port successful\n");
         }
         else {
-            // TODO show errno 
+            // TODO show errno
             // ret = WOLFSSL_FAILURE;
             // TODO what's up with the error?
             WOLFSSL_ERROR_MSG("\r\nERROR: failed to setsockopt port on socket.  >> IGNORED << \n");
         }
-    } 
+    }
     else {
         WOLFSSL_ERROR_MSG("Skipping setsockopt port\n");
     }
 #else
     WOLFSSL_MSG("SO_REUSEPORT not configured for setsockopt to re-use port\n");
 #endif
-    
+
     /*
     ***************************************************************************
-    *  #include <sys/types.h>  
+    *  #include <sys/types.h>
     *  #include <sys/socket.h>
-    *  
+    *
     *  int bind(int sockfd,
     *      const struct sockaddr *addr,
     *      socklen_t addrlen);
-    *      
+    *
     *  Description
-    *  
-    *  When a socket is created with socket(2), it exists in a name 
+    *
+    *  When a socket is created with socket(2), it exists in a name
     *  space(address family) but has no address assigned to it.
-    * 
-    *  bind() assigns the address specified by addr to the socket referred to 
-    *  by the file descriptor sockfd.addrlen specifies the size, in bytes, of 
-    *  the address structure pointed to by addr.Traditionally, this operation 
+    *
+    *  bind() assigns the address specified by addr to the socket referred to
+    *  by the file descriptor sockfd.addrlen specifies the size, in bytes, of
+    *  the address structure pointed to by addr.Traditionally, this operation
     *  is called "assigning a name to a socket".
-    *  
+    *
     *   It is normally necessary to assign a local address using bind() before
     *   a SOCK_STREAM socket may receive connections.
     *
@@ -1228,17 +1228,17 @@ void server_test(void *arg) {
     *    ENOTSOCK   sockfd is a descriptor for a file, not a socket.
     *
     *   see: https://linux.die.net/man/2/bind
-    *   
+    *
     *       https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/lwip.html
     ***************************************************************************
     */
     if (ret == WOLFSSL_SUCCESS) {
         /* Bind the server socket to our port */
-        int soc_ret = bind(sockfd, 
-                           (struct sockaddr*)&servAddr, 
+        int soc_ret = bind(sockfd,
+                           (struct sockaddr*)&servAddr,
                                        sizeof(servAddr)
                           );
-        
+
         if (soc_ret > -1) {
             WOLFSSL_MSG("socket bind successful.");
         }
@@ -1248,34 +1248,34 @@ void server_test(void *arg) {
         }
     }
 
-    /* 
+    /*
     ***************************************************************************
-    *  Listen for a new connection, allow 5 pending connections 
+    *  Listen for a new connection, allow 5 pending connections
     *
-    *  #include <sys/types.h>  
+    *  #include <sys/types.h>
     *  #include <sys/socket.h>
     *  int listen(int sockfd, int backlog);
     *
     *  Description
-    *  
-    *  listen() marks the socket referred to by sockfd as a passive socket, 
-    *  that is, as a socket that will be used to accept incoming connection 
+    *
+    *  listen() marks the socket referred to by sockfd as a passive socket,
+    *  that is, as a socket that will be used to accept incoming connection
     *  requests using accept.
     *
-    *  The sockfd argument is a file descriptor that refers to a socket of 
+    *  The sockfd argument is a file descriptor that refers to a socket of
     *  type SOCK_STREAM or SOCK_SEQPACKET.
-    *  
-    *  The backlog argument defines the maximum length to which the queue of 
-    *  pending connections for sockfd may grow.If a connection request arrives 
+    *
+    *  The backlog argument defines the maximum length to which the queue of
+    *  pending connections for sockfd may grow.If a connection request arrives
     *  when the queue is full, the client may receive an error with an indication
-    *  of ECONNREFUSED or, if the underlying protocol supports retransmission, 
-    *  the request may be ignored so that a later reattempt at connection 
+    *  of ECONNREFUSED or, if the underlying protocol supports retransmission,
+    *  the request may be ignored so that a later reattempt at connection
     *  succeeds.
     *
     *   Return Value
     *     On success, zero is returned.
     *     On Error, -1 is returned, and errno is set appropriately.
-    *   Errors  
+    *   Errors
     *     EADDRINUSE   Another socket is already listening on the same port.
     *     EBADF        The argument sockfd is not a valid descriptor.
     *     ENOTSOCK     The argument sockfd is not a socket.
@@ -1283,7 +1283,7 @@ void server_test(void *arg) {
     *
     *  ses: https://linux.die.net/man/2/listen
     */
-    
+
     if (ret == WOLFSSL_SUCCESS) {
         int soc_ret = listen(sockfd, 5);
         if (soc_ret > -1) {
@@ -1293,11 +1293,11 @@ void server_test(void *arg) {
            ret = WOLFSSL_FAILURE;
            WOLFSSL_ERROR_MSG("\r\nERROR: failed to listen to socket.\n");
         }
-    }    
-    
-    
+    }
 
-    
+
+
+
     PwMapList pwMapList;
 
     word32 defaultHighwater = EXAMPLE_HIGHWATER_MARK;
@@ -1368,7 +1368,7 @@ void server_test(void *arg) {
         THREAD_TYPE   thread;
 #endif
         WOLFSSH*      ssh;
-        
+
         /* we'll create a new instance of threadCtx since it will be handed off to
          * potentially multiple separate threads
          */

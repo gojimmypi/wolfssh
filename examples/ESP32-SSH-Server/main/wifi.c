@@ -47,9 +47,9 @@
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
-/* The event group allows multiple bits for each event, 
+/* The event group allows multiple bits for each event,
  * but we only care about two events:
- * 
+ *
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
@@ -60,29 +60,29 @@ static const char *TAG = "wifi station";
 static int s_retry_num = 0;
 
 /* we'll change WiFiEthernetReady in event handler
- * 
- * see also bool wifi_ready() 
+ *
+ * see also bool wifi_ready()
  */
-static volatile bool WiFiEthernetReady = 0; 
+static volatile bool WiFiEthernetReady = 0;
 
 /*
  * WiFi event_handler() Public Domain Sample Code Credit Espressif
- * 
+ *
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
- * 
+ *
  */
 void event_handler(void* arg,
                    esp_event_base_t event_base,
                    int32_t event_id,
                    void* event_data) {
-                       
+
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         WiFiEthernetReady = 0;
         esp_wifi_connect();
     }
-                       
-    else if (event_base == WIFI_EVENT 
-              && 
+
+    else if (event_base == WIFI_EVENT
+              &&
             event_id == WIFI_EVENT_STA_DISCONNECTED) {
 
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
@@ -94,15 +94,15 @@ void event_handler(void* arg,
         else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
-                
+
         ESP_LOGI(TAG, "connect to the AP fail");
         WiFiEthernetReady = 0;
     }
-        
-    else if (event_base == IP_EVENT 
-               && 
+
+    else if (event_base == IP_EVENT
+               &&
              event_id == IP_EVENT_STA_GOT_IP) {
-                 
+
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
@@ -113,9 +113,9 @@ void event_handler(void* arg,
 
 /*
  * WiFi wifi_init_sta() Public Domain Sample Code Credit Espressif
- * 
+ *
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
- * 
+ *
  */
 void wifi_init_sta(void) {
 
@@ -191,17 +191,17 @@ void wifi_init_sta(void) {
 
     /* The event will not be processed after unregister */
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
-                      IP_EVENT, 
-                      IP_EVENT_STA_GOT_IP, 
+                      IP_EVENT,
+                      IP_EVENT_STA_GOT_IP,
                       instance_got_ip)
                    );
-    
+
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(
-                      WIFI_EVENT, 
-                      ESP_EVENT_ANY_ID, 
+                      WIFI_EVENT,
+                      ESP_EVENT_ANY_ID,
                       instance_any_id)
                    );
-    
+
     vEventGroupDelete(s_wifi_event_group);
 }
 
@@ -209,34 +209,34 @@ void wifi_init_sta(void) {
 
 /*
  * WiFi wifi_ap_event_handler() Public Domain Sample Code Credit Espressif
- * 
+ *
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/softAP/main/softap_example_main.c
- * 
+ *
  */
 static void wifi_ap_event_handler(void* arg,
                                   esp_event_base_t event_base,
                                   int32_t event_id,
                                   void* event_data) {
-                                      
+
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t* event = 
+        wifi_event_ap_staconnected_t* event =
               (wifi_event_ap_staconnected_t*) event_data;
-         
+
         ESP_LOGI(TAG,
             "station "MACSTR" join, AID=%d",
             MAC2STR(event->mac),
             event->aid);
     }
     else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        wifi_event_ap_stadisconnected_t* event = 
+        wifi_event_ap_stadisconnected_t* event =
               (wifi_event_ap_stadisconnected_t*) event_data;
-        
+
         ESP_LOGI(TAG,
             "station "MACSTR" leave, AID=%d",
             MAC2STR(event->mac),
             event->aid);
     }
-    
+
     /* when acting as AP, we're always ready, as we're not awaiting connection or IP addy */
     WiFiEthernetReady = 1;
 }
@@ -244,9 +244,9 @@ static void wifi_ap_event_handler(void* arg,
 
 /*
  * WiFi wifi_init_softap() Public Domain Sample Code Credit Espressif
- * 
+ *
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/softAP/main/softap_example_main.c
- * 
+ *
  */
 void wifi_init_softap(void) {
     ESP_ERROR_CHECK(esp_netif_init());

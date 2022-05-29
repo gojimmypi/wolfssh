@@ -43,12 +43,12 @@ static uint8_t myMacAddress[] = {
     0x56
 };
 
-/* logging 
- * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html 
+/* logging
+ * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
  */
 #ifdef LOG_LOCAL_LEVEL
 #undef LOG_LOCAL_LEVEL
-#endif    
+#endif
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
@@ -87,7 +87,7 @@ static void eth_event_handler(void *arg,
         break;
     case ETHERNET_EVENT_START:
         ESP_LOGI(TAG, "Ethernet Started");
-        /* just because the itnerface has started, does not mean Ethernet is ready or not. 
+        /* just because the itnerface has started, does not mean Ethernet is ready or not.
          *  see got_ip_event_handler
          */
         break;
@@ -122,12 +122,12 @@ static void got_ip_event_handler(void *arg,
  * See optional define of USE_ENC28J60
  */
 int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
-#ifdef USE_ENC28J60    
+#ifdef USE_ENC28J60
     ESP_LOGI(TAG, "Begin init_ENC28J60.");
 #else
     ESP_LOGI(TAG, "WARNING: init_ENC28J60 called but USE_ENC28J60 is not defined.");
 #endif
-    
+
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
     /* Initialize TCP/IP network interface (should be called only once in application) */
     ESP_ERROR_CHECK(esp_netif_init());
@@ -144,7 +144,7 @@ int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
     };
-    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, 
+    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_EXAMPLE_ENC28J60_SPI_HOST,
                     &buscfg, 1));
     /* ENC28J60 ethernet driver is based on spi driver */
     spi_device_interface_config_t devcfg = {
@@ -156,7 +156,7 @@ int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
         .queue_size = 20
     };
     spi_device_handle_t spi_handle = NULL;
-    ESP_ERROR_CHECK(spi_bus_add_device(CONFIG_EXAMPLE_ENC28J60_SPI_HOST, 
+    ESP_ERROR_CHECK(spi_bus_add_device(CONFIG_EXAMPLE_ENC28J60_SPI_HOST,
                     &devcfg, &spi_handle));
 
     eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(spi_handle);
@@ -176,27 +176,27 @@ int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
     esp_eth_handle_t eth_handle = NULL;
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config, &eth_handle));
 
-       
+
     mac->set_addr(mac, MacAddressToAssign);
 
 
     /* attach Ethernet driver to TCP/IP stack */
-    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, 
+    ESP_ERROR_CHECK(esp_netif_attach(eth_netif,
                                      esp_eth_new_netif_glue(eth_handle))
                    );
 
-    /* Register user defined event handers 
-     * "ensure that they register the user event handlers as the last thing prior to starting the Ethernet driver." 
+    /* Register user defined event handers
+     * "ensure that they register the user event handlers as the last thing prior to starting the Ethernet driver."
     */
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, 
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID,
                                                &eth_event_handler, NULL));
-    
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, 
+
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP,
                                                &got_ip_event_handler, NULL));
-    
+
     /* start Ethernet driver state machine */
-    ESP_ERROR_CHECK(esp_eth_start(eth_handle)); 
-    
+    ESP_ERROR_CHECK(esp_eth_start(eth_handle));
+
     ESP_LOGI(TAG, "End init_ENC28J60.");
     return 0;
 }
