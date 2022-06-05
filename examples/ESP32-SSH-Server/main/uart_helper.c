@@ -98,7 +98,15 @@ void uart_tx_task(void *arg) {
 
             /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
-            if ((byte)ExternalReceiveBuffer() == 0x7f && ExternalReceiveBufferSz()  == 1) {
+            // taskENTER_CRITICAL(NULL);
+            //char thisChar = (byte)ExternalReceiveBuffer()[0];
+            //int thisLength  = ExternalReceiveBufferSz();
+            //bool isSingleBackspace = (thisChar == 0x7f) && (thisLength == 1);
+            // taskEXIT_CRITICAL(NULL);
+
+            if (ExternalReceiveBuffer_IsChar(0x7f)) {
+
+            // if ((byte)ExternalReceiveBuffer() == 0x7f && ExternalReceiveBufferSz()  == 1) {
                 sendData(TX_TASK_TAG, backspace);
             }
             else
@@ -106,7 +114,7 @@ void uart_tx_task(void *arg) {
                 sendData(TX_TASK_TAG, (char*)ExternalReceiveBuffer());
             }
 
-            /* once we sent data, reset the pointer to zedro to indicate empty queue */
+            /* once we sent data, reset the pointer to zero to indicate empty queue */
             Set_ExternalReceiveBufferSz(0);
         }
 
@@ -168,10 +176,12 @@ void uart_rx_task(void *arg) {
 
             /* this can be helpful during debug, but causes a bit of
              * sluggish performance as it is not very RTOS friendly:
-             *
-             * ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-             * ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
-             */
+
+             ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
+             ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+
+              *
+              */
 
             Set_ExternalTransmitBuffer(data, rxBytes);
         } /* (rxBytes > 0) */
