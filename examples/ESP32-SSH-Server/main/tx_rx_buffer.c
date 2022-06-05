@@ -1,5 +1,6 @@
 #include "tx_rx_buffer.h"
 #include "int_to_string.h"
+#include "esp_log.h"
 
 #define SSH_WELCOME_MESSAGE "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\r"
 #define SSH_GPIO_MESSAGE "You are now connected to UART "
@@ -27,6 +28,7 @@ static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
  */
 void InitReceiveSemaphore() {
     if (_xExternalReceiveBuffer_Semaphore == NULL) {
+        ESP_LOGI(TAG, "InitReceiveSemaphore.");
 
         /* the case of recursive mutexes is interstinbg, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
@@ -54,6 +56,34 @@ void InitTransmitSemaphore() {
 
 }
 
+/*
+ * return true if the Rx buffer is exactly 1 char long and contains charValue
+ */
+bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue)
+{
+    bool ret =false;
+    char thisChar;
+
+    InitReceiveSemaphore();
+    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+
+        /* the entire thread-safety wrapper is for this code segment */
+        {
+            if (_ExternalReceiveBufferSz == 1)
+            {
+                thisChar =  (char)_ExternalReceiveBuffer;
+                ret = (thisChar == charValue);
+           }
+        }
+        xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
+    }
+    else {
+        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        ret = false;
+    }
+
+    return ret;
+}
 
 
 volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer() {
@@ -329,6 +359,10 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
     int ret = 0;
     char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
 
+    /* these inits need to be called only once, but can be repeatedly called as needed */
+    InitReceiveSemaphore();
+    InitTransmitSemaphore();
+
     /*
      *  init and stuff startup message in buffer
      */
@@ -351,7 +385,7 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
                               );
 
     /* the number of the Tx pin, converted to a string */
-    if ((TxPin >= 0) && (TxPin <= 99)) {
+    if (TxPin <= 0x40) {
         int_to_dec(numStr, TxPin);
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
     }
@@ -366,7 +400,7 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
                               );
 
     /* the number of the Rx pin, converted to a string */
-    if ((RxPin >= 0) && (RxPin <= 99))
+    if (RxPin <= 0x40)
     {
         int_to_dec(numStr, RxPin);
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));

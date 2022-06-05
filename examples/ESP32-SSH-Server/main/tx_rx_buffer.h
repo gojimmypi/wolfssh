@@ -17,3 +17,5 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz);
 
 int Set_ExternalReceiveBuffer(byte *FromData, int sz);
 
+bool ExternalReceiveBuffer_IsChar(char charValue);
+
