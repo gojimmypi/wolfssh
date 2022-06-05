@@ -195,6 +195,17 @@ and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c)
     #define RXD_PIN (GPIO_NUM_16) /* yellow */
 #endif
 ```
+
+#### RSA
+
+RSA is disabled for this project. RSA is enabled unless otherwise specified.
+
+To enable RSA, remove both definitions `WOLFSSH_NO_RSA` and `NO_RSA` at compile time. See the [main/CMakeLists.txt](./main/CMakeLists.txt):
+
+```
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA")
+```
+
 <br />
 
 ## Defaults
@@ -204,27 +215,42 @@ The default users and passwords are the same as in the [linux server.c example](
 User: `jill` password: `upthehill`
 User: `jack` password: `fetchapail`
 
+When using ECC or RSA keys, the users are `hansel` and `gretel`. (see `samplePublicKeyEccBuffer`)
+
 When in AP mode, the demo SSID is `TheBucketHill` and the wifi password is `jackorjill`. 
 Unlike the STA mode, where the device needs to get an IP address from DHCP, in AP mode
 the IP address is `192.168.4.1`. The computer connecting will likely get an address of `192.168.4.2`.
 See the [main/ssh_server_config.h](./main/ssh_server_config.h) 
 to define `WOLFSSH_SERVER_IS_AP` or `WOLFSSH_SERVER_IS_STA`.
 
-The default SSH port for this demo is `22222`.
+The default SSH port for this demo is `22222` and is defined in [main/ssh_server_config.h](./main/ssh_server_config.h).
 
-Example to connect from linux:
+
+<br />
+
+## Connecting
+
+Example to connect from Linux with a password:
 
 ```bash
 ssh jill@192.168.75.39 -p 22222
 ```
 
-The SSH Server is current configured for RSA Algorithm. If you've turned that off in favor
-or more modern and secure algoritems, you'll need to use something like this until the code
-is updated:
+If the SSH Server is configured for RSA Algorithm but you've turned that off in favor
+or more modern and secure algoritems, you'll need to use something like this to connect:
 
 ```bash
 ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222 jill@192.168.4.2
 ```
+
+When using ecc, this sanmple app uses the key `static const unsigned char ecc_key_der_256[]` found 
+in [components/wolfssh/wolfssh/certs_test.h](./components/wolfssh/wolfssh/certs_test.h)
+See `load_key()` in [main/ssh_server.c](./main/ssh_server.c). See also the sample keys in 
+[wolfssl/certs_test.h](https://github.com/wolfSSL/wolfssl/blob/master/wolfssl/certs_test.h) which are
+[generated](https://github.com/wolfSSL/wolfssl/blob/master/scripts/dertoc.pl) from
+[wolfssl/certs](https://github.com/wolfSSL/wolfssl/tree/master/certs)
+
+There's currently no capability of saving new user keys, so `ssh-copy-id` will not work.
 
 Linux users note [this resource](http://sensornodeinfo.rockingdlabs.com/blog/2016/01/19/baud74880/) may be helpful for connecting at 74800 baud:
 
@@ -668,6 +694,14 @@ Check for running instances of Putty, etc.
   File "C:\SysGCC\esp32\esp-idf\v4.4\python-env\lib\site-packages\serial\serialwin32.py", line 64, in open
     raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
 serial.serialutil.SerialException: could not open port 'COM9': PermissionError(13, 'Access is denied.', None, 5)
+```
+
+#### Unexplainable panic_abort Received a SIGTRAP: Trace/breakpoint trap
+
+If after exhausting all other options, try erasing the ESP32 before reprogramming.
+
+```
+idf.py -p /dev/ttyS20 erase_flash -b 115200
 ```
 
 <br />
