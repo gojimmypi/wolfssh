@@ -17,11 +17,14 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "ssh_server_config.h"
 #include "ssh_server.h"
 #include "tx_rx_buffer.h"
 
+#define DEBUG_WOLFSSL
+#define DEBUG_WOLFSSH
+
 #include <esp_task_wdt.h>
-#include "ssh_server_config.h"
 #include <wolfssl/wolfcrypt/logging.h>
 
 
@@ -242,17 +245,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
          * a valid SSH connection open
          */
         do {
-            /* TODO ensure backlog never exceeds total buffer size */
-            bufSz = EXAMPLE_BUFFER_SZ + backlogSz;
-
             this_rx_buf = (byte*)&sshStreamReceiveBufferArray;
             // this_tx_buf = (byte*)&sshStreamTransmitBufferArray;
-
-//            tmpBuf = (byte*)realloc(buf, bufSz); /* reminder If ptr is NULL, the behavior is the same as calling malloc(new_size). */
-//            if (tmpBuf == NULL)
-//                stop = 1;
-//            else
-//                buf = tmpBuf;
 
             /* int show_msg = 0; TODO optionally disable echo of text to USB port */
             int has_err = 0;
@@ -623,7 +617,10 @@ static const char samplePublicKeyEccBuffer[] =
     "qUzgDtH7oyaQROUnNvk= hansel\n"
     "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
     "BBBKAtH8cqaDbtJFjtviLobHBmjCtG56DMkP6A4M2H9zX2/YCg1h9bYS7WHd9UQDwXO1Hh"
-    "IZzRYecXh7SG9P4GhRY= gretel\n";
+    "IZzRYecXh7SG9P4GhRY= gretel\n"
+    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
+    "BBBIuaGC8Y+GsIwhuw3tGbqqp+KtuyCewgFfU/prGo29G1EonNdFkWGsB9383pOLlwJqTG"
+    "UpQ/8B0KfWZKbv8bpcM= gojimmypi@DESKTOP\n";
 
 
 static const char samplePublicKeyRsaBuffer[] =
@@ -1295,9 +1292,6 @@ void server_test(void *arg) {
         }
     }
 
-
-
-
     PwMapList pwMapList;
 
     word32 defaultHighwater = EXAMPLE_HIGHWATER_MARK;
@@ -1308,6 +1302,7 @@ void server_test(void *arg) {
 #ifdef NO_RSA
     /* If wolfCrypt isn't built with RSA, force ECC on. */
     useEcc = 1;
+    WOLFSSL_MSG("Found NO_RSA, setting useEcc = 1");
 #endif
 
     if (wolfSSH_Init() != WS_SUCCESS) {
@@ -1323,9 +1318,12 @@ void server_test(void *arg) {
 
 
     memset(&pwMapList, 0, sizeof(pwMapList));
-    wolfSSH_SetUserAuth(ctx, wsUserAuth);
-    wolfSSH_CTX_SetBanner(ctx, SSH_SERVER_BANNER);
 
+    /* authorization is a callback, so assign it here: wsUserAuth */
+    wolfSSH_SetUserAuth(ctx, wsUserAuth);
+
+    /* set the login banner message as defined in ssh_server_config.h */
+    wolfSSH_CTX_SetBanner(ctx, SSH_SERVER_BANNER);
 
     {
         const char* bufName;
@@ -1338,9 +1336,9 @@ void server_test(void *arg) {
             exit(EXIT_FAILURE);
         }
         if (wolfSSH_CTX_UsePrivateKey_buffer(ctx,
-            buf,
-            bufSz,
-            WOLFSSH_FORMAT_ASN1) < 0) {
+                                             buf,
+                                             bufSz,
+                                             WOLFSSH_FORMAT_ASN1) < 0) {
             WOLFSSL_ERROR_MSG("Couldn't use key buffer.\n");
             exit(EXIT_FAILURE);
         }
@@ -1366,6 +1364,7 @@ void server_test(void *arg) {
         socklen_t     clientAddrSz = sizeof(clientAddr);
 #ifndef SINGLE_THREADED
         THREAD_TYPE   thread;
+        WOLFSSL_MSG("Found SINGLE_THREADED defined");
 #endif
         WOLFSSH*      ssh;
 
@@ -1399,8 +1398,10 @@ void server_test(void *arg) {
         }
 
         clientFd = accept(sockfd,
-            (struct sockaddr*)&clientAddr,
-            &clientAddrSz);
+                          (struct sockaddr*)&clientAddr,
+                          &clientAddrSz
+                         );
+
         if (clientFd == -1) {
             WOLFSSL_MSG("ERROR: failed accept");
             exit(EXIT_FAILURE);
