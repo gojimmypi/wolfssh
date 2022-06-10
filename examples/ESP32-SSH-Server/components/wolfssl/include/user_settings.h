@@ -19,24 +19,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 #undef WOLFSSL_ESPIDF
-#define WOLFSSL_ESPIDF
 #undef WOLFSSL_ESPWROOM32
+#undef WOLFSSL_ESPWROOM32SE
+#undef WOLFSSL_ESPWROOM32
+#undef WOLFSSL_ESP8266
 
+
+#define WOLFSSL_ESPIDF
 
 /*
  * choose ONE of these Espressif chips to define:
- * 
+ *
  * WOLFSSL_ESPWROOM32
  * WOLFSSL_ESPWROOM32SE
  * WOLFSSL_ESP8266
- * 
- * comment out the others:
+ *
  */
+#define WOLFSSL_ESPWROOM32
 
-#undef WOLFSSL_ESPWROOM32
-#undef WOLFSSL_ESPWROOM32SE 
-
-#define WOLFSSL_ESP8266
 
 
 #define BENCH_EMBEDDED
@@ -91,7 +91,7 @@
     /* Define USE_FAST_MATH and SMALL_STACK                        */
     #define ESP32_USE_RSA_PRIMITIVE
     /* threshold for performance adjustment for hw primitive use   */
-    /* X bits of G^X mod P greater than                            */ 
+    /* X bits of G^X mod P greater than                            */
     #define EPS_RSA_EXPT_XBTIS           36
     /* X and Y of X * Y mod P greater than                         */
     #define ESP_RSA_MULM_BITS            2000
