@@ -734,7 +734,8 @@ static int Hash_DRBG_Instantiate(DRBG_internal* drbg, const byte* seed, word32 s
 }
 
 /* Returns: DRBG_SUCCESS or DRBG_FAILURE */
-static int Hash_DRBG_Uninstantiate(DRBG_internal* drbg) /* this must be safe to call even if Hash_DRBG_Instantiate fails*/
+/* this must be safe to call even if Hash_DRBG_Instantiate fails*/
+static int Hash_DRBG_Uninstantiate(DRBG_internal* drbg)
 {
     word32 i;
     int    compareSum = 0;
@@ -928,7 +929,7 @@ static int _InitRng(WC_RNG* rng, byte* nonce, word32 nonceSz,
     return ret;
 }
 
-/* *********************************************************************************************** */
+
 WOLFSSL_ABI
 WC_RNG* wc_rng_new(byte* nonce, word32 nonceSz, void* heap)
 {
@@ -2224,30 +2225,49 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
         return 0;
     }
 #elif defined(WOLFSSL_VXWORKS)
+    #ifdef WOLFSSL_VXWORKS_6_x
+        #include "stdlib.h"
+        #warning "potential for not enough entropy, currently being used for testing"
+        int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+        {
+            int i;
+            unsigned int seed = (unsigned int)XTIME(0);
+            (void)os;
 
-    #include <randomNumGen.h>
-
-    int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz) {
-        STATUS        status;
-
-        #ifdef VXWORKS_SIM
-            /* cannot generate true entropy with VxWorks simulator */
-            #warning "not enough entropy, simulator for testing only"
-            int i = 0;
-
-            for (i = 0; i < 1000; i++) {
-                randomAddTimeStamp();
+            for (i = 0; i < sz; i++ ) {
+                output[i] = rand_r(&seed) % 256;
+                if ((i % 8) == 7) {
+                    seed = (unsigned int)XTIME(0);
+                    rand_r(&seed);
+                }
             }
-        #endif
 
-        status = randBytes (output, sz);
-        if (status == ERROR) {
-            return RNG_FAILURE_E;
+            return 0;
         }
+    #else
+        #include <randomNumGen.h>
 
-        return 0;
-    }
+        int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz) {
+            STATUS        status;
 
+            #ifdef VXWORKS_SIM
+                /* cannot generate true entropy with VxWorks simulator */
+                #warning "not enough entropy, simulator for testing only"
+                int i = 0;
+
+                for (i = 0; i < 1000; i++) {
+                    randomAddTimeStamp();
+                }
+            #endif
+
+            status = randBytes (output, sz);
+            if (status == ERROR) {
+                return RNG_FAILURE_E;
+            }
+
+            return 0;
+        }
+    #endif
 #elif defined(WOLFSSL_NRF51) || defined(WOLFSSL_NRF5x)
     #include "app_error.h"
     #include "nrf_drv_rng.h"
@@ -2405,7 +2425,7 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
     }
 
 #elif (defined(WOLFSSL_IMX6_CAAM) || defined(WOLFSSL_IMX6_CAAM_RNG) || \
-       defined(WOLFSSL_SECO_CAAM))
+       defined(WOLFSSL_SECO_CAAM) || defined(WOLFSSL_QNX_CAAM))
 
     #include <wolfssl/wolfcrypt/port/caam/wolfcaam.h>
 
@@ -2475,7 +2495,33 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
     }
 
 #elif defined(WOLFSSL_ESPIDF)
+
+    /* Espressif */
     #if defined(WOLFSSL_ESPWROOM32) || defined(WOLFSSL_ESPWROOM32SE)
+
+        /* Espressif ESP32 */
+        #include <esp_system.h>
+
+        int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+        {
+            word32 rand;
+            while (sz > 0) {
+                word32 len = sizeof(rand);
+                if (sz < len)
+                    len = sz;
+                /* Get one random 32-bit word from hw RNG */
+                rand = esp_random( );
+                XMEMCPY(output, &rand, len);
+                output += len;
+                sz -= len;
+            }
+
+            return 0;
+        }
+
+    #elif defined(WOLFSSL_ESP8266)
+
+        /* Espressif ESP8266 */
         #include <esp_system.h>
 
         int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
