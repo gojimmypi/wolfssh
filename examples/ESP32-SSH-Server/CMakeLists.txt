@@ -3,16 +3,31 @@
 cmake_minimum_required(VERSION 3.5)
 
 #standard build
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
 
 # less debugging
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL")
 
 # full debugging; NO_RSA needed to RNG. See https://github.com/wolfSSL/wolfssh/pull/417
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG")
 
-# hardware encryption
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
+# Turn ESP32 HW acceleration NO_ESP32WROOM32_CRYPT
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -DNO_ESP32WROOM32_CRYPT")
+
+# testing single user_setting.h
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -I${CMAKE_HOME_DIRECTORY}/components/wolfssl/include/user_settings.h")
+
+
+# default hardware encryption, full debug mode
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
+
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
+
+# working with this one
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG ")
+
+
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
 
 # we'll look for a my_private_config.h in various environments
 # we also assume that the file is added to the local .gitignore
@@ -90,9 +105,14 @@ endif()
 # for sanity, choose only one location.
 
 if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/include/user_settings.h" )
-    message("user_settings.h found in ${CMAKE_HOME_DIRECTORY}/components/wolfssl/ ")
+    message( "" )
+    message("wolfSSL user_settings.h found in ${CMAKE_HOME_DIRECTORY}/components/wolfssl/ ")
 
     if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssh/include/user_settings.h" )
+        message( "" )
+        message("WARNING: wolfSSH user_settings.h not found in local project.")
+        message( "" )
+
         message("user_settings.h found in ${CMAKE_HOME_DIRECTORY}/components/wolfssh/ ")
 
         execute_process( COMMAND ${CMAKE_COMMAND} -E compare_files "${CMAKE_HOME_DIRECTORY}/components/wolfssl/include/user_settings.h"  "${CMAKE_HOME_DIRECTORY}/components/wolfssh/include/user_settings.h"       RESULT_VARIABLE WOLFSSH_WOLFSSL_COMPARE )
@@ -108,16 +128,21 @@ if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/include/user_settings.h" 
         endif()
     else()
         message( "" )
-        message("WARNING: wolfSSH user_settings.h not found inlocal project.")
+        message("Confirmed extra wolfSSH user_settings.h not found in local project.")
         message( "" )
     endif()
 
 endif()
 
 if( EXISTS "$ENV{IDF_PATH}/components/wolfssl/include/user_settings.h" )
-    message("user_settings.h found in $ENV{IDF_PATH}/components/wolfssl/ ")
+    message( "" )
+    message("wolfSSL user_settings.h found in $ENV{IDF_PATH}/components/wolfssl/ ")
 
     if( EXISTS "$ENV{IDF_PATH}/components/wolfssh/include/user_settings.h" )
+        message( "" )
+        message("WARNING: wolfSSH user_settings.h not found in ESP-IDF.")
+        message( "" )
+
         message("user_settings.h found in $ENV{IDF_PATH}/components/wolfssh/ ")
 
         execute_process( COMMAND ${CMAKE_COMMAND} -E compare_files "$ENV{IDF_PATH}/components/wolfssl/include/user_settings.h"  "$ENV{IDF_PATH}/components/wolfssh/include/user_settings.h"       RESULT_VARIABLE WOLFSSH_WOLFSSL_COMPARE )
@@ -133,7 +158,7 @@ if( EXISTS "$ENV{IDF_PATH}/components/wolfssl/include/user_settings.h" )
         endif()
     else()
         message( "" )
-        message("WARNING: wolfSSH user_settings.h not found in ESP-IDF.")
+        message("Confirmed extra wolfSSH user_settings.h not found in ESP-IDF.")
         message( "" )
     endif()
 endif()

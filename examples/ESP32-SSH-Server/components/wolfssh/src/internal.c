@@ -537,6 +537,9 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
     #undef  RNG
     #define RNG WC_RNG
 #endif
+
+    int _ret = 0; /* local return only */
+
     HandshakeInfo* handshake;
     WC_RNG*        rng;
     void*          heap;
@@ -548,9 +551,28 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
     heap = ctx->heap;
 
     handshake = HandshakeInfoNew(heap);
-    rng = (WC_RNG*)WMALLOC(sizeof(WC_RNG), heap, DYNTYPE_RNG);
+    if (handshake == NULL)
+    {
+        WLOG(WS_LOG_DEBUG, "SshInit: ERROR: HandshakeInfoNew is null.\n");
+    }
 
-    if (handshake == NULL || rng == NULL || wc_InitRng(rng) != 0) {
+    /* make sure we can initialize rng space */
+    rng = (WC_RNG*)WMALLOC(sizeof(WC_RNG), heap, DYNTYPE_RNG);
+    if (rng == NULL) {
+        WLOG(WS_LOG_DEBUG, "SshInit: ERROR: rng init is null.\n");
+    }
+
+    /* initalize our RNG */
+    _ret = wc_InitRng(rng);
+    if(_ret == 0) {
+        WLOG(WS_LOG_DEBUG, "SshInit: wc_InitRng success.");
+    }
+    else {
+        WLOG(WS_LOG_DEBUG, "SshInit: wc_InitRng error.");
+    }
+
+    /* if we don't have even the basics, give up and returtn NULL object */
+    if (handshake == NULL || rng == NULL ||_ret != 0) {
 
         WLOG(WS_LOG_DEBUG, "SshInit: Cannot allocate memory.\n");
         WFREE(handshake, heap, DYNTYPE_HS);

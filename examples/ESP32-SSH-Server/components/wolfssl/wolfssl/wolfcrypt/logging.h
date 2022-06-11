@@ -108,7 +108,7 @@ WOLFSSL_API void wolfSSL_Debugging_OFF(void);
 
 #if (defined(OPENSSL_EXTRA) && !defined(_WIN32) && \
         !defined(NO_ERROR_QUEUE)) || defined(DEBUG_WOLFSSL_VERBOSE)
-#define WOLFSSL_HAVE_ERROR_QUEUE
+// #define WOLFSSL_HAVE_ERROR_QUEUE
 #endif
 
 #if defined(OPENSSL_EXTRA) || defined(DEBUG_WOLFSSL_VERBOSE)

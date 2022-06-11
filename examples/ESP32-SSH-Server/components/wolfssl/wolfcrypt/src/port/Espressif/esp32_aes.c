@@ -19,6 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
+/*
+ * WOLFSSL_SUCCESS and WOLFSSL_FAILURE values should only
+ * be used in the ssl layer, not in wolfCrypt
+ **/
 #include <string.h>
 #include <stdio.h>
 
@@ -27,44 +31,76 @@
 #endif
 #include <wolfssl/wolfcrypt/settings.h>
 
-#ifndef NO_AES
 
+#if defined(NO_AES)
+    #pragma message ( "NO_AES is defined !" )
+#else
+    #pragma message ( "NO_AES is NOT defined !" )
+#endif
+
+
+#if defined(WOLFSSL_ESP32WROOM32_CRYPT)
+    #pragma message ( "WOLFSSL_ESP32WROOM32_CRYPT is defined !" )
+#else
+    #pragma message ( "WOLFSSL_ESP32WROOM32_CRYPT is NOT defined !" )
+#endif
+
+#if defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_AES)
+    #pragma message ( "NO_WOLFSSL_ESP32WROOM32_CRYPT_AES is defined !" )
+#else
+    #pragma message ( "NO_WOLFSSL_ESP32WROOM32_CRYPT_AES is NOT defined !" )
+#endif
+
+#ifndef NO_AES
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_AES)
 
+#pragma message("using esp32_aes hardware encryption")
 #include <wolfssl/wolfcrypt/aes.h>
 #include "wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h"
 
 static const char* TAG = "wolf_hw_aes";
+
 /* mutex */
 static wolfSSL_Mutex aes_mutex;
+
+/* keep track as to whether esp aes is initialized */
 static int espaes_CryptHwMutexInit = 0;
 
 /*
 * lock hw engine.
 * this should be called before using engine.
+*
+* returns 0 if the hw lock was initialized and mutex lock
 */
-static int esp_aes_hw_InUse()
-{
+static int esp_aes_hw_InUse() {
     int ret = 0;
 
     ESP_LOGV(TAG, "enter esp_aes_hw_InUse");
 
-    if(espaes_CryptHwMutexInit == 0) {
+    if (espaes_CryptHwMutexInit == 0) {
         ret = esp_CryptHwMutexInit(&aes_mutex);
-        if(ret == 0){
+        if (ret == 0) {
+            /* flag esp aes as initialized */
             espaes_CryptHwMutexInit = 1;
-        } else {
-            ESP_LOGE(TAG, "aes mutx initialization failed.");
+        }
+        else {
+            ESP_LOGE(TAG, "aes mutex initialization failed.");
             return -1;
         }
     }
+    else {
+        /* esp aes has already been iniitlized */
+    }
+
     /* lock hardware */
     ret = esp_CryptHwMutexLock(&aes_mutex, portMAX_DELAY);
+
     if(ret != 0) {
         ESP_LOGE(TAG, "aes engine lock failed.");
         return -1;
     }
+
     /* Enable AES hardware */
     periph_module_enable(PERIPH_AES_MODULE);
 
@@ -108,7 +144,7 @@ static void esp_aes_hw_Set_KeyMode(Aes *ctx, ESP32_AESPROCESS mode)
     }
 
     /* update key */
-    for(i=0;i<(ctx->keylen)/sizeof(word32);i++){
+    for(i=0; i<(ctx->keylen)/sizeof(word32); i++){
         DPORT_REG_WRITE(AES_KEY_BASE + (i*4), *(((word32*)ctx->key) + i));
     }
 
@@ -147,10 +183,13 @@ static void esp_aes_bk(const byte* in, byte* out)
     DPORT_REG_WRITE(AES_TEXT_BASE + 12, inwords[3]);
 
     /* start engine */
+    /* TODO use HAL https://github.com/espressif/esp-idf/blob/b63ec47238fd6aa6eaa59f7ad3942cbdff5fcc1f/components/hal/esp32/include/hal/aes_ll.h#L125
+     */
     DPORT_REG_WRITE(AES_START_REG, 1);
 
     /* wait until finishing the process */
     while(1) {
+        /* TODO add timeout / failure */
         if(DPORT_REG_READ(AES_IDLE_REG) == 1)
             break;
     }
@@ -281,8 +320,9 @@ int wc_esp32AesCbcDecrypt(Aes* aes, byte* out, const byte* in, word32 sz)
         esp_aes_bk((in + offset), (out + offset));
 
         /* XOR block with IV for CBC */
-        for (i = 0; i < AES_BLOCK_SIZE; i++)
+        for (i = 0; i < AES_BLOCK_SIZE; i++) {
             (out + offset)[i] ^= iv[i];
+        }
 
         /* store IV for next block */
         XMEMCPY(iv, temp_block, AES_BLOCK_SIZE);

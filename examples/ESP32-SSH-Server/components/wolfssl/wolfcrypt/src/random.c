@@ -388,7 +388,7 @@ static int Hash_df(DRBG_internal* drbg, byte* out, word32 outSz, byte type,
     #else
         ret = wc_InitSha256(sha);
     #endif
-        if (ret != 0)
+        if (ret != 0) /* TODO we don't want to break here, as we need to zeroize */
             break;
 #endif
         ret = wc_Sha256Update(sha, &ctr, sizeof(ctr));

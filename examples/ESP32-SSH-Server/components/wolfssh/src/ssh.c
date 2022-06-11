@@ -136,6 +136,11 @@ WOLFSSH* wolfSSH_new(WOLFSSH_CTX* ctx)
         WLOG(WS_LOG_ERROR, "Trying to init a wolfSSH w/o wolfSSH_CTX");
         return NULL;
     }
+    static const char *TAG = "SSH init";
+#ifdef DEBUG_WOLFSSH
+    //ESP_LOGI(TAG, "wolfSSH debugging on.");
+    wolfSSH_Debugging_ON();
+#endif
 
     ssh = (WOLFSSH*)WMALLOC(sizeof(WOLFSSH), heap, DYNTYPE_SSH);
     ssh = SshInit(ssh, ctx);

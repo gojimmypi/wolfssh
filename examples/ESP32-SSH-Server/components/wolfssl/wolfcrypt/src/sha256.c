@@ -182,7 +182,7 @@ where 0 <= L < 2^64.
      defined(WOLFSSL_QNX_CAAM)) && \
     !defined(WOLFSSL_AFALG_HASH) && !defined(WOLFSSL_DEVCRYPTO_HASH) && \
     (!defined(WOLFSSL_ESP32WROOM32_CRYPT) || defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)) && \
-    (!defined(WOLFSSL_RENESAS_TSIP_CRYPT) || defined(NO_WOLFSSL_RENESAS_TSIP_HASH)) && \
+    (!defined(WOLFSSL_RENESAS_TSIP_CRYPT) || defined(NO_WOLFSSL_RENESAS_TSIP_CRYPT_HASH)) && \
     !defined(WOLFSSL_PSOC6_CRYPTO) && !defined(WOLFSSL_IMXRT_DCP) && !defined(WOLFSSL_SILABS_SE_ACCEL) && \
     !defined(WOLFSSL_KCAPI_HASH) && !defined(WOLFSSL_SE050_HASH) && \
     (!defined(WOLFSSL_RENESAS_SCEPROTECT) || defined(NO_WOLFSSL_RENESAS_SCEPROTECT_HASH)) && \
@@ -725,7 +725,7 @@ static int InitSha256(wc_Sha256* sha256)
         sha256->ctx.sha_type = SHA2_256;
         if(sha256->ctx.mode == ESP32_SHA_HW) {
             /* release hw */
-            // esp_sha_hw_unlock();
+            // esp_sha_hw_unlock(); <<
         }
         /* always set mode as INIT
         *  whether using HW or SW is determined at first call of update()
@@ -1055,6 +1055,7 @@ static int InitSha256(wc_Sha256* sha256)
             #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
                 !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
                 if (sha256->ctx.mode == ESP32_SHA_INIT){
+                    // esp_sha_try_hw_lock(&sha256->ctx); <<
                 }
                 if (sha256->ctx.mode == ESP32_SHA_SW){
                     ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1134,6 +1135,7 @@ static int InitSha256(wc_Sha256* sha256)
             #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
                 !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
                 if (sha256->ctx.mode == ESP32_SHA_INIT){
+                    // esp_sha_try_hw_lock(&sha256->ctx); <<
                 }
                 if (sha256->ctx.mode == ESP32_SHA_SW){
                     ret = XTRANSFORM(sha256, (const byte*)local32);
@@ -1197,7 +1199,8 @@ static int InitSha256(wc_Sha256* sha256)
     }
 #endif
 
-    static WC_INLINE int Sha256Final(wc_Sha256* sha256) /* any partial-sized ending blocks processed here */
+/* any partial-sized ending blocks processed here */
+static WC_INLINE int Sha256Final(wc_Sha256* sha256)
     {
 
         int ret;
@@ -1230,6 +1233,7 @@ static int InitSha256(wc_Sha256* sha256)
         #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
              !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
             if (sha256->ctx.mode == ESP32_SHA_INIT) {
+                // esp_sha_try_hw_lock(&sha256->ctx); <<
             }
             if (sha256->ctx.mode == ESP32_SHA_SW) {
                 ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1289,6 +1293,7 @@ static int InitSha256(wc_Sha256* sha256)
     #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
          !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
         if (sha256->ctx.mode == ESP32_SHA_INIT) {
+            // esp_sha_try_hw_lock(&sha256->ctx);
         }
         if (sha256->ctx.mode == ESP32_SHA_SW) {
             ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1859,10 +1864,13 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
 #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     if(sha256->ctx.mode == ESP32_SHA_INIT){
+        // esp_sha_try_hw_lock(&sha256->ctx);
     }
     if(sha256->ctx.mode == ESP32_SHA_HW)
     {
-        esp_sha256_digest_process(sha256, 0);
+        esp_sha_try_hw_lock(&sha256->ctx);
+        ret = esp_sha256_digest_process(sha256, 0);
+        esp_sha_hw_unlock();
     }
 #endif
     ret = wc_Sha256Copy(sha256, &tmpSha256);
