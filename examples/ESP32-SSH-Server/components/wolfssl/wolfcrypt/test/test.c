@@ -2895,6 +2895,7 @@ WOLFSSL_TEST_SUBROUTINE int sha512_test(void)
     if (XMEMCMP(hash, large_digest, WC_SHA512_DIGEST_SIZE) != 0)
         ERROR_OUT(-2410, exit);
 
+#ifndef NO_UNALIGNED_MEMORY_TEST
     /* Unaligned memory access test */
     for (i = 1; i < 16; i++) {
         ret = wc_Sha512Update(&sha, (byte*)large_input + i,
@@ -2903,6 +2904,7 @@ WOLFSSL_TEST_SUBROUTINE int sha512_test(void)
             ERROR_OUT(-2411, exit);
         ret = wc_Sha512Final(&sha, hash);
     }
+#endif
     } /* END LARGE HASH TEST */
 
 exit:
@@ -10587,6 +10589,10 @@ WOLFSSL_TEST_SUBROUTINE int aesccm_test(void)
     XMEMSET(t2, 0, sizeof(t2));
     XMEMSET(c2, 0, sizeof(c2));
     XMEMSET(p2, 0, sizeof(p2));
+
+    result = wc_AesInit(enc, HEAP_HINT, devId);
+    if (result != 0)
+        ERROR_OUT(-6499, out);
 
     result = wc_AesCcmSetKey(enc, k, sizeof(k));
     if (result != 0)
@@ -25132,7 +25138,7 @@ static int ecc_encrypt_kat(WC_RNG *rng)
         0xd3, 0xb0, 0x7f, 0x7e, 0x7f, 0x86, 0x8a, 0x49,
         0xee, 0xb4, 0xaa, 0x09, 0x2d, 0x1e, 0x1d, 0x02
     };
-#ifdef WOLFSSL_ECIES_OLD
+#if defined(WOLFSSL_ECIES_OLD) || defined(WOLFSSL_QNX_CAAM)
     WOLFSSL_SMALL_STACK_STATIC const byte pubKey[] = {
         0x04,
         /* X */
@@ -25249,8 +25255,13 @@ static int ecc_encrypt_kat(WC_RNG *rng)
 
 
     if (ret == 0) {
+#ifdef WOLFSSL_QNX_CAAM
+        ret = wc_ecc_import_private_key_ex(privKey, sizeof(privKey), pubKey,
+            sizeof(pubKey), userB, ECC_SECP256R1);
+#else
         ret = wc_ecc_import_private_key_ex(privKey, sizeof(privKey), NULL, 0,
                                                           userB, ECC_SECP256R1);
+#endif
         if (ret != 0)
             ret = -10454;
     }
@@ -34993,7 +35004,11 @@ static int pkcs7signed_run_vectors(
         #endif
 
             for (j = 0, k = 2; j < (int)sizeof(digest); j++, k += 2) {
-                XSNPRINTF((char*)&transId[k], 3, "%02x", digest[j]);
+                #if defined(WOLF_C89)
+                    XSPRINTF((char*)&transId[k], "%02x", digest[j]);
+                #else
+                    XSNPRINTF((char*)&transId[k], 3, "%02x", digest[j]);
+                #endif
             }
         }
 
@@ -40099,7 +40114,23 @@ static int myCryptoDevCb(int devIdArg, wc_CryptoInfo* info, void* ctx)
                 info->cipher.aesecb.aes->devId = devIdArg;
             }
         }
-    #endif /* HAVE_AES_CBC */
+    #endif /* HAVE_AES_ECB */
+    #if defined(WOLFSSL_AES_COUNTER) && !defined(HAVE_FIPS) && \
+        !defined(HAVE_SELFTEST)
+        if (info->cipher.type == WC_CIPHER_AES_CTR) {
+            /* set devId to invalid, so software is used */
+            info->cipher.aesctr.aes->devId = INVALID_DEVID;
+
+            ret = wc_AesCtrEncrypt(
+                info->cipher.aesctr.aes,
+                info->cipher.aesctr.out,
+                info->cipher.aesctr.in,
+                info->cipher.aesctr.sz);
+
+            /* reset devId */
+            info->cipher.aesctr.aes->devId = devIdArg;
+        }
+    #endif /* WOLFSSL_AES_COUNTER */
     #if defined(HAVE_AESCCM) && defined(WOLFSSL_AES_128)
         if (info->cipher.type == WC_CIPHER_AES_CCM) {
             if (info->cipher.enc) {

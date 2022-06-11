@@ -769,6 +769,7 @@ enum AlertDescription {
 
 
 enum AlertLevel {
+    alert_none = 0, /* Used to indicate no alert level is set */
     alert_warning = 1,
     alert_fatal   = 2
 };
@@ -3876,6 +3877,9 @@ typedef int (*CallbackSessionTicket)(WOLFSSL* ssl, const unsigned char*, int, vo
 WOLFSSL_API int wolfSSL_set_SessionTicket_cb(WOLFSSL* ssl,
                                                   CallbackSessionTicket cb, void* ctx);
 #endif /* NO_WOLFSSL_CLIENT */
+#ifndef NO_WOLFSSL_SERVER
+WOLFSSL_API int wolfSSL_send_SessionTicket(WOLFSSL* ssl);
+#endif /* !NO_WOLFSSL_SERVER */
 
 
 #define WOLFSSL_TICKET_NAME_SZ 16
@@ -4370,6 +4374,7 @@ WOLFSSL_API WOLFSSL_X509 *wolfSSL_X509_to_X509_REQ(WOLFSSL_X509 *x,
 
 #if defined(OPENSSL_EXTRA) && !defined(NO_CERTS) && defined(WOLFSSL_CERT_GEN) || \
                                                        defined(WOLFSSL_CERT_REQ)
+WOLFSSL_API int wolfSSL_X509_REQ_get_attr_count(const WOLFSSL_X509 *req);
 WOLFSSL_API WOLFSSL_X509_ATTRIBUTE *wolfSSL_X509_REQ_get_attr(
         const WOLFSSL_X509 *req, int loc);
 WOLFSSL_API int wolfSSL_X509_REQ_get_attr_by_NID(const WOLFSSL_X509 *req,

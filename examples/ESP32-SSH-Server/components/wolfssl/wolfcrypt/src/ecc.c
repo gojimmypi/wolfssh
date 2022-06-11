@@ -2788,26 +2788,33 @@ static int wc_ecc_gen_z(WC_RNG* rng, int size, ecc_point* p,
         err = mp_init(mu);
     if (err == MP_OKAY)
         err = mp_montgomery_calc_normalization(mu, modulus);
+    /* Generate random value to multiply into p->z. */
     if (err == MP_OKAY)
         err = wc_ecc_gen_k(rng, size, ty, modulus);
+    /* Convert to montogmery form. */
     if (err == MP_OKAY)
         err = mp_mulmod(ty, mu, modulus, ty);
+    /* Multiply random value into p->z. */
     if (err == MP_OKAY)
         err = mp_mul(p->z, ty, p->z);
     if (err == MP_OKAY)
         err = mp_montgomery_reduce(p->z, modulus, mp);
+    /* Square random value for X (X' = X / Z^2). */
     if (err == MP_OKAY)
         err = mp_sqr(ty, tx);
     if (err == MP_OKAY)
         err = mp_montgomery_reduce(tx, modulus, mp);
+    /* Multiply square of random by random value for Y. */
     if (err == MP_OKAY)
         err = mp_mul(ty, tx, ty);
     if (err == MP_OKAY)
         err = mp_montgomery_reduce(ty, modulus, mp);
+    /* Multiply square into X. */
     if (err == MP_OKAY)
         err = mp_mul(p->x, tx, p->x);
     if (err == MP_OKAY)
         err = mp_montgomery_reduce(p->x, modulus, mp);
+    /* Multiply cube into Y (Y' = Y / Z^3). */
     if (err == MP_OKAY)
         err = mp_mul(p->y, ty, p->y);
     if (err == MP_OKAY)
@@ -3108,12 +3115,21 @@ static int ecc_mulmod(const mp_int* k, ecc_point* P, ecc_point* Q,
         /* Ensure 'swap' changes to a previously unseen value. */
         swap += (kt->dp[j] >> cnt) + swap;
 
+        /* R[0] = 2*R[0] */
         err = ecc_projective_dbl_point_safe(R[set + 0], R[set + 0], a, modulus,
                                             mp);
         if (err == MP_OKAY) {
+            /* R[0] = R[1] + R[0] */
             err = ecc_projective_add_point_safe(R[set + 0], R[set + 1],
                                          R[set + 0], a, modulus, mp, &infinity);
         }
+        /*  R[1]->z * 2 - same point. */
+        mp_addmod_ct(R[set + 1]->z, R[set + 1]->z, modulus, R[set + 1]->z);
+        mp_addmod_ct(R[set + 1]->x, R[set + 1]->x, modulus, R[set + 1]->x);
+        mp_addmod_ct(R[set + 1]->x, R[set + 1]->x, modulus, R[set + 1]->x);
+        mp_addmod_ct(R[set + 1]->y, R[set + 1]->y, modulus, R[set + 1]->y);
+        mp_addmod_ct(R[set + 1]->y, R[set + 1]->y, modulus, R[set + 1]->y);
+        mp_addmod_ct(R[set + 1]->y, R[set + 1]->y, modulus, R[set + 1]->y);
     }
     /* Step 4: end for */
     /* Swap back if last bit is 0. */
@@ -4871,7 +4887,7 @@ static int ecc_make_pub_ex(ecc_key* key, ecc_curve_spec* curveIn,
 
 #if defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_ECC) && \
     defined(HAVE_INTEL_QA)
-    if (err == MP_OKAY) {
+    if (err == MP_OKAY && key->asyncDev.marker == WOLFSSL_ASYNC_MARKER_ECC) {
         word32 keySz = key->dp->size;
         /* sync private key to raw */
         err = wc_mp_to_bigint_sz(&key->k, &key->k.raw, keySz);
@@ -4883,9 +4899,11 @@ static int ecc_make_pub_ex(ecc_key* key, ecc_curve_spec* curveIn,
                 key->dp->cofactor);
         }
     }
-#else
-
+    else
+#endif
+    { /* BEGIN: Software Crypto */
 #ifdef WOLFSSL_HAVE_SP_ECC
+    /* Single-Precision Math (optimized for specific curves) */
     if (err != MP_OKAY) {
     }
     else
@@ -4913,6 +4931,7 @@ static int ecc_make_pub_ex(ecc_key* key, ecc_curve_spec* curveIn,
         err = WC_KEY_SIZE_E;
 #else
     if (err == MP_OKAY) {
+        /* Multi-Precision Math: compute public curve */
         mp_digit mp = 0;
         ecc_point* base = NULL;
     #ifdef WOLFSSL_NO_MALLOC
@@ -4948,12 +4967,12 @@ static int ecc_make_pub_ex(ecc_key* key, ecc_curve_spec* curveIn,
         wc_ecc_del_point_ex(base, key->heap);
     }
 #endif /* WOLFSSL_SP_MATH */
-#endif /* HAVE_INTEL_QA */
+    } /* END: Software Crypto */
 
     if (err != MP_OKAY
-#ifdef WOLFSSL_ASYNC_CRYPT
-    && err != WC_PENDING_E
-#endif
+    #ifdef WOLFSSL_ASYNC_CRYPT
+        && err != WC_PENDING_E
+    #endif
     ) {
         /* clean up if failed */
     #ifndef ALT_ECC_SIZE
@@ -6863,7 +6882,8 @@ int wc_ecc_free(ecc_key* key)
 
 #ifdef WOLFSSL_QNX_CAAM
     /* free secure memory */
-    if (key->blackKey > 0) {
+    if ((key->blackKey != CAAM_BLACK_KEY_CCM &&
+         key->blackKey != CAAM_BLACK_KEY_ECB) && key->blackKey > 0) {
        caamFreePart(key->partNum);
     }
 #endif
@@ -9614,22 +9634,30 @@ int wc_ecc_export_ex(ecc_key* key, byte* qx, word32* qxLen,
         }
     #endif
     #ifdef WOLFSSL_QNX_CAAM
-        if (encType == WC_TYPE_BLACK_KEY) {
-            if (key->blackKey > 0) {
-                if (*dLen < keySz + WC_CAAM_MAC_SZ) {
-                    *dLen = keySz + WC_CAAM_MAC_SZ;
-                    return BUFFER_E;
-                }
+        if (key->blackKey == CAAM_BLACK_KEY_CCM) {
+            if (*dLen < keySz + WC_CAAM_MAC_SZ) {
+                *dLen = keySz + WC_CAAM_MAC_SZ;
+                return BUFFER_E;
+            }
 
+            err = wc_export_int(&key->k, d, dLen, keySz + WC_CAAM_MAC_SZ,
+                encType);
+            *dLen = keySz + WC_CAAM_MAC_SZ;
+        }
+        else if (encType == WC_TYPE_BLACK_KEY &&
+                key->blackKey != CAAM_BLACK_KEY_ECB &&
+                key->blackKey > 0) {
+            if (*dLen < keySz + WC_CAAM_MAC_SZ) {
+                *dLen = keySz + WC_CAAM_MAC_SZ;
+                return BUFFER_E;
+            }
+
+            if (key->blackKey != CAAM_BLACK_KEY_CCM) {
                 if (caamReadPartition(key->blackKey, d, keySz + WC_CAAM_MAC_SZ) != 0)
                     return WC_HW_E;
+            }
 
-                *dLen = keySz + WC_CAAM_MAC_SZ;
-            }
-            else {
-                WOLFSSL_MSG("No black key stored in structure");
-                return BAD_FUNC_ARG;
-            }
+            *dLen = keySz + WC_CAAM_MAC_SZ;
         }
         else
     #endif
@@ -9675,7 +9703,8 @@ int wc_ecc_export_private_only(ecc_key* key, byte* out, word32* outLen)
 
 #ifdef WOLFSSL_QNX_CAAM
     /* check if black key in secure memory */
-    if (key->blackKey > 0) {
+    if ((key->blackKey != CAAM_BLACK_KEY_CCM &&
+         key->blackKey != CAAM_BLACK_KEY_ECB) && key->blackKey > 0) {
         return wc_ecc_export_ex(key, NULL, NULL, NULL, NULL, out, outLen,
             WC_TYPE_BLACK_KEY);
     }
@@ -9780,6 +9809,7 @@ int wc_ecc_import_private_key_ex(const byte* priv, word32 privSz,
     }
 #elif defined(WOLFSSL_QNX_CAAM)
     if ((wc_ecc_size(key) + WC_CAAM_MAC_SZ) == (int)privSz) {
+    #ifdef WOLFSSL_CAAM_BLACK_KEY_SM
         int part = caamFindUnusedPartition();
         if (part >= 0) {
             CAAM_ADDRESS vaddr = caamGetPartition(part, privSz*3);
@@ -9804,10 +9834,33 @@ int wc_ecc_import_private_key_ex(const byte* priv, word32 privSz,
             WOLFSSL_MSG("Unable to find an unused partition");
             return MEMORY_E;
         }
+    #else
+        key->blackKey = CAAM_BLACK_KEY_CCM;
+        ret = mp_read_unsigned_bin(&key->k, priv, privSz);
+    #endif
     }
     else {
-        WOLFSSL_MSG("Importing key that is not a black key!");
+        key->blackKey = 0;
         ret = mp_read_unsigned_bin(&key->k, priv, privSz);
+
+        /* If using AES-ECB encrypted black keys check here if key is valid,
+         * if not valid than assume is an encrypted key. A public key is needed
+         * for testing validity. */
+        if (key->devId == WOLFSSL_CAAM_DEVID && (
+            wc_ecc_get_curve_id(key->idx) == ECC_SECP256R1 ||
+            wc_ecc_get_curve_id(key->idx) == ECC_SECP384R1)) {
+            if ((pub != NULL) && (ret == MP_OKAY) &&
+                (_ecc_validate_public_key(key, 1, 1) != MP_OKAY)) {
+                key->blackKey = CAAM_BLACK_KEY_ECB;
+            }
+            else if ((pub == NULL) && (ret == MP_OKAY)) {
+                WOLFSSL_MSG("Assuming encrypted key with no public key to check");
+                key->blackKey = CAAM_BLACK_KEY_ECB;
+            }
+            else {
+                WOLFSSL_MSG("Importing key that is not a black key!");
+            }
+        }
     }
 #else
 
@@ -9830,6 +9883,7 @@ int wc_ecc_import_private_key_ex(const byte* priv, word32 privSz,
     if ((pub != NULL) && (ret == MP_OKAY))
         /* public key needed to perform key validation */
         ret = _ecc_validate_public_key(key, 1, 1);
+
 #endif
 
 #ifdef WOLFSSL_VALIDATE_ECC_IMPORT
@@ -10141,12 +10195,21 @@ static int wc_ecc_import_raw_private(ecc_key* key, const char* qx,
 
         #else
             key->type = ECC_PRIVATEKEY;
-
             if (encType == WC_TYPE_HEX_STR)
                 err = mp_read_radix(&key->k, d, MP_RADIX_HEX);
-            else
-                err = mp_read_unsigned_bin(&key->k, (const byte*)d,
+            else {
+            #ifdef WOLFSSL_QNX_CAAM
+                if (key->blackKey == CAAM_BLACK_KEY_CCM) {
+                    err = mp_read_unsigned_bin(&key->k, (const byte*)d,
+                    key->dp->size + WC_CAAM_MAC_SZ);
+                }
+                else
+            #endif /* WOLFSSL_QNX_CAAM */
+                {
+                    err = mp_read_unsigned_bin(&key->k, (const byte*)d,
                     key->dp->size);
+                }
+            }
         #endif /* WOLFSSL_ATECC508A */
             if (mp_iszero(&key->k) || mp_isneg(&key->k)) {
                 WOLFSSL_MSG("Invalid private key");
@@ -13003,6 +13066,7 @@ int wc_ecc_decrypt(ecc_key* privKey, ecc_key* pubKey, const byte* msg,
                         ret = wc_HmacUpdate(hmac, msg, msgSz-digestSz);
                     if (ret == 0)
                         ret = wc_HmacUpdate(hmac, ctx->macSalt, ctx->macSaltSz);
+
                     if (ret == 0)
                         ret = wc_HmacFinal(hmac, verify);
                     if ((ret == 0) && (XMEMCMP(verify, msg + msgSz - digestSz,

@@ -649,7 +649,9 @@ decouple library dependencies with standard string, memory and so on.
             #endif
             #if defined(WOLFSSL_DEOS)
                 #define XSTRCASECMP(s1,s2) stricmp((s1),(s2))
-            #elif defined(WOLFSSL_CMSIS_RTOSv2)
+            #elif defined(WOLFSSL_CMSIS_RTOSv2) || defined(WOLFSSL_AZSPHERE)
+                #define XSTRCASECMP(s1,s2) strcmp((s1),(s2))
+            #elif defined(WOLF_C89)
                 #define XSTRCASECMP(s1,s2) strcmp((s1),(s2))
             #else
                 #define XSTRCASECMP(s1,s2) strcasecmp((s1),(s2))
@@ -676,7 +678,9 @@ decouple library dependencies with standard string, memory and so on.
             #endif
             #if defined(WOLFSSL_DEOS)
                 #define XSTRNCASECMP(s1,s2,n) strnicmp((s1),(s2),(n))
-            #elif defined(WOLFSSL_CMSIS_RTOSv2)
+            #elif defined(WOLFSSL_CMSIS_RTOSv2) || defined(WOLFSSL_AZSPHERE)
+                #define XSTRNCASECMP(s1,s2,n) strncmp((s1),(s2),(n))
+            #elif defined(WOLF_C89)
                 #define XSTRNCASECMP(s1,s2,n) strncmp((s1),(s2),(n))
             #else
                 #define XSTRNCASECMP(s1,s2,n) strncasecmp((s1),(s2),(n))
@@ -723,6 +727,8 @@ decouple library dependencies with standard string, memory and so on.
                         return ret;
                     }
                 #define XSNPRINTF _xsnprintf_
+            #elif defined(WOLF_C89)
+                #define XSPRINTF sprintf
             #else
                 #define XSNPRINTF snprintf
             #endif
@@ -828,7 +834,7 @@ decouple library dependencies with standard string, memory and so on.
     #endif
 
     #ifndef OFFSETOF
-        #if defined(__clang__) || defined(__GNUC__)
+        #if defined(__clang__) || (defined(__GNUC__) && (__GNUC__ >= 4))
             #define OFFSETOF(type, field) __builtin_offsetof(type, field)
         #else
             #define OFFSETOF(type, field) ((size_t)&(((type *)0)->field))

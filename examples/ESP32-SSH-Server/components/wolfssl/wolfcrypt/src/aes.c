@@ -4431,6 +4431,15 @@ int wc_AesSetIV(Aes* aes, const byte* iv)
                 return BAD_FUNC_ARG;
             }
 
+        #ifdef WOLF_CRYPTO_CB
+            if (aes->devId != INVALID_DEVID) {
+                int crypto_cb_ret = wc_CryptoCb_AesCtrEncrypt(aes, out, in, sz);
+                if (crypto_cb_ret != CRYPTOCB_UNAVAILABLE)
+                    return crypto_cb_ret;
+                /* fall-through when unavailable */
+            }
+        #endif
+
             /* consume any unused bytes left in aes->tmp */
             tmp = (byte*)aes->tmp + AES_BLOCK_SIZE - aes->left;
             while (aes->left && sz) {
@@ -6671,9 +6680,9 @@ void GHASH(Aes* aes, const byte* a, word32 aSz, const byte* c,
         }
 #ifdef OPENSSL_EXTRA
         /* store AAD partial tag for next call */
-        aes->aadH[0] = (word32)((x[0] & 0xFFFFFFFF00000000) >> 32);
+        aes->aadH[0] = (word32)((x[0] & 0xFFFFFFFF00000000ULL) >> 32);
         aes->aadH[1] = (word32)(x[0] & 0xFFFFFFFF);
-        aes->aadH[2] = (word32)((x[1] & 0xFFFFFFFF00000000) >> 32);
+        aes->aadH[2] = (word32)((x[1] & 0xFFFFFFFF00000000ULL) >> 32);
         aes->aadH[3] = (word32)(x[1] & 0xFFFFFFFF);
 #endif
     }

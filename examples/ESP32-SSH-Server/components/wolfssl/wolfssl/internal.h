@@ -194,6 +194,8 @@
     #endif
 #elif defined(WOLFSSL_TELIT_M2MB)
     /* do nothing */
+#elif defined(WOLFSSL_EMBOS)
+    /* do nothing */
 #else
     #ifndef SINGLE_THREADED
         #if defined(WOLFSSL_LINUXKM)
@@ -667,6 +669,10 @@
             defined(WOLFSSL_AES_128) && defined(HAVE_AES_CBC)
             #define BUILD_TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256
         #endif
+        #if !defined(NO_PSK) && !defined(NO_SHA256) && !defined(NO_AES) && \
+            defined(WOLFSSL_AES_128) && defined(HAVE_AESGCM)
+            #define BUILD_TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256
+        #endif
     #endif
     #if defined(HAVE_CHACHA) && defined(HAVE_POLY1305) && !defined(NO_SHA256)
         #if !defined(NO_OLD_POLY1305)
@@ -1050,6 +1056,9 @@ enum {
     TLS_ECDHE_ECDSA_WITH_CHACHA20_OLD_POLY1305_SHA256 = 0x14,
     TLS_DHE_RSA_WITH_CHACHA20_OLD_POLY1305_SHA256     = 0x15,
 
+    /* ECDHE_PSK RFC8442, first byte is 0xD0 (EDHE_PSK_BYTE) */
+    TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256    = 0x01,
+
     /* TLS v1.3 cipher suites */
     TLS_AES_128_GCM_SHA256       = 0x01,
     TLS_AES_256_GCM_SHA384       = 0x02,
@@ -1159,10 +1168,11 @@ enum {
 #endif
 
 enum Misc {
-    CIPHER_BYTE = 0x00,            /* Default ciphers */
-    ECC_BYTE    = 0xC0,            /* ECC first cipher suite byte */
-    CHACHA_BYTE = 0xCC,            /* ChaCha first cipher suite */
-    TLS13_BYTE  = 0x13,            /* TLS v1.3 first byte of cipher suite */
+    CIPHER_BYTE    = 0x00,         /* Default ciphers */
+    ECC_BYTE       = 0xC0,         /* ECC first cipher suite byte */
+    CHACHA_BYTE    = 0xCC,         /* ChaCha first cipher suite */
+    TLS13_BYTE     = 0x13,         /* TLS v1.3 first byte of cipher suite */
+    ECDHE_PSK_BYTE = 0xD0,         /* RFC 8442 */
 
     SEND_CERT       = 1,
     SEND_BLANK_CERT = 2,
@@ -1502,7 +1512,14 @@ enum Misc {
 
 /* number of items in the signature algo list */
 #ifndef WOLFSSL_MAX_SIGALGO
+#ifdef HAVE_PQC
+    /* If we are building with post-quantum algorithms, we likely want to
+     * inter-op with OQS's OpenSSL and they send a lot more sigalgs.
+     */
+    #define WOLFSSL_MAX_SIGALGO 128
+#else
     #define WOLFSSL_MAX_SIGALGO 38
+#endif
 #endif
 
 
@@ -1605,6 +1622,9 @@ enum Misc {
 
 #define MAX_ENCRYPT_SZ ENCRYPT_LEN
 
+#define WOLFSSL_ASSERT_SIZEOF_GE(x, y)                              \
+    typedef char _args_test[sizeof((x)) >= sizeof((y)) ? 1 : -1];    \
+    (void)sizeof(_args_test)
 
 /* states */
 enum states {
@@ -1741,9 +1761,12 @@ WOLFSSL_LOCAL int GetPrivateKeySigSize(WOLFSSL* ssl);
     WOLFSSL_LOCAL int  InitSigPkCb(WOLFSSL* ssl, SignatureCtx* sigCtx);
 #endif
 #endif
+#ifdef WOLFSSL_ASYNC_IO
+WOLFSSL_LOCAL void FreeAsyncCtx(WOLFSSL* ssl, byte freeAsync);
+#endif
 WOLFSSL_LOCAL void FreeKeyExchange(WOLFSSL* ssl);
 WOLFSSL_LOCAL void FreeSuites(WOLFSSL* ssl);
-WOLFSSL_LOCAL int  ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx, word32 size);
+WOLFSSL_LOCAL int  ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx, word32 totalSz);
 WOLFSSL_LOCAL int  MatchDomainName(const char* pattern, int len, const char* str);
 #ifndef NO_CERTS
 WOLFSSL_LOCAL int  CheckForAltNames(DecodedCert* dCert, const char* domain, int* checkCN);
@@ -3499,7 +3522,6 @@ enum AcceptState {
     ACCEPT_HELLO_RETRY_REQUEST_DONE,
     ACCEPT_FIRST_REPLY_DONE,
     SERVER_HELLO_SENT,
-    SERVER_EXTENSIONS_SENT,
     CERT_SENT,
     CERT_VERIFY_SENT,
     CERT_STATUS_SENT,
@@ -3687,7 +3709,6 @@ typedef struct Options {
     word16            usingPSK_cipher:1;  /* are using psk as cipher */
     word16            usingAnon_cipher:1; /* are we using an anon cipher */
     word16            noPskDheKe:1;       /* Don't use (EC)DHE with PSK */
-    word16            sendAlertState:1;   /* nonblocking resume */
     word16            partialWrite:1;     /* only one msg per write call */
     word16            quietShutdown:1;    /* don't send close notify */
     word16            certOnly:1;         /* stop once we get cert */
@@ -3763,6 +3784,12 @@ typedef struct Options {
     word16            startedETMRead:1;       /* Doing Encrypt-Then-MAC read */
     word16            startedETMWrite:1;      /* Doing Encrypt-Then-MAC write */
 #endif
+#ifdef WOLFSSL_ASYNC_CRYPT
+    word16            buildArgsSet:1;         /* buildArgs are set and need to
+                                               * be free'd */
+#endif
+    word16            buildingMsg:1;      /* If set then we need to re-enter the
+                                           * handshake logic. */
 
     /* need full byte values for this section */
     byte            processReply;           /* nonblocking resume */
@@ -3882,6 +3909,7 @@ typedef enum {
     STACK_TYPE_DIST_POINT         = 15,
     STACK_TYPE_X509_CRL           = 16,
     STACK_TYPE_X509_NAME_ENTRY    = 17,
+    STACK_TYPE_X509_REQ_ATTR      = 18,
 } WOLF_STACK_TYPE;
 
 struct WOLFSSL_STACK {
@@ -4063,7 +4091,8 @@ struct WOLFSSL_X509 {
     char             subjectCN[ASN_NAME_MAX];        /* common name short cut */
 #if defined(WOLFSSL_CERT_REQ) || defined(WOLFSSL_CERT_GEN)
 #if defined(OPENSSL_ALL) || defined(OPENSSL_EXTRA)
-    WOLFSSL_X509_ATTRIBUTE* challengePwAttr;
+    /* stack of CSR attributes */
+    WOLF_STACK_OF(WOLFSSL_X509_ATRIBUTE)* reqAttributes;
 #endif
     #if defined(WOLFSSL_CERT_REQ)
     char             challengePw[CTC_NAME_SIZE]; /* for REQ certs */
@@ -4202,17 +4231,16 @@ typedef struct BuildMsgArgs {
 } BuildMsgArgs;
 #endif
 
-#ifdef WOLFSSL_ASYNC_CRYPT
+#ifdef WOLFSSL_ASYNC_IO
     #define MAX_ASYNC_ARGS 18
     typedef void (*FreeArgsCb)(struct WOLFSSL* ssl, void* pArgs);
 
     struct WOLFSSL_ASYNC {
-        WC_ASYNC_DEV* dev;
-        FreeArgsCb    freeArgs; /* function pointer to cleanup args */
-        word32        args[MAX_ASYNC_ARGS]; /* holder for current args */
-#ifndef WOLFSSL_NO_TLS12
+#if defined(WOLFSSL_ASYNC_CRYPT) && !defined(WOLFSSL_NO_TLS12)
         BuildMsgArgs  buildArgs; /* holder for current BuildMessage args */
 #endif
+        FreeArgsCb    freeArgs; /* function pointer to cleanup args */
+        word32        args[MAX_ASYNC_ARGS]; /* holder for current args */
     };
 #endif
 
@@ -4290,10 +4318,13 @@ struct WOLFSSL {
     HandShakeDoneCb hsDoneCb;          /*  notify user handshake done */
     void*           hsDoneCtx;         /*  user handshake cb context  */
 #endif
+#ifdef WOLFSSL_ASYNC_IO
 #ifdef WOLFSSL_ASYNC_CRYPT
-    struct WOLFSSL_ASYNC async;
-#elif defined(WOLFSSL_NONBLOCK_OCSP)
-    void*           nonblockarg;        /* dynamic arg for handling non-block resume */
+    WC_ASYNC_DEV* asyncDev;
+#endif
+    /* Message building context should be stored here for functions that expect
+     * to encounter encryption blocking or fragment the message. */
+    struct WOLFSSL_ASYNC* async;
 #endif
     void*           hsKey;              /* Handshake key (RsaKey or ecc_key) allocated from heap */
     word32          hsType;             /* Type of Handshake key (hsKey) */
@@ -4309,6 +4340,7 @@ struct WOLFSSL {
     ClientSession*  clientSession;
 #endif
     WOLFSSL_ALERT_HISTORY alert_history;
+    WOLFSSL_ALERT   pendingAlert;
     int             error;
     int             rfd;                /* read  file descriptor */
     int             wfd;                /* write file descriptor */
@@ -4654,7 +4686,7 @@ struct WOLFSSL {
  * to the error queue on file end. This should not be left
  * for the caller to find so we clear the last error.
  */
-#ifdef WOLFSSL_HAVE_ERROR_QUEUE
+#if defined(OPENSSL_EXTRA) && defined(WOLFSSL_HAVE_ERROR_QUEUE)
 #define CLEAR_ASN_NO_PEM_HEADER_ERROR(err)                  \
     (err) = wolfSSL_ERR_peek_last_error();                  \
     if (ERR_GET_LIB(err) == ERR_LIB_PEM &&                  \
@@ -4824,6 +4856,7 @@ WOLFSSL_LOCAL int SendServerKeyExchange(WOLFSSL* ssl);
 WOLFSSL_LOCAL int SendBuffered(WOLFSSL* ssl);
 WOLFSSL_LOCAL int ReceiveData(WOLFSSL* ssl, byte* output, int sz, int peek);
 WOLFSSL_LOCAL int SendFinished(WOLFSSL* ssl);
+WOLFSSL_LOCAL int RetrySendAlert(WOLFSSL* ssl);
 WOLFSSL_LOCAL int SendAlert(WOLFSSL* ssl, int severity, int type);
 WOLFSSL_LOCAL int ProcessReply(WOLFSSL* ssl);
 WOLFSSL_LOCAL int ProcessReplyEx(WOLFSSL* ssl, int allowSocketErr);

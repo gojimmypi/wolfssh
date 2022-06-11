@@ -4088,6 +4088,10 @@ static const byte attrPkcs9ContentTypeOid[] =  CSR_ATTR_TYPE_OID_BASE(3);
 static const byte attrChallengePasswordOid[] = CSR_ATTR_TYPE_OID_BASE(7);
 static const byte attrExtensionRequestOid[] =  CSR_ATTR_TYPE_OID_BASE(14);
 static const byte attrSerialNumberOid[] = {85, 4, 5};
+static const byte attrDnQualifier[] = {85, 4, 46};
+static const byte attrInitals[] = {85, 4, 43};
+static const byte attrSurname[] = {85, 4, 4};
+static const byte attrGivenName[] = {85, 4, 42};
 #endif
 #endif
 
@@ -4913,6 +4917,22 @@ const byte* OidFromId(word32 id, word32 type, word32* oidSz)
 #ifdef WOLFSSL_CERT_REQ
         case oidCsrAttrType:
             switch (id) {
+                case GIVEN_NAME_OID:
+                    oid = attrGivenName;
+                    *oidSz = sizeof(attrGivenName);
+                    break;
+                case SURNAME_OID:
+                    oid = attrSurname;
+                    *oidSz = sizeof(attrSurname);
+                    break;
+                case INITIALS_OID:
+                    oid = attrInitals;
+                    *oidSz = sizeof(attrInitals);
+                    break;
+                case DNQUALIFIER_OID:
+                    oid = attrDnQualifier;
+                    *oidSz = sizeof(attrDnQualifier);
+                    break;
                 case UNSTRUCTURED_NAME_OID:
                     oid = attrUnstructuredNameOid;
                     *oidSz = sizeof(attrUnstructuredNameOid);
@@ -12368,7 +12388,15 @@ int GetFormattedTime(void* currTime, byte* buf, word32 len)
         hour = ts->tm_hour;
         mini = ts->tm_min;
         sec  = ts->tm_sec;
-        ret = XSNPRINTF((char*)buf, len,
+        #if defined(WOLF_C89)
+            if (len < 14) {
+                WOLFSSL_MSG("buffer for GetFormattedTime is too short.");
+                return BUFFER_E;
+            }
+            ret = XSPRINTF((char*)buf,
+        #else
+            ret = XSNPRINTF((char*)buf, len,
+        #endif
                         "%02d%02d%02d%02d%02d%02dZ", year, mon, day,
                         hour, mini, sec);
     }
@@ -12380,7 +12408,15 @@ int GetFormattedTime(void* currTime, byte* buf, word32 len)
         hour = ts->tm_hour;
         mini = ts->tm_min;
         sec  = ts->tm_sec;
-        ret = XSNPRINTF((char*)buf, len,
+        #if defined(WOLF_C89)
+            if (len < 16) {
+                WOLFSSL_MSG("buffer for GetFormattedTime is too short.");
+                return BUFFER_E;
+            }
+            ret = XSPRINTF((char*)buf,
+        #else
+            ret = XSNPRINTF((char*)buf, len,
+        #endif
                         "%4d%02d%02d%02d%02d%02dZ", year, mon, day,
                         hour, mini, sec);
     }
@@ -18721,6 +18757,57 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
                             cert->serialSz = cert->sNumLen;
                         }
                         break;
+                    case DNQUALIFIER_OID:
+                        if (GetHeader(cert->source, &tag,
+                                &cert->srcIdx, &len, attrMaxIdx, 1) < 0) {
+                            WOLFSSL_MSG("attr GetHeader error");
+                            return ASN_PARSE_E;
+                        }
+                        cert->dnQualifier = (char*)cert->source + cert->srcIdx;
+                        cert->dnQualifierLen = len;
+                        cert->srcIdx += len;
+                        break;
+                    case INITIALS_OID:
+                        if (GetHeader(cert->source, &tag,
+                                &cert->srcIdx, &len, attrMaxIdx, 1) < 0) {
+                            WOLFSSL_MSG("attr GetHeader error");
+                            return ASN_PARSE_E;
+                        }
+                        cert->initials = (char*)cert->source + cert->srcIdx;
+                        cert->initialsLen = len;
+                        cert->srcIdx += len;
+                        break;
+                    case SURNAME_OID:
+                        if (GetHeader(cert->source, &tag,
+                                &cert->srcIdx, &len, attrMaxIdx, 1) < 0) {
+                            WOLFSSL_MSG("attr GetHeader error");
+                            return ASN_PARSE_E;
+                        }
+                        cert->surname = (char*)cert->source + cert->srcIdx;
+                        cert->surnameLen = len;
+                        cert->srcIdx += len;
+                        break;
+                    case GIVEN_NAME_OID:
+                        if (GetHeader(cert->source, &tag,
+                                &cert->srcIdx, &len, attrMaxIdx, 1) < 0) {
+                            WOLFSSL_MSG("attr GetHeader error");
+                            return ASN_PARSE_E;
+                        }
+                        cert->givenName = (char*)cert->source + cert->srcIdx;
+                        cert->givenNameLen = len;
+                        cert->srcIdx += len;
+                        break;
+                    case UNSTRUCTURED_NAME_OID:
+                        if (GetHeader(cert->source, &tag,
+                                &cert->srcIdx, &len, attrMaxIdx, 1) < 0) {
+                            WOLFSSL_MSG("attr GetHeader error");
+                            return ASN_PARSE_E;
+                        }
+                        cert->unstructuredName =
+                            (char*)cert->source + cert->srcIdx;
+                        cert->unstructuredNameLen = len;
+                        cert->srcIdx += len;
+                        break;
                     case EXTENSION_REQUEST_OID:
                         /* save extensions */
                         cert->extensions    = &cert->source[cert->srcIdx];
@@ -19105,7 +19192,7 @@ void FreeSigner(Signer* signer, void* heap)
     FreeDer(&signer->derCert);
 #endif
     XFREE(signer, heap, DYNAMIC_TYPE_SIGNER);
-
+    (void)signer;
     (void)heap;
 }
 
@@ -20506,16 +20593,11 @@ int wc_PemCertToDer_ex(const char* fileName, DerBuffer** der)
             ret = BUFFER_E;
         }
         else if (sz > (long)sizeof(staticBuffer)) {
-        #ifdef WOLFSSL_STATIC_MEMORY
-            WOLFSSL_MSG("File was larger then static buffer");
-            ret = MEMORY_E;
-        #else
             fileBuf = (byte*)XMALLOC(sz, NULL, DYNAMIC_TYPE_FILE);
             if (fileBuf == NULL)
                 ret = MEMORY_E;
             else
                 dynamic = 1;
-        #endif
         }
 
         if (ret == 0) {
@@ -20567,7 +20649,7 @@ int wc_PemPubKeyToDer_ex(const char* fileName, DerBuffer** der)
     int    dynamic = 0;
     int    ret     = 0;
     long   sz      = 0;
-    XFILE  file;
+    XFILE  file    = NULL;
 
     WOLFSSL_ENTER("wc_PemPubKeyToDer");
 
@@ -20592,16 +20674,11 @@ int wc_PemPubKeyToDer_ex(const char* fileName, DerBuffer** der)
             ret = BUFFER_E;
         }
         else if (sz > (long)sizeof(staticBuffer)) {
-        #ifdef WOLFSSL_STATIC_MEMORY
-            WOLFSSL_MSG("File was larger then static buffer");
-            ret = MEMORY_E;
-        #else
             fileBuf = (byte*)XMALLOC(sz, NULL, DYNAMIC_TYPE_FILE);
             if (fileBuf == NULL)
                 ret = MEMORY_E;
             else
                 dynamic = 1;
-        #endif
         }
         if (ret == 0) {
             if ((size_t)XFREAD(fileBuf, 1, sz, file) != (size_t)sz) {
@@ -23530,11 +23607,14 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_SKID_KEYID],
                     cert->skid, cert->skidSz);
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out Subject Key Identifier extension items. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_SKID_SEQ,
                     CERTEXTSASN_IDX_SKID_KEYID);
         }
+    #ifdef WOLFSSL_CERT_EXT
         if (cert->akidSz > 0) {
             /* Set Authority Key Identifier OID and data. */
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_AKID_OID],
@@ -23554,11 +23634,14 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
                         cert->akid, cert->akidSz);
             }
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out Authority Key Identifier extension items. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_AKID_SEQ,
                     CERTEXTSASN_IDX_AKID_KEYID);
         }
+    #ifdef WOLFSSL_CERT_EXT
         if (cert->keyUsage != 0) {
             /* Set Key Usage OID, critical and value. */
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_KU_OID],
@@ -23567,11 +23650,14 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
             SetASN_Int16Bit(&dataASN[CERTEXTSASN_IDX_KU_USAGE],
                     cert->keyUsage);
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out Key Usage extension items. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_KU_SEQ,
                     CERTEXTSASN_IDX_KU_USAGE);
         }
+    #ifdef WOLFSSL_CERT_EXT
         if (cert->extKeyUsage != 0) {
             /* Calculate size of Extended Key Usage data. */
             sz = SetExtKeyUsage(cert, NULL, 0, cert->extKeyUsage);
@@ -23584,12 +23670,15 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_EKU_STR],
                     NULL, sz);
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out Extended Key Usage extension items. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_EKU_SEQ,
                     CERTEXTSASN_IDX_EKU_STR);
         }
 
+    #ifdef WOLFSSL_CERT_EXT
         if ((!forRequest) && (cert->certPoliciesNb > 0)) {
             /* Calculate size of certificate policies. */
             sz = SetCertificatePolicies(NULL, 0, cert->certPolicies,
@@ -23606,12 +23695,14 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
                 ret = CERTPOLICIES_E;
             }
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out Certificate Policies extension items. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_POLICIES_SEQ,
                     CERTEXTSASN_IDX_POLICIES_INFO);
         }
-    #ifndef IGNORE_NETSCAPE_CERT_TYPE
+    #if defined(WOLFSSL_CERT_EXT) && !defined(IGNORE_NETSCAPE_CERT_TYPE)
         /* Netscape Certificate Type */
         if (cert->nsCertType != 0) {
             /* Set Netscape Certificate Type OID and data. */
@@ -23627,6 +23718,7 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_NSTYPE_SEQ,
                     CERTEXTSASN_IDX_NSTYPE_USAGE);
         }
+    #ifdef WOLFSSL_CERT_EXT
         if (cert->crlInfoSz > 0) {
             /* Set CRL Distribution Points OID and data. */
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_CRLINFO_OID],
@@ -23634,13 +23726,15 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
             SetASN_Buffer(&dataASN[CERTEXTSASN_IDX_CRLINFO_STR],
                     cert->crlInfo, cert->crlInfoSz);
         }
-        else {
+        else
+    #endif
+        {
             /* Don't write out CRL Distribution Points. */
             SetASNItem_NoOut(dataASN, CERTEXTSASN_IDX_CRLINFO_SEQ,
                     CERTEXTSASN_IDX_CRLINFO_STR);
         }
 
-    #ifdef WOLFSSL_CUSTOM_OID
+    #if defined(WOLFSSL_CERT_EXT) && defined(WOLFSSL_CUSTOM_OID)
         /* encode a custom oid and value */
         if (cert->extCustom.oidSz > 0) {
             /* Set CRL Distribution Points OID and data. */
@@ -23658,7 +23752,7 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
         }
 
         i = 0;
-    #ifdef WOLFSSL_CUSTOM_OID
+    #if defined(WOLFSSL_CERT_EXT) && defined(WOLFSSL_CUSTOM_OID)
         for (; i < cert->customCertExtCount; i++) {
              int idx = CERTEXTSASN_IDX_START_CUSTOM + (i * 4);
              word32 encodedOidSz = MAX_OID_SZ;
@@ -23686,7 +23780,6 @@ static int EncodeExtensions(Cert* cert, byte* output, word32 maxSz,
                              CERTEXTSASN_IDX_START_CUSTOM + (i * 4) + 3);
             i++;
         }
-    #endif /* WOLFSSL_CERT_EXT */
     }
 
     if (ret == 0) {
@@ -28289,8 +28382,8 @@ static int wc_BuildEccKeyDer(ecc_key* key, byte* output, word32 *inLen,
     privSz = key->dp->size;
 
 #ifdef WOLFSSL_QNX_CAAM
-    /* check if is a black key, and add MAC size if so */
-    if (key->blackKey > 0) {
+    /* check if is a black key, and add MAC size if needed */
+    if (key->blackKey > 0 && key->blackKey != CAAM_BLACK_KEY_ECB) {
         privSz = privSz + WC_CAAM_MAC_SZ;
     }
 #endif

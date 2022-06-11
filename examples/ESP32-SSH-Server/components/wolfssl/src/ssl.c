@@ -11778,6 +11778,9 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
     #if !(defined(WOLFSSL_NO_TLS12) && defined(NO_OLD_TLS) && defined(WOLFSSL_TLS13))
         int neededState;
     #endif
+        int ret = 0;
+
+        (void)ret;
 
         WOLFSSL_ENTER("SSL_connect()");
 
@@ -11820,14 +11823,16 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
             if ((ssl->ConnectFilter(ssl, ssl->ConnectFilter_arg, &res) ==
                  WOLFSSL_SUCCESS) &&
                 (res == WOLFSSL_NETFILTER_REJECT)) {
-                WOLFSSL_ERROR(ssl->error = SOCKET_FILTERED_E);
+                ssl->error = SOCKET_FILTERED_E;
+                WOLFSSL_ERROR(ssl->error);
                 return WOLFSSL_FATAL_ERROR;
             }
         }
 #endif /* WOLFSSL_WOLFSENTRY_HOOKS */
 
         if (ssl->options.side != WOLFSSL_CLIENT_END) {
-            WOLFSSL_ERROR(ssl->error = SIDE_ERROR);
+            ssl->error = SIDE_ERROR;
+            WOLFSSL_ERROR(ssl->error);
             return WOLFSSL_FATAL_ERROR;
         }
 
@@ -11846,11 +11851,11 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
             && ssl->error != WC_PENDING_E
         #endif
         ) {
-            if ( (ssl->error = SendBuffered(ssl)) == 0) {
+            if ( (ret = SendBuffered(ssl)) == 0) {
                 /* fragOffset is non-zero when sending fragments. On the last
                  * fragment, fragOffset is zero again, and the state can be
                  * advanced. */
-                if (ssl->fragOffset == 0) {
+                if (ssl->fragOffset == 0 && !ssl->options.buildingMsg) {
                     if (ssl->options.connectState == CONNECT_BEGIN ||
                         ssl->options.connectState == HELLO_AGAIN ||
                        (ssl->options.connectState >= FIRST_REPLY_DONE &&
@@ -11859,6 +11864,10 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                         WOLFSSL_MSG("connect state: "
                                     "Advanced from last buffered fragment send");
                     }
+                #ifdef WOLFSSL_ASYNC_IO
+                    /* Cleanup async */
+                    FreeAsyncCtx(ssl, 0);
+                #endif
                 }
                 else {
                     WOLFSSL_MSG("connect state: "
@@ -11866,9 +11875,17 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 }
             }
             else {
+                ssl->error = ret;
                 WOLFSSL_ERROR(ssl->error);
                 return WOLFSSL_FATAL_ERROR;
             }
+        }
+
+        ret = RetrySendAlert(ssl);
+        if (ret != 0) {
+            ssl->error = ret;
+            WOLFSSL_ERROR(ssl->error);
+            return WOLFSSL_FATAL_ERROR;
         }
 
         switch (ssl->options.connectState) {
@@ -12108,6 +12125,12 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 ssl->secure_renegotiation->startScr = 0;
             }
         #endif /* WOLFSSL_ASYNC_CRYPT && HAVE_SECURE_RENEGOTIATION */
+        #if defined(WOLFSSL_ASYNC_IO) && !defined(WOLFSSL_ASYNC_CRYPT)
+            /* Free the remaining async context if not using it for crypto */
+            FreeAsyncCtx(ssl, 1);
+        #endif
+
+            ssl->error = 0; /* clear the error */
 
             WOLFSSL_LEAVE("SSL_connect()", WOLFSSL_SUCCESS);
             return WOLFSSL_SUCCESS;
@@ -12199,6 +12222,9 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
         word16 haveAnon = 0;
         word16 haveMcast = 0;
 #endif
+        int ret = 0;
+
+        (void)ret;
 
         if (ssl == NULL)
             return WOLFSSL_FATAL_ERROR;
@@ -12230,7 +12256,8 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
             if ((ssl->AcceptFilter(ssl, ssl->AcceptFilter_arg, &res) ==
                  WOLFSSL_SUCCESS) &&
                 (res == WOLFSSL_NETFILTER_REJECT)) {
-                WOLFSSL_ERROR(ssl->error = SOCKET_FILTERED_E);
+                ssl->error = SOCKET_FILTERED_E;
+                WOLFSSL_ERROR(ssl->error);
                 return WOLFSSL_FATAL_ERROR;
             }
         }
@@ -12256,7 +12283,8 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
         (void)haveMcast;
 
         if (ssl->options.side != WOLFSSL_SERVER_END) {
-            WOLFSSL_ERROR(ssl->error = SIDE_ERROR);
+            ssl->error = SIDE_ERROR;
+            WOLFSSL_ERROR(ssl->error);
             return WOLFSSL_FATAL_ERROR;
         }
 
@@ -12295,7 +12323,8 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 #endif
                     {
                         WOLFSSL_MSG("accept error: server key required");
-                        WOLFSSL_ERROR(ssl->error = NO_PRIVATE_KEY);
+                        ssl->error = NO_PRIVATE_KEY;
+                        WOLFSSL_ERROR(ssl->error);
                         return WOLFSSL_FATAL_ERROR;
                     }
                 }
@@ -12318,11 +12347,11 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
             && ssl->error != WC_PENDING_E
         #endif
         ) {
-            if ( (ssl->error = SendBuffered(ssl)) == 0) {
+            if ( (ret = SendBuffered(ssl)) == 0) {
                 /* fragOffset is non-zero when sending fragments. On the last
                  * fragment, fragOffset is zero again, and the state can be
                  * advanced. */
-                if (ssl->fragOffset == 0) {
+                if (ssl->fragOffset == 0 && !ssl->options.buildingMsg) {
                     if (ssl->options.acceptState == ACCEPT_FIRST_REPLY_DONE ||
                         ssl->options.acceptState == SERVER_HELLO_SENT ||
                         ssl->options.acceptState == CERT_SENT ||
@@ -12336,6 +12365,10 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                         WOLFSSL_MSG("accept state: "
                                     "Advanced from last buffered fragment send");
                     }
+                #ifdef WOLFSSL_ASYNC_IO
+                    /* Cleanup async */
+                    FreeAsyncCtx(ssl, 0);
+                #endif
                 }
                 else {
                     WOLFSSL_MSG("accept state: "
@@ -12343,9 +12376,17 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 }
             }
             else {
+                ssl->error = ret;
                 WOLFSSL_ERROR(ssl->error);
                 return WOLFSSL_FATAL_ERROR;
             }
+        }
+
+        ret = RetrySendAlert(ssl);
+        if (ret != 0) {
+            ssl->error = ret;
+            WOLFSSL_ERROR(ssl->error);
+            return WOLFSSL_FATAL_ERROR;
         }
 
         switch (ssl->options.acceptState) {
@@ -12563,6 +12604,10 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 ssl->secure_renegotiation->startScr = 0;
             }
 #endif /* WOLFSSL_ASYNC_CRYPT && HAVE_SECURE_RENEGOTIATION */
+#if defined(WOLFSSL_ASYNC_IO) && !defined(WOLFSSL_ASYNC_CRYPT)
+            /* Free the remaining async context if not using it for crypto */
+            FreeAsyncCtx(ssl, 1);
+#endif
 
 #if defined(WOLFSSL_SESSION_EXPORT) && defined(WOLFSSL_DTLS)
             if (ssl->dtls_export) {
@@ -12573,6 +12618,7 @@ int wolfSSL_DTLS_SetCookieSecret(WOLFSSL* ssl,
                 }
             }
 #endif
+            ssl->error = 0; /* clear the error */
 
             WOLFSSL_LEAVE("SSL_accept()", WOLFSSL_SUCCESS);
             return WOLFSSL_SUCCESS;
@@ -17766,14 +17812,6 @@ size_t wolfSSL_get_client_random(const WOLFSSL* ssl, unsigned char* out,
         return ret;
     }
 
-    void wolfSSL_ERR_clear_error(void)
-    {
-        WOLFSSL_ENTER("wolfSSL_ERR_clear_error");
-#if defined(OPENSSL_EXTRA) || defined(DEBUG_WOLFSSL_VERBOSE)
-        wc_ClearErrorNodes();
-#endif
-    }
-
 #ifndef NO_DES3
     /* 0 on ok */
     int wolfSSL_DES_key_sched(WOLFSSL_const_DES_cblock* key,
@@ -18027,6 +18065,14 @@ size_t wolfSSL_get_client_random(const WOLFSSL* ssl, unsigned char* out,
     }
 
 #endif /* OPENSSL_EXTRA */
+
+#if defined(OPENSSL_EXTRA) || defined(DEBUG_WOLFSSL_VERBOSE)
+    void wolfSSL_ERR_clear_error(void)
+    {
+        WOLFSSL_ENTER("wolfSSL_ERR_clear_error");
+        wc_ClearErrorNodes();
+    }
+#endif
 
 #if defined(OPENSSL_EXTRA) || defined(WOLFSSL_WPAS_SMALL)
     int wolfSSL_clear(WOLFSSL* ssl)
@@ -18676,6 +18722,7 @@ int wolfSSL_sk_push(WOLFSSL_STACK* sk, const void *data)
         case STACK_TYPE_STRING:
         case STACK_TYPE_ACCESS_DESCRIPTION:
         case STACK_TYPE_X509_EXT:
+        case STACK_TYPE_X509_REQ_ATTR:
         case STACK_TYPE_NULL:
         case STACK_TYPE_X509_NAME:
         case STACK_TYPE_X509_NAME_ENTRY:
@@ -18737,6 +18784,7 @@ int wolfSSL_sk_push(WOLFSSL_STACK* sk, const void *data)
         case STACK_TYPE_STRING:
         case STACK_TYPE_ACCESS_DESCRIPTION:
         case STACK_TYPE_X509_EXT:
+        case STACK_TYPE_X509_REQ_ATTR:
         case STACK_TYPE_NULL:
         case STACK_TYPE_X509_NAME:
         case STACK_TYPE_X509_NAME_ENTRY:
@@ -18823,6 +18871,7 @@ void *wolfSSL_lh_retrieve(WOLFSSL_STACK *sk, void *data)
                 case STACK_TYPE_STRING:
                 case STACK_TYPE_ACCESS_DESCRIPTION:
                 case STACK_TYPE_X509_EXT:
+                case STACK_TYPE_X509_REQ_ATTR:
                 case STACK_TYPE_NULL:
                 case STACK_TYPE_X509_NAME:
                 case STACK_TYPE_X509_NAME_ENTRY:
@@ -18849,6 +18898,7 @@ void *wolfSSL_lh_retrieve(WOLFSSL_STACK *sk, void *data)
                 case STACK_TYPE_STRING:
                 case STACK_TYPE_ACCESS_DESCRIPTION:
                 case STACK_TYPE_X509_EXT:
+                case STACK_TYPE_X509_REQ_ATTR:
                 case STACK_TYPE_NULL:
                 case STACK_TYPE_X509_NAME:
                 case STACK_TYPE_X509_NAME_ENTRY:
@@ -24371,6 +24421,8 @@ void* wolfSSL_sk_value(const WOLFSSL_STACK* sk, int i)
             return (void*)sk->data.access;
         case STACK_TYPE_X509_EXT:
             return (void*)sk->data.ext;
+        case STACK_TYPE_X509_REQ_ATTR:
+            return (void*)sk->data.generic;
         case STACK_TYPE_NULL:
             return (void*)sk->data.generic;
         case STACK_TYPE_X509_NAME:
@@ -24471,6 +24523,7 @@ WOLFSSL_STACK* wolfSSL_sk_dup(WOLFSSL_STACK* sk)
             case STACK_TYPE_STRING:
             case STACK_TYPE_ACCESS_DESCRIPTION:
             case STACK_TYPE_X509_EXT:
+            case STACK_TYPE_X509_REQ_ATTR:
             case STACK_TYPE_NULL:
             case STACK_TYPE_X509_NAME:
             case STACK_TYPE_X509_NAME_ENTRY:
@@ -24599,6 +24652,12 @@ void wolfSSL_sk_pop_free(WOLF_STACK_OF(WOLFSSL_ASN1_OBJECT)* sk,
             case STACK_TYPE_X509_EXT:
             #ifdef OPENSSL_ALL
                 func = (wolfSSL_sk_freefunc)wolfSSL_X509_EXTENSION_free;
+            #endif
+                break;
+            case STACK_TYPE_X509_REQ_ATTR:
+            #if defined(OPENSSL_ALL) && \
+                (defined(WOLFSSL_CERT_GEN) || defined(WOLFSSL_CERT_REQ))
+                func = (wolfSSL_sk_freefunc)wolfSSL_X509_ATTRIBUTE_free;
             #endif
                 break;
             case STACK_TYPE_CONF_VALUE:
@@ -25361,6 +25420,16 @@ const WOLFSSL_ObjectInfo wolfssl_object_info[] = {
             oidCsrAttrType, "challengePassword", "challengePassword"},
     { NID_pkcs9_contentType, PKCS9_CONTENT_TYPE_OID,
         oidCsrAttrType, "contentType", "contentType" },
+    { NID_pkcs9_unstructuredName, UNSTRUCTURED_NAME_OID,
+        oidCsrAttrType, "unstructuredName", "unstructuredName" },
+    { NID_surname, SURNAME_OID,
+        oidCsrAttrType, "surname", "surname" },
+    { NID_givenName, GIVEN_NAME_OID,
+        oidCsrAttrType, "givenName", "givenName" },
+    { NID_initials, INITIALS_OID,
+        oidCsrAttrType, "initials", "initials" },
+    { NID_dnQualifier, DNQUALIFIER_OID,
+        oidCsrAttrType, "dnQualifer", "dnQualifier" },
 #endif
 #endif
 #ifdef OPENSSL_EXTRA /* OPENSSL_EXTRA_X509_SMALL only needs the above */
@@ -26826,8 +26895,8 @@ int EncryptDerKey(byte *der, int *derSz, const EVP_CIPHER* cipher,
 #endif
         return WOLFSSL_FAILURE;
     }
-    XSTRNCPY((char*)*cipherInfo, info->name, cipherInfoSz);
-    XSTRNCAT((char*)*cipherInfo, ",", 2);
+    XSTRLCPY((char*)*cipherInfo, info->name, cipherInfoSz);
+    XSTRLCAT((char*)*cipherInfo, ",", cipherInfoSz);
 
     idx = (word32)XSTRLEN((char*)*cipherInfo);
     cipherInfoSz -= idx;
