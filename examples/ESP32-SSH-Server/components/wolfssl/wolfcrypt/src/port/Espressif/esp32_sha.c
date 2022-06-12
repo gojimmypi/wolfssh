@@ -18,9 +18,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
-
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
-
 #include <string.h>
 #include <stdio.h>
 
@@ -118,9 +115,6 @@ static void esp_wait_until_idle()
 */
 int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
 {
-    periph_module_enable(PERIPH_SHA_MODULE);
-    return 0;
-
     int ret = 0;
 
     ESP_LOGV(TAG, "enter esp_sha_hw_lock");
@@ -153,7 +147,7 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
     /* check if this sha has been operated as sw or hw, or not yet init */
     if(ctx->mode == ESP32_SHA_INIT){
         /* try to lock the hw engine */
-        if(esp_CryptHwMutexLock(&sha_mutex, (TickType_t)100) == 0) {
+        if(esp_CryptHwMutexLock(&sha_mutex, (TickType_t)0) == 0) {
             ctx->mode = ESP32_SHA_HW;
         } else {
             ESP_LOGI(TAG, "someone used. hw is locked.....");
@@ -178,12 +172,10 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
 */
 void esp_sha_hw_unlock( void )
 {
-    periph_module_disable(PERIPH_SHA_MODULE);
-    return;
-
     ESP_LOGV(TAG, "enter esp_sha_hw_unlock");
 
     /* Disable AES hardware */
+    periph_module_disable(PERIPH_SHA_MODULE);
 #if defined(SINGLE_THREADED)
     InUse = 0;
 #else
@@ -248,29 +240,8 @@ static void esp_digest_state(WC_ESP32SHA* ctx, byte* hash, enum SHA_TYPE sha_typ
         return;
     }
 
-    switch (sha_type) {
-        case SHA1:
-            SHA_LOAD_REG = SHA_1_LOAD_REG;
-            SHA_BUSY_REG = SHA_1_BUSY_REG;
-            break;
-        case SHA2_256:
-            SHA_LOAD_REG = SHA_256_LOAD_REG;
-            SHA_BUSY_REG = SHA_256_BUSY_REG;
-            break;
-        case SHA2_384:
-            SHA_LOAD_REG = SHA_384_LOAD_REG;
-            SHA_BUSY_REG = SHA_384_BUSY_REG;
-            break;
-        case SHA2_512:
-            SHA_LOAD_REG = SHA_512_LOAD_REG;
-            SHA_BUSY_REG = SHA_512_BUSY_REG;
-            break;
-        default:
-            ESP_LOGE(TAG, "unexpected error. sha_type is invalid.");
-            return;
-            break;
-    }
-
+    SHA_LOAD_REG += (sha_type << 4);
+    SHA_BUSY_REG += (sha_type << 4);
 
     if(ctx->isfirstblock == 1){
         /* no hardware use yet. Nothing to do yet */
@@ -285,7 +256,7 @@ static void esp_digest_state(WC_ESP32SHA* ctx, byte* hash, enum SHA_TYPE sha_typ
     /* wait until done */
     while(DPORT_REG_READ(SHA_BUSY_REG) == 1){ }
 
-    esp_dport_access_read_buffer((uint32_t*)(hash), SHA_TEXT_BASE,
+    esp_dport_access_read_buffer((word32*)(hash), SHA_TEXT_BASE,
                                  esp_sha_digest_size(sha_type)/sizeof(word32));
 
 #if defined(WOLFSSL_SHA512) || defined(WOLFSSL_SHA384)
@@ -314,7 +285,7 @@ int esp_sha_process(struct wc_Sha* sha, const byte* data)
 
     ESP_LOGV(TAG, "enter esp_sha_process");
 
-    word32 SHA_START_REG = SHA_256_START_REG;
+    word32 SHA_START_REG = SHA_1_START_REG;
 
     esp_process_block(&sha->ctx, SHA_START_REG, (const word32*)data,
                                         WC_SHA_BLOCK_SIZE);
@@ -332,7 +303,7 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockproc)
     ESP_LOGV(TAG, "enter esp_sha_digest_process");
 
     if(blockproc) {
-        word32 SHA_START_REG = SHA_256_START_REG;
+        word32 SHA_START_REG = SHA_1_START_REG;
 
         esp_process_block(&sha->ctx, SHA_START_REG, sha->buffer,
                                             WC_SHA_BLOCK_SIZE);
@@ -354,9 +325,12 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockproc)
 int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 {
     int ret = 0;
-    word32 SHA_START_REG = SHA_256_START_REG;
+    word32 SHA_START_REG = SHA_1_START_REG;
 
     ESP_LOGV(TAG, "enter esp_sha256_process");
+
+    /* start register offset */
+    SHA_START_REG += (SHA2_256 << 4);
 
     esp_process_block(&sha->ctx, SHA_START_REG, (const word32*)data,
         WC_SHA256_BLOCK_SIZE);
@@ -370,13 +344,14 @@ int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 */
 int esp_sha256_digest_process(struct wc_Sha256* sha, byte blockproc)
 {
-    int ret = 0; /* by the time we get here, we expect to be thread-safe */
+    int ret = 0;
 
     ESP_LOGV(TAG, "enter esp_sha256_digest_process");
 
     if(blockproc) {
+        word32 SHA_START_REG = SHA_1_START_REG + (SHA2_256 << 4);
 
-        esp_process_block(&sha->ctx, SHA_256_START_REG, sha->buffer,
+        esp_process_block(&sha->ctx, SHA_START_REG, sha->buffer,
                                            WC_SHA256_BLOCK_SIZE);
     }
 
