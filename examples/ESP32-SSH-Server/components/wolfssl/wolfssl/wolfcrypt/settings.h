@@ -19,6 +19,27 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
+/*
+ *   ************************************************************************
+ *
+ *   ******************************** NOTICE ********************************
+ *
+ *   ************************************************************************
+ *
+ *   This method of uncommenting a line in settings.h is outdated.
+ *
+ *   Please use user_settings.h / WOLFSSL_USER_SETTINGS
+ *
+ *         or
+ *
+ *   ./configure CFLAGS="-DFLAG"
+ *
+ *   For more information see:
+ *
+ *   https://www.wolfssl.com/how-do-i-manage-the-build-configuration-of-wolfssl/
+ *
+ */
+
 
 /* Place OS specific preprocessor flags, defines, includes here, will be
    included into every file because types.h includes it */
@@ -196,6 +217,11 @@
 /* Uncomment next line if building for using Apache mynewt */
 /* #define WOLFSSL_APACHE_MYNEWT */
 
+/* For Espressif chips see example user_settings.h
+ *
+ * https://github.com/wolfSSL/wolfssl/blob/master/IDE/Espressif/ESP-IDF/user_settings.h
+ */
+
 /* Uncomment next line if building for using ESP-IDF */
 /* #define WOLFSSL_ESPIDF */
 
@@ -314,7 +340,6 @@
 #if defined(WOLFSSL_ESPWROOM32) || defined(WOLFSSL_ESPWROOM32SE)
    #ifndef NO_ESP32WROOM32_CRYPT
         #pragma message ( "ALERT turning on WOLFSSL_ESP32WROOM32_CRYPT in settings.h !" )
-        #define NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH
         #define WOLFSSL_ESP32WROOM32_CRYPT
         #if defined(ESP32_USE_RSA_PRIMITIVE) && \
             !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI)
@@ -1751,6 +1776,15 @@ extern void uITRON4_free(void *p) ;
     #define USE_WOLFSSL_MEMORY
 #endif
 
+#ifdef WOLFSSL_EMBOS
+    #include "RTOS.h"
+    #if !defined(XMALLOC_USER) && !defined(NO_WOLFSSL_MEMORY) && \
+        !defined(WOLFSSL_STATIC_MEMORY)
+        #define XMALLOC(s, h, type)  OS_HEAP_malloc((s))
+        #define XFREE(p, h, type)    OS_HEAP_free((p))
+        #define XREALLOC(p, n, h, t) OS_HEAP_realloc(((p), (n))
+    #endif
+#endif
 
 #if defined(OPENSSL_EXTRA) && !defined(NO_CERTS)
     #undef  KEEP_PEER_CERT
@@ -2686,6 +2720,16 @@ extern void uITRON4_free(void *p) ;
     #define NO_RC4
 #endif
 
+#if !defined(WOLFSSL_NO_ASYNC_IO) || defined(WOLFSSL_ASYNC_CRYPT) || \
+     defined(WOLFSSL_NONBLOCK_OCSP)
+    /* Enable asynchronous support in TLS functions to support one or more of
+     * the following:
+     * - re-entry after a network blocking return
+     * - re-entry after OCSP blocking return
+     * - asynchronous cryptography */
+    #undef WOLFSSL_ASYNC_IO
+    #define WOLFSSL_ASYNC_IO
+#endif
 
 #ifdef __cplusplus
     }   /* extern "C" */

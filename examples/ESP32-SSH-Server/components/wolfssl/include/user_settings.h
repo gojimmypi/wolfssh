@@ -1,6 +1,6 @@
 /* user_settings.h
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -24,10 +24,6 @@
 #undef WOLFSSL_ESPWROOM32
 #undef WOLFSSL_ESP8266
 
-#define DEBUG_WOLFSSL_VERBOSE
-#define NO_ERROR_QUEUE
-#define NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH
-
 #define WOLFSSL_ESPIDF
 
 /*
@@ -36,11 +32,11 @@
  * WOLFSSL_ESPWROOM32
  * WOLFSSL_ESPWROOM32SE
  * WOLFSSL_ESP8266
- *
  */
+
 #define WOLFSSL_ESPWROOM32
 
-
+#define DEBUG_WOLFSSL_VERBOSE
 
 #define BENCH_EMBEDDED
 #define USE_CERT_BUFFERS_2048
@@ -101,7 +97,7 @@
 #endif
 
 /* debug options */
-#define DEBUG_WOLFSSL
+/* #define DEBUG_WOLFSSL */
 /* #define WOLFSSL_ESP32WROOM32_CRYPT_DEBUG */
 /* #define WOLFSSL_ATECC508A_DEBUG          */
 
@@ -116,3 +112,6 @@
 /* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH*/
 /* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_AES */
 /* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI */
+
+/* adjust wait-timeout count if you see timeout in rsa hw acceleration */
+#define ESP_RSA_TIMEOUT_CNT    0x249F00
