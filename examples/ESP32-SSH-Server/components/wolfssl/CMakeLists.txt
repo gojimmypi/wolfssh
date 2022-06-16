@@ -1,6 +1,6 @@
 #
 # cmake for wolfssl
-# 
+#
 cmake_minimum_required(VERSION 3.5)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 
@@ -12,6 +12,7 @@ set(COMPONENT_SRCDIRS "./src/"
                       "./wolfcrypt/src/"
                       "./wolfcrypt/src/port/Espressif/"
                       "./wolfcrypt/src/port/atmel/"
+#                      "$ENV{IDF_PATH}/components/soc/esp32s3/include/soc"
                       )
 
 set(COMPONENT_REQUIRES lwip)
@@ -56,8 +57,8 @@ register_component()
 
 # check to see if there's both a local copy and EDP-IDF copy of the wolfssl components
 if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
-    message(STATUS  "") 
+    message(STATUS  "")
     message(STATUS  "WARNING: Found components/wolfssl in both local project and IDF_PATH")
-    message(STATUS  "") 
+    message(STATUS  "")
 endif()
 # end multiple component check
