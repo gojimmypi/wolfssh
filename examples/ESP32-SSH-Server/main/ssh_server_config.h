@@ -182,11 +182,11 @@ void ssh_server_config_init();
 
 /* sanity checks */
 
-#if defined WOLFSSH_SERVER_IS_AP && defined WOLFSSH_SERVER_IS_AP
+#if defined WOLFSSH_SERVER_IS_AP && defined USE_ENC28J60
     #error "Server cannot be WiFi AP when using ENC28J60 at this time."
 #endif
 
-#if defined WOLFSSH_SERVER_IS_AP && defined WOLFSSH_SERVER_IS_AP
+#if defined WOLFSSH_SERVER_IS_STA && defined USE_ENC28J60
     #error "Server cannot be WiFi STA when using ENC28J60 at this time."
 #endif
 
