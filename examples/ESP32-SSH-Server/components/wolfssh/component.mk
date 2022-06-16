@@ -5,6 +5,7 @@
 COMPONENT_ADD_INCLUDEDIRS := . ./include
 
 COMPONENT_ADD_INCLUDEDIRS += "$ENV{IDF_PATH}/components/freertos/include/freertos"
+# COMPONENT_ADD_INCLUDEDIRS += "$ENV{IDF_PATH}/components/soc/esp32s3/include/soc"
 
 COMPONENT_SRCDIRS := src ../wolfssl/wolfcrypt/src
 COMPONENT_SRCDIRS += ../wolfssl/wolfcrypt/src/port/Espressif
