@@ -86,6 +86,7 @@ static word32 esp_sha_digest_size(enum SHA_TYPE type)
             return WC_SHA256_DIGEST_SIZE;
 #endif
 #ifdef WOLFSSL_SHA384
+        /* there's no SHA384 HW on ESP32 */
         case SHA2_384:
             return WC_SHA384_DIGEST_SIZE;
 #endif
@@ -117,7 +118,7 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
 {
     int ret = 0;
 
-    ESP_LOGV(TAG, "enter esp_sha_hw_lock");
+    ESP_LOGV(TAG, ">>>>>>>>>>>>> enter esp_sha_hw_lock");
 
     /* Init mutex */
 #if defined(SINGLE_THREADED)
@@ -147,12 +148,15 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
     /* check if this sha has been operated as sw or hw, or not yet init */
     if(ctx->mode == ESP32_SHA_INIT){
         /* try to lock the hw engine */
+        ESP_LOGI(TAG, "Hardware Mode");
         if(esp_CryptHwMutexLock(&sha_mutex, (TickType_t)0) == 0) {
             ctx->mode = ESP32_SHA_HW;
+            ESP_LOGI(TAG, "Hardware Mode");
         } else {
+            ESP_LOGI(TAG, "Hardware Mode");
             ESP_LOGI(TAG, "someone used. hw is locked.....");
-            ESP_LOGI(TAG, "the rest of operation will use sw implementation for this sha");
-            ctx->mode = ESP32_SHA_SW;
+            ESP_LOGI(TAG, "(ignored, still HW) the rest of operation will use sw implementation for this sha");
+            ctx->mode = ESP32_SHA_HW;
             return 0;
         }
     } else {
@@ -172,7 +176,7 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
 */
 void esp_sha_hw_unlock( void )
 {
-    ESP_LOGV(TAG, "enter esp_sha_hw_unlock");
+    ESP_LOGV(TAG, ">>>>>>>>>>>>> enter esp_sha_hw_unlock");
 
     /* Disable AES hardware */
     periph_module_disable(PERIPH_SHA_MODULE);
@@ -202,6 +206,130 @@ static void esp_sha_start_process(WC_ESP32SHA* sha, word32 address)
 
    ESP_LOGV(TAG, "leave esp_sha_start_process");
 }
+
+
+int sha256_init()
+{
+
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) == 1) {}
+
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (0 * sizeof(word32)), 0x6a09e667);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (1 * sizeof(word32)), 0xbb67ae85);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (2 * sizeof(word32)), 0x3c6ef372);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (3 * sizeof(word32)), 0xa54ff53a);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (4 * sizeof(word32)), 0x510e527f);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (5 * sizeof(word32)), 0x9b05688c);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (6 * sizeof(word32)), 0x1f83d9ab);
+//    DPORT_REG_WRITE(SHA_TEXT_BASE + (7 * sizeof(word32)), 0x5be0cd19);
+
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (0 * sizeof(word32)), __builtin_bswap32(0x6a09e667));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (1 * sizeof(word32)), __builtin_bswap32(0xbb67ae85));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (2 * sizeof(word32)), __builtin_bswap32(0x3c6ef372));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (3 * sizeof(word32)), __builtin_bswap32(0xa54ff53a));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (4 * sizeof(word32)), __builtin_bswap32(0x510e527f));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (5 * sizeof(word32)), __builtin_bswap32(0x9b05688c));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (6 * sizeof(word32)), __builtin_bswap32(0x1f83d9ab));
+    DPORT_REG_WRITE(SHA_TEXT_BASE + (7 * sizeof(word32)), __builtin_bswap32(0x5be0cd19));
+
+    DPORT_REG_WRITE(SHA_256_START_REG, 1);
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) == 1) {}
+    return 0;
+}
+
+int esp32_Transform_Sha256(wc_Sha256* target_sha256, const byte* data){
+    /* check if there are any busy engine */
+    int i;
+    int len = sizeof(target_sha256->buffer);
+    if (len == 0) {
+        return -1;
+    }
+
+    ets_sha_enable();
+    /* turn it on first */
+    periph_module_enable(PERIPH_SHA_MODULE);
+
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+    DPORT_REG_WRITE(SHA_256_LOAD_REG, 1);
+
+    // sha256_init();
+
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+
+    int word_len = ((len) / (sizeof(word32)));
+
+    word_len = 1;
+    int block_count = 0;
+    // uint32_t[8] *w = (uint32_t[8] *)target_sha256->digest;
+
+    uint32_t *sha_text_reg = (uint32_t *)(SHA_TEXT_BASE);
+    word32 theValue = 0;
+    /* load message data into hw, of 0..31 of 4-byte words  */
+    for(i = 0 ; i < word_len ; i++) {
+        // sha_text_reg[block_count + i] = __builtin_bswap32(w[i]);
+        theValue = __builtin_bswap32(*(word32*)(data + i*sizeof(word32)));
+        // put the data in  (*(volatile uint32_t *)(SHA_TEXT_BASE + (i*4)))
+        DPORT_REG_WRITE(SHA_TEXT_BASE + (i*sizeof(word32)), theValue);
+    }
+
+    /* TODO manually add 0x80 and zero padding, currently manual*/
+
+    /* instructions before volatile memory references to guarantee sequential consistency */
+    /*  At least one MEMW should be executed in between every load or store to a volatile variable*/
+    asm volatile("memw");
+
+    /* start, the computation is hidden, the SHA_TEXT_BASE registers don't change
+     * if  START_REG is not used, the result registers words [0..7] contain zero.
+     **/
+    DPORT_REG_WRITE(SHA_256_START_REG, 1);
+    // DPORT_REG_WRITE(SHA_256_CONTINUE_REG, 1);
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+    /* done */
+
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+    /* this is where the hidden SHA calculation is actually presented in the SHA_TEXT_BASE registers */
+    DPORT_REG_WRITE(SHA_256_LOAD_REG, 1);
+
+    // asm volatile("memw");
+
+    /* wait for completion */
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+    /* instructions before volatile memory references to guarantee sequential consistency */
+    /*  At least one MEMW should be executed in between every load or store to a volatile variable*/
+    asm volatile("memw");
+
+    /* read results into digest */
+    int thisSize = esp_sha_digest_size(SHA2_256) / sizeof(word32);
+    if (thisSize > 31)    {
+        ESP_LOGI(TAG, "size warning!");
+    }
+
+    // asm volatile("memw");
+
+    // the answer is in the first [n] bytes: ((uint32_t[32])  (*(volatile uint32_t *)(SHA_TEXT_BASE)))
+
+    esp_dport_access_read_buffer((uint32_t *)target_sha256->digest,
+        SHA_TEXT_BASE,
+        esp_sha_digest_size(SHA2_256)/sizeof(word32));
+
+    // Software divides the message into blocks according to "5.2 Parsing the Message"
+    // 512 bits of the input block may be expressed as sixteen 32-bit words
+    // in FIPS PUB 180 - 4 and writes one block to the SHA_TEXT_n_REG registers each time
+    for (size_t i = 0; i < word_len; i++) {
+        target_sha256->digest[i] = __builtin_bswap32(sha_text_reg[i]);
+    }
+
+    asm volatile("memw");
+
+    ESP_LOGV(TAG, "leave esp_process_block"); /* 3090 */
+    periph_module_disable(PERIPH_SHA_MODULE);
+    return 0;
+}
+
 /*
 * process message block
 */
@@ -210,18 +338,30 @@ static void esp_process_block(WC_ESP32SHA* ctx,  word32 address,
 {
     int i;
 
-    ESP_LOGV(TAG, "enter esp_process_block");
+    ESP_LOGV(TAG, "enter esp_process_block 256");
 
     /* check if there are any busy engine */
     esp_wait_until_idle();
-    /* load message data into hw */
-    for(i=0;i<((len)/(sizeof(word32)));++i){
-        DPORT_REG_WRITE(SHA_TEXT_BASE+(i*sizeof(word32)),*(data+i));
-    }
-    /* notify hw to start process */
-    esp_sha_start_process(ctx, address);
+    periph_module_enable(PERIPH_SHA_MODULE);
 
-    ESP_LOGV(TAG, "leave esp_process_block");
+    /* load message data into hw */
+    for (i = 0; i < ((len) / (sizeof(word32))); ++i) {
+        DPORT_REG_WRITE(SHA_TEXT_BASE + (i*sizeof(word32)), *(data + i));
+    }
+    /* notify hw to start or continue process, based on ctx->isfirstblock */
+    esp_sha_start_process(ctx, SHA_256_START_REG);
+
+    /* wait for completion */
+    while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
+
+    esp_dport_access_read_buffer((uint32_t *)data,
+        SHA_TEXT_BASE,
+        WC_SHA256_BLOCK_SIZE); // esp_sha_digest_size(sha_type)/sizeof(word32));
+
+
+
+    ESP_LOGV(TAG, "leave esp_process_block"); /* 3090 */
+    periph_module_disable(PERIPH_SHA_MODULE);
 }
 /*
 * retrieve sha digest from memory
@@ -256,6 +396,9 @@ static void esp_digest_state(WC_ESP32SHA* ctx, byte* hash, enum SHA_TYPE sha_typ
     /* wait until done */
     while(DPORT_REG_READ(SHA_BUSY_REG) == 1){ }
 
+    esp_wait_until_idle();
+
+    /* put result in hash variable */
     esp_dport_access_read_buffer((word32*)(hash), SHA_TEXT_BASE,
                                  esp_sha_digest_size(sha_type)/sizeof(word32));
 
@@ -309,7 +452,7 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockproc)
                                             WC_SHA_BLOCK_SIZE);
     }
 
-    esp_digest_state(&sha->ctx, (byte*)sha->digest, SHA1);
+    esp_digest_state(&sha->ctx, (byte*)sha->digest, SHA1); /* SHA1 ?? */
 
     ESP_LOGV(TAG, "leave esp_sha_digest_process");
 
@@ -325,14 +468,16 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockproc)
 int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 {
     int ret = 0;
-    word32 SHA_START_REG = SHA_1_START_REG;
 
     ESP_LOGV(TAG, "enter esp_sha256_process");
 
-    /* start register offset */
-    SHA_START_REG += (SHA2_256 << 4);
-
-    esp_process_block(&sha->ctx, SHA_START_REG, (const word32*)data,
+    /*
+    esp_process_block(&sha->ctx, SHA_256_START_REG, (const word32*)data,
+        WC_SHA256_BLOCK_SIZE);
+*/
+    esp_process_block(sha,
+        SHA_256_START_REG,
+        (const word32*)data,
         WC_SHA256_BLOCK_SIZE);
 
     ESP_LOGV(TAG, "leave esp_sha256_process");
@@ -345,17 +490,17 @@ int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 int esp_sha256_digest_process(struct wc_Sha256* sha, byte blockproc)
 {
     int ret = 0;
-
+    //periph_module_enable(PERIPH_SHA_MODULE);
     ESP_LOGV(TAG, "enter esp_sha256_digest_process");
 
     if(blockproc) {
-        word32 SHA_START_REG = SHA_1_START_REG + (SHA2_256 << 4);
-
-        esp_process_block(&sha->ctx, SHA_START_REG, sha->buffer,
+        esp_process_block(&sha->ctx, SHA_256_START_REG, sha->buffer,
                                            WC_SHA256_BLOCK_SIZE);
     }
 
     esp_digest_state(&sha->ctx, (byte*)sha->digest, SHA2_256);
+
+    //periph_module_disable(PERIPH_SHA_MODULE);
 
     ESP_LOGV(TAG, "leave esp_sha256_digest_process");
     return ret;

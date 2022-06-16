@@ -1005,12 +1005,17 @@ static int InitSha256(wc_Sha256* sha256)
         }
     }
 
+wc_Sha256 sha256_copy[1];
+
+
     /* do block size increments/updates */
     static WC_INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
     {
+        char * TAG = "Sha256Update";
         int ret = 0;
         word32 blocksLen;
         byte* local;
+        wc_InitSha256((wc_Sha256*)&sha256_copy[0]);
 
         if (sha256 == NULL || (data == NULL && len > 0)) {
             return BAD_FUNC_ARG;
@@ -1113,6 +1118,7 @@ static int InitSha256(wc_Sha256* sha256)
         {
             while (len >= WC_SHA256_BLOCK_SIZE) {
                 word32* local32 = sha256->buffer;
+                word32* local32_copy = ((wc_Sha256*)&sha256_copy[0])->buffer;
                 /* optimization to avoid memcpy if data pointer is properly aligned */
                 /* Intel transform function requires use of sha256->buffer */
                 /* Little Endian requires byte swap, so can't use data directly */
@@ -1125,7 +1131,8 @@ static int InitSha256(wc_Sha256* sha256)
                 else
             #endif
                 {
-                    XMEMCPY(local32, data, WC_SHA256_BLOCK_SIZE);
+                    XMEMCPY(local32, data, WC_SHA256_BLOCK_SIZE); /* d, s, len*/
+                    XMEMCPY(local32_copy, data, WC_SHA256_BLOCK_SIZE);
                 }
 
                 data += WC_SHA256_BLOCK_SIZE;
@@ -1138,18 +1145,81 @@ static int InitSha256(wc_Sha256* sha256)
                 #endif
                 {
                     ByteReverseWords(local32, local32, WC_SHA256_BLOCK_SIZE);
+                    ByteReverseWords(local32_copy, local32_copy, WC_SHA256_BLOCK_SIZE);
                 }
             #endif
 
             #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
                 !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
                 if (sha256->ctx.mode == ESP32_SHA_INIT){
-                    esp_sha_try_hw_lock(&sha256->ctx);
+                    // esp_sha_try_hw_lock(&sha256->ctx);
                 }
                 if (sha256->ctx.mode == ESP32_SHA_SW){
-                    ret = XTRANSFORM(sha256, (const byte*)local32);
+                    ret = XTRANSFORM(sha256, (const byte*)local32); /* S, d */
                 } else {
-                    esp_sha256_process(sha256, (const byte*)local32);
+                    /* duplicate sha to sha_copy */
+                    XMEMCPY(sha256_copy, sha256, sizeof(wc_Sha256));
+/*
+                    if (0 == ConstantCompare((const byte *)sha256, (const byte *)&sha256_copy[0], sizeof(wc_Sha256))) {
+                        ESP_LOGI(TAG, ">>>> HW SW pre match!");
+                    }
+                    else {
+                        ESP_LOGI(TAG, ">>>> ERROR HW SW pre MISMATCH!");
+                    }
+
+                    if (0 == ConstantCompare((const byte *)local32, (const byte *)local32_copy, WC_SHA256_BLOCK_SIZE)) {
+                        ESP_LOGI(TAG, ">>>> HW SW local32 match!");
+                    }
+                    else {
+                        ESP_LOGI(TAG, ">>>> ERROR HW SW local32 MISMATCH!");
+                    }
+*/                  //  5f:ec:eb:66:ff:c8:6f:38:d9:52:78:6c:6d:69:6c:79:c2:db:c2:39:dd:4e:91:b4:67:29:d7:3a:27:fb:57:e9
+
+                    uint32_t* sample[16] = {
+                                           (uint32_t)0x30303030, // 1
+                                           (uint32_t)0x30303030, // 2
+                                           (uint32_t)0x30303030, // 3
+                                           (uint32_t)0x30303030, // 4
+                                           (uint32_t)0x30303030, // 5
+                                           (uint32_t)0x30303030, // 6
+                                           (uint32_t)0x30303030, // 7
+                                           (uint32_t)0x30303030, // 8
+                                           (uint32_t)0x30303030, // 1
+                                           (uint32_t)0x30303030, // 2
+                                           (uint32_t)0x30303030, // 3
+                                           (uint32_t)0x30303030, // 4
+                                           (uint32_t)0x30303030, // 5
+                                           (uint32_t)0x30303030, // 6
+                                           (uint32_t)0x30303030, // 7
+                                           (uint32_t)0x30303030, // 8
+//                                           (uint32_t)0x30303030, // 1
+//                                           (uint32_t)0x30303030, // 2
+//                                           (uint32_t)0x30303030, // 3
+//                                           (uint32_t)0x30303030, // 4
+//                                           (uint32_t)0x30303030, // 5
+//                                           (uint32_t)0x30303030, // 6
+//                                           (uint32_t)0x30303030, // 7
+//                                           (uint32_t)0x30303030, // 8
+//                                           (uint32_t)0x30303030, // 1
+//                                           (uint32_t)0x30303030, // 2
+//                                           (uint32_t)0x30303030, // 3
+//                                           (uint32_t)0x30303030, // 4
+//                                           (uint32_t)0x30303030, // 5
+//                                           (uint32_t)0x30303030, // 6
+//                                           (uint32_t)0x30303030, // 7
+//                                           (uint32_t)0x30303030, // 8
+                    };
+                    // ByteReverseWords((word32*)&sample, (word32*)&sample, 32);
+
+                    ret = XTRANSFORM(sha256, (const byte*)local32); /* S, d */
+
+                    esp32_Transform_Sha256(sha256_copy, (const byte*)sample);
+                    if (0 == ConstantCompare((const byte *)sha256, (const byte *)&sha256_copy[0], sizeof(wc_Sha256))) {
+                        ESP_LOGI(TAG, ">>>> HW SW match!");
+                    }
+                    else  {
+                        ESP_LOGI(TAG, ">>>> ERROR HW SW MISMATCH!");
+                    }
                 }
             #else
                 ret = XTRANSFORM(sha256, (const byte*)local32);
@@ -1157,7 +1227,7 @@ static int InitSha256(wc_Sha256* sha256)
 
                 if (ret != 0)
                     break;
-            }
+            }  /* while */
         }
     #endif
 
@@ -1238,12 +1308,13 @@ static int InitSha256(wc_Sha256* sha256)
         #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
              !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
             if (sha256->ctx.mode == ESP32_SHA_INIT) {
-                esp_sha_try_hw_lock(&sha256->ctx);
+                // esp_sha_try_hw_lock(&sha256->ctx);
             }
             if (sha256->ctx.mode == ESP32_SHA_SW) {
                 ret = XTRANSFORM(sha256, (const byte*)local);
             } else {
-                ret = esp_sha256_process(sha256, (const byte*)local);
+                ret = XTRANSFORM(sha256, (const byte*)local);
+                // ret = esp_sha256_process(sha256, (const byte*)local);
             }
         #else
             ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1295,16 +1366,24 @@ static int InitSha256(wc_Sha256* sha256)
     #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
          !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
         if (sha256->ctx.mode == ESP32_SHA_INIT) {
-            esp_sha_try_hw_lock(&sha256->ctx);
+            // esp_sha_try_hw_lock(&sha256->ctx);
         }
         if (sha256->ctx.mode == ESP32_SHA_SW) {
             ret = XTRANSFORM(sha256, (const byte*)local);
         } else {
-            ret = esp_sha256_digest_process(sha256, 1);
+            // ret = esp_sha256_digest_process(sha256, 1);
+            ret = XTRANSFORM(sha256, (const byte*)local);
         }
     #else
         ret = XTRANSFORM(sha256, (const byte*)local);
     #endif
+        char* TAG = "sha256";
+        if (ret == 0)      {
+            ESP_LOGV(TAG, "SHA256 success");
+        }
+        else  {
+            ESP_LOGV(TAG, "SHA256 faile");
+        }
 
         return ret;
     }
@@ -1859,25 +1938,30 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
 
     if (sha256 == NULL || hash == NULL)
         return BAD_FUNC_ARG;
-
+/*
 #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     if(sha256->ctx.mode == ESP32_SHA_INIT){
-        esp_sha_try_hw_lock(&sha256->ctx);
+        // esp_sha_try_hw_lock(&sha256->ctx);
     }
     if(sha256->ctx.mode == ESP32_SHA_HW)
     {
         esp_sha256_digest_process(sha256, 0);
     }
 #endif
+*/
+
+    /* try to copy our sha256 value into tmpSha256  */
     ret = wc_Sha256Copy(sha256, &tmpSha256);
     if (ret == 0) {
+        /* only if successful, copy that into the hash param */
         ret = wc_Sha256Final(&tmpSha256, hash);
+/*
 #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
         sha256->ctx.mode = ESP32_SHA_SW;
 #endif
-
+*/
         wc_Sha256Free(&tmpSha256);
     }
     return ret;
@@ -1910,6 +1994,8 @@ int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
      dst->ctx.mode = src->ctx.mode;
      dst->ctx.isfirstblock = src->ctx.isfirstblock;
      dst->ctx.sha_type = src->ctx.sha_type;
+#else
+    /*not using HW */
 #endif
 #ifdef WOLFSSL_HASH_FLAGS
      dst->flags |= WC_HASH_FLAG_ISCOPY;
