@@ -46,6 +46,7 @@ typedef struct {
     char nonBlock;
 } thread_ctx_t;
 
+static char* TAG = "ssh_server";
 
 /* find a byte character [str] of length [bufSz] within [buf];
  * returns byte position if found, otherise zero
@@ -200,6 +201,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
  **/
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     int ret;
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
 
     /* we'll create a local instance of threadCtx since it will be
      * handed off to potentially multiple separate threads
@@ -563,9 +565,11 @@ static PwMap* PwMapNew(PwMapList* list,
     const byte* username,
     word32 usernameSz,
     const byte* p,
-    word32 pSz) {
+    word32 pSz)
+{
     PwMap* map;
 
+    ESP_LOGI(TAG, "Enter PwMapNew");
     map = (PwMap*)malloc(sizeof(PwMap));
     if (map != NULL) {
         wc_Sha256 sha;
@@ -588,11 +592,13 @@ static PwMap* PwMapNew(PwMapList* list,
         list->head = map;
     }
 
+    ESP_LOGI(TAG, "Enter PwMapNew");
     return map;
 }
 
 
-static void PwMapListDelete(PwMapList* list) {
+static void PwMapListDelete(PwMapList* list)
+{
     if (list != NULL) {
         PwMap* head = list->head;
 
@@ -638,7 +644,8 @@ static const char samplePublicKeyRsaBuffer[] =
     "RGwkU38D043AR1h0mUoGCPIKuqcFMf gretel\n";
 
 
-static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list) {
+static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list)
+{
     char* str = (char*)buf;
     char* delimiter;
     char* username;
@@ -683,7 +690,8 @@ static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list) {
 }
 
 
-static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list) {
+static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list)
+{
     char* str = (char*)buf;
     char* delimiter;
     byte* publicKey64;
@@ -752,7 +760,8 @@ static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list) {
 
 static int wsUserAuth(byte authType,
                       WS_UserAuthData* authData,
-                      void* ctx) {
+                      void* ctx)
+{
     PwMapList* list;
     PwMap* map;
     byte authHash[WC_SHA256_DIGEST_SIZE];

@@ -19,7 +19,7 @@ wc_Sha256* myOutput = { 0 };
 // wc_Sha256* sha256;
 word32* data = 0;
 wc_Sha256 sha256[1];
-char* TAG = "test_task";
+static char* TAG = "test_task";
 void test_task(void *arg) {
     int i = 0;
     int len = 0;
