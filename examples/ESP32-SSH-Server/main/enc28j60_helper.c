@@ -18,7 +18,8 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define  USE_ENC28J60
+#define USE_ENC28J60
+#define JTAG_DEBUG
 
 #include "enc28j60_helper.h"
 
@@ -28,6 +29,15 @@
 #include "esp_eth_enc28j60.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+
+#define JTAG_SAFE_MISO 25
+#if defined (JTAG_DEBUG)
+    #if CONFIG_EXAMPLE_ENC28J60_MISO_GPIO == JTAG_SAFE_MISO
+        /* this is a safe GPIO to use with JTAG */
+    #else
+        #error "Must use ethernet on GPIO25 when using JTAG debugger, check sdkconfig file"
+    #endif
+#endif
 
 /* ENC28J60 doesn't burn any factory MAC address, we need to set it manually.
    02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
@@ -47,7 +57,7 @@ static uint8_t myMacAddress[] = {
  * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
  */
 #ifdef LOG_LOCAL_LEVEL
-#undef LOG_LOCAL_LEVEL
+    #undef LOG_LOCAL_LEVEL
 #endif
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
@@ -121,11 +131,21 @@ static void got_ip_event_handler(void *arg,
  * initialize the ENC28J60 wired ethernet SPI device.
  * See optional define of USE_ENC28J60
  */
-int init_ENC28J60(uint8_t MacAddressToAssign[6]) {
+int init_ENC28J60(uint8_t MacAddressToAssign[6])
+{
 #ifdef USE_ENC28J60
     ESP_LOGI(TAG, "Begin init_ENC28J60.");
 #else
     ESP_LOGI(TAG, "WARNING: init_ENC28J60 called but USE_ENC28J60 is not defined.");
+#endif
+
+
+#if defined (JTAG_DEBUG)
+    if (CONFIG_EXAMPLE_ENC28J60_MISO_GPIO != 25) {
+        /* the reality, is with a JTAG adapter on wrong pins,
+         * we likely have bigger problems */
+        ESP_LOGE(TAG, "ENC28J60 misconfigured.");
+    }
 #endif
 
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
