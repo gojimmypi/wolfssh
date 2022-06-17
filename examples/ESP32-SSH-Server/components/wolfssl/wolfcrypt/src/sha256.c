@@ -706,6 +706,7 @@ static int InitSha256(wc_Sha256* sha256)
         if (sha256 == NULL)
             return BAD_FUNC_ARG;
 
+        /* TODO no need to initialize this when doing HW */
         XMEMSET(sha256->digest, 0, sizeof(sha256->digest));
         sha256->digest[0] = 0x6A09E667L;
         sha256->digest[1] = 0xBB67AE85L;
@@ -725,7 +726,7 @@ static int InitSha256(wc_Sha256* sha256)
         sha256->ctx.sha_type = SHA2_256;
         if(sha256->ctx.mode == ESP32_SHA_HW) {
             /* release hw */
-            // esp_sha_hw_unlock();
+            esp_sha_hw_unlock();
         }
         /* always set mode as INIT
         *  whether using HW or SW is determined at first call of update()
@@ -1031,7 +1032,11 @@ wc_Sha256 sha256_copy[1];
             return BUFFER_E;
         }
 
-        /* add length for final */
+        /* add length for final; there's a 64 bit word at the end
+         * that is a count of [l] bits to hash.
+         *
+         * See FIPS180-4 "Padding the message".
+         */
         AddLength(sha256, len);
 
         local = (byte*)sha256->buffer;
@@ -1065,19 +1070,9 @@ wc_Sha256 sha256_copy[1];
                 if (sha256->ctx.mode == ESP32_SHA_SW){
                     ret = XTRANSFORM(sha256, (const byte*)local);
                 } else {
-                    ret = XTRANSFORM(sha256, (const byte*)local);
+                 //  ret = XTRANSFORM(sha256, (const byte*)local);
 
-//                    while ((DPORT_REG_READ(SHA_1_BUSY_REG)  != 0) ||
-//                         (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) ||
-//                         (DPORT_REG_READ(SHA_384_BUSY_REG) != 0) ||
-//                         (DPORT_REG_READ(SHA_512_BUSY_REG) != 0)) {}
-//                    periph_module_enable(PERIPH_SHA_MODULE);
-//                    esp_sha256_process(sha256, (const byte*)local);
-//                    while ((DPORT_REG_READ(SHA_1_BUSY_REG)  != 0) ||
-//                          (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) ||
-//                          (DPORT_REG_READ(SHA_384_BUSY_REG) != 0) ||
-//                          (DPORT_REG_READ(SHA_512_BUSY_REG) != 0)) {}
-//                    periph_module_disable(PERIPH_SHA_MODULE);
+                    esp_sha256_process(sha256, (const byte*)local);
                 }
             #else
                 ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1154,9 +1149,12 @@ wc_Sha256 sha256_copy[1];
                 if (sha256->ctx.mode == ESP32_SHA_INIT){
                     // esp_sha_try_hw_lock(&sha256->ctx);
                 }
-                if (sha256->ctx.mode == ESP32_SHA_SW){
+                if (sha256->ctx.mode == ESP32_SHA_SW) {
                     ret = XTRANSFORM(sha256, (const byte*)local32); /* S, d */
-                } else {
+                }
+                else {
+                    esp_sha256_process(sha256, (const byte*)local32);
+
                     /* duplicate sha to sha_copy */
                     XMEMCPY(sha256_copy, sha256, sizeof(wc_Sha256));
 /*
@@ -1211,15 +1209,16 @@ wc_Sha256 sha256_copy[1];
                     };
                     // ByteReverseWords((word32*)&sample, (word32*)&sample, 32);
 
-                    ret = XTRANSFORM(sha256, (const byte*)local32); /* S, d */
+                    // ret = XTRANSFORM(sha256, (const byte*)local32); /* S, d */
 
-                    esp32_Transform_Sha256(sha256_copy, (const byte*)sample);
-                    if (0 == ConstantCompare((const byte *)sha256, (const byte *)&sha256_copy[0], sizeof(wc_Sha256))) {
-                        ESP_LOGI(TAG, ">>>> HW SW match!");
-                    }
-                    else  {
-                        ESP_LOGI(TAG, ">>>> ERROR HW SW MISMATCH!");
-                    }
+
+                    // esp32_Transform_Sha256(sha256_copy, (const byte*)sample);
+                    //if (0 == ConstantCompare((const byte *)sha256, (const byte *)&sha256_copy[0], sizeof(wc_Sha256))) {
+                    //    ESP_LOGI(TAG, ">>>> HW SW match!");
+                   // }
+                   // else  {
+                   //     ESP_LOGI(TAG, ">>>> ERROR HW SW MISMATCH!");
+                   // }
                 }
             #else
                 ret = XTRANSFORM(sha256, (const byte*)local32);
@@ -1312,9 +1311,10 @@ wc_Sha256 sha256_copy[1];
             }
             if (sha256->ctx.mode == ESP32_SHA_SW) {
                 ret = XTRANSFORM(sha256, (const byte*)local);
-            } else {
-                ret = XTRANSFORM(sha256, (const byte*)local);
-                // ret = esp_sha256_process(sha256, (const byte*)local);
+            }
+            else {
+                //ret = XTRANSFORM(sha256, (const byte*)local);
+                ret = esp_sha256_process(sha256, (const byte*)local);
             }
         #else
             ret = XTRANSFORM(sha256, (const byte*)local);
@@ -1931,37 +1931,43 @@ int wc_Sha224_Grow(wc_Sha224* sha224, const byte* in, int inSz)
 
 #else
 
-int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
-{
+
+/*
+ * wc_Sha256GetHash
+ *
+ * we assume the hash has already been computed, here we return it.
+ *
+ */
+int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash) {
     int ret;
     wc_Sha256 tmpSha256;
 
     if (sha256 == NULL || hash == NULL)
         return BAD_FUNC_ARG;
-/*
+
 #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     if(sha256->ctx.mode == ESP32_SHA_INIT){
-        // esp_sha_try_hw_lock(&sha256->ctx);
+        /* TODO we probably don't want to lock just to read */
+        esp_sha_try_hw_lock(&sha256->ctx);
     }
     if(sha256->ctx.mode == ESP32_SHA_HW)
     {
         esp_sha256_digest_process(sha256, 0);
     }
 #endif
-*/
 
     /* try to copy our sha256 value into tmpSha256  */
     ret = wc_Sha256Copy(sha256, &tmpSha256);
     if (ret == 0) {
         /* only if successful, copy that into the hash param */
         ret = wc_Sha256Final(&tmpSha256, hash);
-/*
-#if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-    !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
-        sha256->ctx.mode = ESP32_SHA_SW;
-#endif
-*/
+
+        #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
+            !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+            sha256->ctx.mode = ESP32_SHA_SW;
+        #endif
+
         wc_Sha256Free(&tmpSha256);
     }
     return ret;

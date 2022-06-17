@@ -244,7 +244,6 @@ int esp32_Transform_Sha256(wc_Sha256* target_sha256, const byte* data){
         return -1;
     }
 
-    ets_sha_enable();
     /* turn it on first */
     periph_module_enable(PERIPH_SHA_MODULE);
 
@@ -392,6 +391,7 @@ static void esp_digest_state(WC_ESP32SHA* ctx, byte* hash, enum SHA_TYPE sha_typ
     esp_wait_until_idle();
 
     /* LOAD final digest */
+    /* TODO what if we repeatedly ask to read? surely this would not reset  */
     DPORT_REG_WRITE(SHA_LOAD_REG, 1);
     /* wait until done */
     while(DPORT_REG_READ(SHA_BUSY_REG) == 1){ }
@@ -468,17 +468,20 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockproc)
 int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 {
     int ret = 0;
+    // word32 SHA_START_REG = SHA_1_START_REG;
+
+    /* start register offset */
+    // SHA_START_REG += (SHA2_256 << 4);
 
     ESP_LOGV(TAG, "enter esp_sha256_process");
 
-    /*
     esp_process_block(&sha->ctx, SHA_256_START_REG, (const word32*)data,
         WC_SHA256_BLOCK_SIZE);
-*/
-    esp_process_block(sha,
-        SHA_256_START_REG,
-        (const word32*)data,
-        WC_SHA256_BLOCK_SIZE);
+
+//    esp_process_block(sha,
+//        SHA_256_START_REG,
+//        (const word32*)data,
+//        WC_SHA256_BLOCK_SIZE);
 
     ESP_LOGV(TAG, "leave esp_sha256_process");
 
