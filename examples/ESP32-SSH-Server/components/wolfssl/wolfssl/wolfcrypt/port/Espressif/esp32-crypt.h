@@ -137,7 +137,7 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
         struct wc_Sha256;
         int esp_sha256_digest_process(struct wc_Sha256* sha, byte bockprocess);
         int esp_sha256_process(struct wc_Sha256* sha, const byte* data);
-        int esp32_Transform_Sha256(struct wc_Sha256* sha256, const byte* data);
+        int esp32_Transform_Sha256_demo(struct wc_Sha256* sha256, const byte* data);
     #endif
 
     /* TODO do we really call esp_sha512_process for WOLFSSL_SHA384 ? */
