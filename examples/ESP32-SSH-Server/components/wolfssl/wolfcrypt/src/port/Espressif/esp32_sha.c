@@ -238,41 +238,13 @@ static void esp_sha_start_process(WC_ESP32SHA* sha, uint32_t address)
    ESP_LOGV(TAG, "    leave esp_sha_start_process");
 }
 
-int sha256_init()
-{
-
-    while (DPORT_REG_READ(SHA_256_BUSY_REG) == 1) {}
-
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (0 * sizeof(word32)), 0x6a09e667);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (1 * sizeof(word32)), 0xbb67ae85);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (2 * sizeof(word32)), 0x3c6ef372);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (3 * sizeof(word32)), 0xa54ff53a);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (4 * sizeof(word32)), 0x510e527f);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (5 * sizeof(word32)), 0x9b05688c);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (6 * sizeof(word32)), 0x1f83d9ab);
-//    DPORT_REG_WRITE(SHA_TEXT_BASE + (7 * sizeof(word32)), 0x5be0cd19);
-
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (0 * sizeof(word32)), __builtin_bswap32(0x6a09e667));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (1 * sizeof(word32)), __builtin_bswap32(0xbb67ae85));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (2 * sizeof(word32)), __builtin_bswap32(0x3c6ef372));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (3 * sizeof(word32)), __builtin_bswap32(0xa54ff53a));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (4 * sizeof(word32)), __builtin_bswap32(0x510e527f));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (5 * sizeof(word32)), __builtin_bswap32(0x9b05688c));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (6 * sizeof(word32)), __builtin_bswap32(0x1f83d9ab));
-    DPORT_REG_WRITE(SHA_TEXT_BASE + (7 * sizeof(word32)), __builtin_bswap32(0x5be0cd19));
-
-    DPORT_REG_WRITE(SHA_256_START_REG, 1);
-    while (DPORT_REG_READ(SHA_256_BUSY_REG) == 1) {}
-    return 0;
-}
-
 /* sample / test code */
-int esp32_Transform_Sha256(wc_Sha256* target_sha256, const byte* data)
+int esp32_Transform_Sha256_demo(wc_Sha256* target_sha256, const byte* data)
 {
     /* check if there are any busy engine */
     int i;
 
-    ESP_LOGV(TAG, ">> enter esp32_Transform_Sha256"); /* 3090 */
+    ESP_LOGV(TAG, ">> enter esp32_Transform_Sha256_demo"); /* 3090 */
 
     int len = sizeof(target_sha256->buffer);
     if (len == 0) {
@@ -285,8 +257,6 @@ int esp32_Transform_Sha256(wc_Sha256* target_sha256, const byte* data)
     while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
 
     DPORT_REG_WRITE(SHA_256_LOAD_REG, 1);
-
-    // sha256_init();
 
     while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
 
@@ -359,7 +329,7 @@ int esp32_Transform_Sha256(wc_Sha256* target_sha256, const byte* data)
 
     asm volatile("memw");
 
-    ESP_LOGV(TAG, ">> leave esp32_Transform_Sha256"); /* 3090 */
+    ESP_LOGV(TAG, ">> leave esp32_Transform_Sha256_demo"); /* 3090 */
     periph_module_disable(PERIPH_SHA_MODULE);
     return 0;
 }
