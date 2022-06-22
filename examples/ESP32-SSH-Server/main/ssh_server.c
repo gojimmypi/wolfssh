@@ -197,7 +197,9 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
 
 
 /*
- * server_worker is the main threadd for a given SSH connection
+ * server_worker is the main thread for a given SSH connection.
+ *
+ * this code is called upon initial inbound port conneciton.
  **/
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     int ret;
@@ -229,11 +231,21 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     wolfSSH_SetScpSendCtx(threadCtx->ssh, (void*)&scpBufferSend);
 #endif
 
-    if (!threadCtx->nonBlock)
+    if (!threadCtx->nonBlock) {
+        ESP_LOGV(TAG, "call wolfSSH_accept");
         ret = wolfSSH_accept(threadCtx->ssh);
-    else
+    }
+    else {
+        ESP_LOGV(TAG, "call NonBlockSSH_accept");
         ret = NonBlockSSH_accept(threadCtx->ssh);
+    }
 
+    /*
+     * only if we have a successful connection, we start polling for
+     * data to send or receive.
+     *
+     * TODO this would be a good interrupt-driven process.
+     */
     if (ret == WS_SUCCESS) {
         byte* this_rx_buf = NULL;
 
@@ -248,7 +260,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
          */
         do {
             this_rx_buf = (byte*)&sshStreamReceiveBufferArray;
-            // this_tx_buf = (byte*)&sshStreamTransmitBufferArray;
+            /* this_tx_buf = (byte*)&sshStreamTransmitBufferArray; */
 
             /* int show_msg = 0; TODO optionally disable echo of text to USB port */
             int has_err = 0;
@@ -428,15 +440,19 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                 }
             }
 
-        // taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(10));
-        //    esp_task_wdt_reset();
+/*
+TODO: any benefit to yield / watchdog reset ?
+         taskYIELD();
+         vTaskDelay(pdMS_TO_TICKS(10));
+         esp_task_wdt_reset();
+*/
         } while (!stop);
     } /* if (ret == WS_SUCCESS) */
 
     else if (ret == WS_SCP_COMPLETE) {
         WOLFSSL_ERROR_MSG("scp file transfer completed\n");
 #if defined(WOLFSSH_SCP) && defined(NO_FILESYSTEM)
+/* TODO some sort of embedded SCP could be interesting */
         WOLFSSL_ERROR_MSG("scp");
         if (scpBufferRecv.fileSz > 0) {
             word32 z;
@@ -459,7 +475,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
     wolfSSH_stream_exit(threadCtx->ssh, 0);
 
-    // check if open before closing
+    /* check if open before closing */
     if (threadCtx->fd != SOCKET_INVALID) {
         WOLFSSL_MSG("Close sockfd socket");
         close(threadCtx->fd);
@@ -561,15 +577,15 @@ typedef struct PwMapList {
 
 
 static PwMap* PwMapNew(PwMapList* list,
-    byte type,
-    const byte* username,
-    word32 usernameSz,
-    const byte* p,
-    word32 pSz)
+                       byte type,
+                       const byte* username,
+                       word32 usernameSz,
+                       const byte* p,
+                       word32 pSz)
 {
     PwMap* map;
 
-    ESP_LOGI(TAG, "Enter PwMapNew");
+    ESP_LOGI(TAG, "enter PwMapNew");
     map = (PwMap*)malloc(sizeof(PwMap));
     if (map != NULL) {
         wc_Sha256 sha;
@@ -592,7 +608,7 @@ static PwMap* PwMapNew(PwMapList* list,
         list->head = map;
     }
 
-    ESP_LOGI(TAG, "Enter PwMapNew");
+    ESP_LOGI(TAG, "leave PwMapNew: %s", username);
     return map;
 }
 
