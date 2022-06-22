@@ -345,9 +345,9 @@
           <ConnectUnderReset>false</ConnectUnderReset>
         </ExtraParameters>
         <LoadProgressGUIThreshold>131072</LoadProgressGUIThreshold>
-        <ProgramMode>Auto</ProgramMode>
+        <ProgramMode>Enabled</ProgramMode>
         <StartupCommands>
-          <string>set remotetimeout 60</string>
+          <string>set remotetimeout 120</string>
           <string>target remote :$$SYS:GDB_PORT$$</string>
           <string>mon gdb_breakpoint_override hard</string>
           <string>mon reset halt</string>
