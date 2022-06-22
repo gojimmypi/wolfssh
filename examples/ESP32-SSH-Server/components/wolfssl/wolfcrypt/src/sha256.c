@@ -35,6 +35,19 @@ where 0 <= L < 2^64.
 
 #include <wolfssl/wolfcrypt/settings.h>
 
+/* determine if we are using SHA hardware acceleration */
+#if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
+    !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+    /* define a single keyword for simplicity & readability
+     * by default the HW accleration is on for ESP32-WROOM32
+     * but individual compoents can be turned off.
+     */
+    #define WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW
+#else
+    #undef USE_ESP32WROOM32_CRYPT_HASH
+#endif
+
+
 /*
  * SHA256 Build Options:
  * USE_SLOW_SHA256:            Reduces code size by not partially unrolling
@@ -135,11 +148,16 @@ where 0 <= L < 2^64.
 
 #elif defined(WOLFSSL_PSOC6_CRYPTO)
 
-    /* TODO what goes here ? */
+
+    /* TODO what goes here? Intentially blank? */
+
 
 #else
 
-/* the rest of this file: */
+/* everything else:
+ *
+ * no WOLFSSL_TI_HASH, no WOLFSSL_CRYPTOCELL, no WOLFSSL_PSOC6_CRYPTO
+ */
 
 #include <wolfssl/wolfcrypt/logging.h>
 
@@ -741,14 +759,17 @@ where 0 <= L < 2^64.
         return ret;
     }
 
-#elif defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-    !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+#elif defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
 
+    /* HW may fail since there's one one, so we still need SW */
     #define NEED_SOFT_SHA256
 
+    /*
+     * soft SHA needs initialization digest, but HW does not.
+     */
     static int InitSha256(wc_Sha256* sha256)
     {
-        int ret = 0;
+        int ret = 0; /* zero = success */
 
         if (sha256 == NULL)
             return BAD_FUNC_ARG;
@@ -772,8 +793,9 @@ where 0 <= L < 2^64.
         sha256->ctx.sha_type = SHA2_256;
         if(sha256->ctx.mode == ESP32_SHA_HW) {
             /* release hw */
-            esp_sha_hw_unlock();
+            esp_sha_hw_unlock(&(sha256->ctx));
         }
+
         /* always set mode as INIT
         *  whether using HW or SW is determined at first call of update()
         */
@@ -781,9 +803,13 @@ where 0 <= L < 2^64.
 
         return ret;
     }
+
+    /*
+     * wolfCrypt InitSha256 external wrapper
+     */
     int wc_InitSha256_ex(wc_Sha256* sha256, void* heap, int devId)
     {
-        int ret = 0;
+        int ret = 0; /* zero = success */
 
         if (sha256 == NULL)
             return BAD_FUNC_ARG;
@@ -791,6 +817,7 @@ where 0 <= L < 2^64.
         XMEMSET(sha256, 0, sizeof(wc_Sha256));
         sha256->ctx.mode = ESP32_SHA_INIT;
         sha256->ctx.isfirstblock = 1;
+        sha256->ctx.lockDepth = 0; /* we'll keep track of our own lock depth */
         (void)devId;
 
         ret = InitSha256(sha256);
@@ -1059,17 +1086,19 @@ where 0 <= L < 2^64.
     }
 
     /* do block size increments/updates */
-    static WC_INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
+    static WC_INLINE int Sha256Update(wc_Sha256* sha256,
+                                      const byte* data_to_hash,
+                                      word32 len)
     {
         int ret = 0;
         word32 blocksLen;
         byte* local;
 
-        if (sha256 == NULL || (data == NULL && len > 0)) {
+        if (sha256 == NULL || (data_to_hash == NULL && len > 0) || len < 0) {
             return BAD_FUNC_ARG;
         }
 
-        if (data == NULL && len == 0) {
+        if (data_to_hash == NULL && len == 0) {
             /* valid, but do nothing */
             return 0;
         }
@@ -1087,10 +1116,10 @@ where 0 <= L < 2^64.
         /* process any remainder from previous operation */
         if (sha256->buffLen > 0) {
             blocksLen = min(len, WC_SHA256_BLOCK_SIZE - sha256->buffLen);
-            XMEMCPY(&local[sha256->buffLen], data, blocksLen);
+            XMEMCPY(&local[sha256->buffLen], data_to_hash, blocksLen);
 
             sha256->buffLen += blocksLen;
-            data            += blocksLen;
+            data_to_hash    += blocksLen;
             len             -= blocksLen;
 
             if (sha256->buffLen == WC_SHA256_BLOCK_SIZE) {
@@ -1105,24 +1134,30 @@ where 0 <= L < 2^64.
                 }
             #endif
 
-            #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-                !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
-                if (sha256->ctx.mode == ESP32_SHA_INIT){
+            #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+                if (sha256->ctx.mode == ESP32_FAIL_NEED_INIT) {
+                    sha256->ctx.mode = ESP32_SHA_INIT;
+                }
+                if (sha256->ctx.mode == ESP32_SHA_INIT) {
                     esp_sha_try_hw_lock(&sha256->ctx);
                 }
-                if (sha256->ctx.mode == ESP32_SHA_SW){
+
+                if (sha256->ctx.mode == ESP32_SHA_SW) {
                     ret = XTRANSFORM(sha256, (const byte*)local);
-                } else {
+                }
+                else {
                     esp_sha256_process(sha256, (const byte*)local);
                 }
-            #else
+#else
                 ret = XTRANSFORM(sha256, (const byte*)local);
             #endif
 
-                if (ret == 0)
+                if (ret == 0) {
                     sha256->buffLen = 0;
-                else
+                }
+                else {
                     len = 0; /* error */
+                }
             }
         }
 
@@ -1166,10 +1201,10 @@ where 0 <= L < 2^64.
                 else
             #endif
                 {
-                    XMEMCPY(local32, data, WC_SHA256_BLOCK_SIZE);
+                    XMEMCPY(local32, data_to_hash, WC_SHA256_BLOCK_SIZE);
                 }
 
-                data += WC_SHA256_BLOCK_SIZE;
+                data_to_hash += WC_SHA256_BLOCK_SIZE;
                 len  -= WC_SHA256_BLOCK_SIZE;
 
             #if defined(LITTLE_ENDIAN_ORDER) && !defined(FREESCALE_MMCAU_SHA)
@@ -1182,29 +1217,30 @@ where 0 <= L < 2^64.
                 }
             #endif
 
-            #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-                !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+            #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
                 if (sha256->ctx.mode == ESP32_SHA_INIT){
                     esp_sha_try_hw_lock(&sha256->ctx);
                 }
-                if (sha256->ctx.mode == ESP32_SHA_SW){
+                if (sha256->ctx.mode == ESP32_SHA_SW) {
                     ret = XTRANSFORM(sha256, (const byte*)local32);
-                } else {
+                }
+                else {
                     esp_sha256_process(sha256, (const byte*)local32);
                 }
-            #else
+#else
                 ret = XTRANSFORM(sha256, (const byte*)local32);
             #endif
 
-                if (ret != 0)
+                if (ret != 0) {
                     break;
+                }
             }
         }
     #endif
 
         /* save remainder */
         if (ret == 0 && len > 0) {
-            XMEMCPY(local, data, len);
+            XMEMCPY(local, data_to_hash, len);
             sha256->buffLen = len;
         }
 
@@ -1257,7 +1293,7 @@ where 0 <= L < 2^64.
         }
 
         local = (byte*)sha256->buffer;
-        local[sha256->buffLen++] = 0x80; /* add 1 */
+        local[sha256->buffLen++] = 0x80; /* add 1-bit end. see FIPS PUB 180-4 */
 
         /* pad with zeros */
         if (sha256->buffLen > WC_SHA256_PAD_SIZE) {
@@ -1276,14 +1312,14 @@ where 0 <= L < 2^64.
             }
         #endif
 
-        #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-             !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+        #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
             if (sha256->ctx.mode == ESP32_SHA_INIT) {
                 esp_sha_try_hw_lock(&sha256->ctx);
             }
             if (sha256->ctx.mode == ESP32_SHA_SW) {
                 ret = XTRANSFORM(sha256, (const byte*)local);
-            } else {
+            }
+            else {
                 ret = esp_sha256_process(sha256, (const byte*)local);
             }
         #else
@@ -1333,14 +1369,14 @@ where 0 <= L < 2^64.
         }
     #endif
 
-    #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-         !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
+    #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
         if (sha256->ctx.mode == ESP32_SHA_INIT) {
             esp_sha_try_hw_lock(&sha256->ctx);
         }
         if (sha256->ctx.mode == ESP32_SHA_SW) {
             ret = XTRANSFORM(sha256, (const byte*)local);
-        } else {
+        }
+        else {
             ret = esp_sha256_digest_process(sha256, 1);
         }
     #else
@@ -1400,8 +1436,9 @@ where 0 <= L < 2^64.
     #endif /* WOLFSSL_ASYNC_CRYPT */
 
         ret = Sha256Final(sha256);
-        if (ret != 0)
+        if (ret != 0) {
             return ret;
+        }
 
     #if defined(LITTLE_ENDIAN_ORDER)
         ByteReverseWords(sha256->digest, sha256->digest, WC_SHA256_DIGEST_SIZE);
@@ -1925,6 +1962,7 @@ void wc_Sha256Free(wc_Sha256* sha256)
 
 #else
 
+
 int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
 {
     int ret;
@@ -1934,9 +1972,15 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
         return BAD_FUNC_ARG;
     }
 
-#if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-    !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
-    if(sha256->ctx.mode == ESP32_SHA_INIT){
+#if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+
+    /* ESP32 hardware can only handle only 1 active hardware hashing
+     * at a time. If the mutex lock is acquired the first time then
+     * that Sha256 instance has exclusive access to hardware. The
+     * final or free needs to release the mutex. Operations that
+     * do not get the lock fallback to software based Sha256 */
+
+   if(sha256->ctx.mode == ESP32_SHA_INIT){
         esp_sha_try_hw_lock(&sha256->ctx);
     }
     if(sha256->ctx.mode == ESP32_SHA_HW)
@@ -1948,17 +1992,25 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
     if (ret == 0) {
         ret = wc_Sha256Final(&tmpSha256, hash);
 
-        #if  defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-            !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
-            {
-                sha256->ctx.mode = ESP32_SHA_SW;
-            }
-        #endif
+    #if  defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+    {
+        sha256->ctx.mode = ESP32_SHA_SW; /* TODO why assign SW here? */
+    }
+    #endif
 
         wc_Sha256Free(&tmpSha256);
     }
+
+#if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+    /* TODO: Make sure the ESP32 crypto mutex is released (in case final is not
+     * called */
+#endif
     return ret;
 }
+
+/*
+ * copy hash object (and properties) from srouce to destination
+ */
 int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
 {
     int ret = 0;
@@ -1986,11 +2038,11 @@ int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
         ret = wc_Pic32HashCopy(&src->cache, &dst->cache);
     #endif
 
-    #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
-        !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
-         dst->ctx.mode = src->ctx.mode;
-         dst->ctx.isfirstblock = src->ctx.isfirstblock;
-         dst->ctx.sha_type = src->ctx.sha_type;
+    #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+        dst->ctx.mode         = src->ctx.mode;
+        dst->ctx.isfirstblock = src->ctx.isfirstblock;
+        dst->ctx.sha_type     = src->ctx.sha_type;
+        dst->ctx.lockDepth    = src->ctx.lockDepth; /* TODO change? */
     #endif
 
     #ifdef WOLFSSL_HASH_FLAGS

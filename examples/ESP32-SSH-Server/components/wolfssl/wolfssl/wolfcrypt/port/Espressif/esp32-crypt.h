@@ -116,28 +116,35 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
         ESP32_SHA_INIT = 0,
         ESP32_SHA_HW = 1,
         ESP32_SHA_SW = 2,
-    } ESP32_DOSHA;
+        ESP32_FAIL_NEED_INIT = -1
+    } ESP32_MODE;
 
     typedef struct {
         byte isfirstblock;
-        /* 0 , 1 hard, 2 soft */
-        byte mode;
-        /* sha_type */
+
+        ESP32_MODE mode; /* typically 0 init, 1 HW, 2 SW */
+
+        /* we'll keep track of our own locks.
+         * actual enable/disable only occurs for ref_counts[periph] == 0 */
+        int lockDepth; /* see ref_counts[periph] in periph_ctrl.c */
+
         enum SHA_TYPE sha_type;
     } WC_ESP32SHA;
 
     int esp_sha_try_hw_lock(WC_ESP32SHA* ctx);
-    void esp_sha_hw_unlock( void );
+    int esp_sha_hw_unlock(WC_ESP32SHA* ctx);
 
     struct wc_Sha;
-    int esp_sha_digest_process(struct wc_Sha* sha, byte bockprocess);
+    int esp_sha_digest_process(struct wc_Sha* sha, byte blockprocess);
     int esp_sha_process(struct wc_Sha* sha, const byte* data);
 
     #ifndef NO_SHA256
         struct wc_Sha256;
-        int esp_sha256_digest_process(struct wc_Sha256* sha, byte bockprocess);
+        int esp_sha256_digest_process(struct wc_Sha256* sha, byte blockprocess);
         int esp_sha256_process(struct wc_Sha256* sha, const byte* data);
         int esp32_Transform_Sha256_demo(struct wc_Sha256* sha256, const byte* data);
+
+
     #endif
 
     /* TODO do we really call esp_sha512_process for WOLFSSL_SHA384 ? */
