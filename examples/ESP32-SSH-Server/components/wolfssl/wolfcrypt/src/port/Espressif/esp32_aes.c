@@ -128,19 +128,23 @@ static void esp_aes_hw_Leave( void )
  */
 static void esp_aes_hw_Set_KeyMode(Aes *ctx, ESP32_AESPROCESS mode)
 {
-    int i;
+    word32 i;
     word32 mode_ = 0;
 
-    ESP_LOGV(TAG, "enter esp_aes_hw_Set_KeyMode");
+    ESP_LOGV(TAG, "  enter esp_aes_hw_Set_KeyMode");
 
     /* check mode */
     if(mode == ESP32_AES_UPDATEKEY_ENCRYPT) {
         mode_ = 0;
-    } else if(mode == ESP32_AES_UPDATEKEY_DECRYPT){
-        mode_ = 4;
-    } else {
-        ESP_LOGE(TAG, "unexpected error.");
-        return;
+    }
+    else {
+        if (mode == ESP32_AES_UPDATEKEY_DECRYPT) {
+            mode_ = 4;
+        }
+        else {
+            ESP_LOGE(TAG, "  >> unexpected error.");
+            return;
+        }
     }
 
     /* update key */
@@ -163,7 +167,7 @@ static void esp_aes_hw_Set_KeyMode(Aes *ctx, ESP32_AESPROCESS mode)
     }
 
     DPORT_REG_WRITE(AES_MODE_REG, mode_);
-    ESP_LOGV(TAG, "leave esp_aes_hw_Setkey");
+    ESP_LOGV(TAG, "  leave esp_aes_hw_Setkey");
 }
 
 /*
@@ -174,7 +178,7 @@ static void esp_aes_bk(const byte* in, byte* out)
     const word32 *inwords = (const word32 *)in;
     word32 *outwords      = (word32 *)out;
 
-    ESP_LOGV(TAG, "enter esp_aes_bk");
+    // ESP_LOGV(TAG, "enter esp_aes_bk");
 
     /* copy text for encrypting/decrypting blocks */
     DPORT_REG_WRITE(AES_TEXT_BASE, inwords[0]);
@@ -196,7 +200,7 @@ static void esp_aes_bk(const byte* in, byte* out)
 
     /* read-out blocks */
     esp_dport_access_read_buffer(outwords, AES_TEXT_BASE, 4);
-    ESP_LOGV(TAG, "leave esp_aes_bk");
+    // ESP_LOGV(TAG, "leave esp_aes_bk");
 }
 
 /*

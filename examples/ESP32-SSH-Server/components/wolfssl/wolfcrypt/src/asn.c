@@ -5424,11 +5424,15 @@ int GetAlgoId(const byte* input, word32* inOutIdx, word32* oid,
 
     WOLFSSL_ENTER("GetAlgoId");
 
-    if (GetSequence(input, &idx, &length, maxIdx) < 0)
+    if (GetSequence(input, &idx, &length, maxIdx) < 0) {
+        WOLFSSL_LEAVE("GetAlgoId ASN_PARSE_E", ASN_PARSE_E);
         return ASN_PARSE_E;
+    }
 
-    if (GetObjectId(input, &idx, oid, oidType, maxIdx) < 0)
+    if (GetObjectId(input, &idx, oid, oidType, maxIdx) < 0) {
+        WOLFSSL_LEAVE("GetAlgoId ASN_OBJECT_ID_E", ASN_OBJECT_ID_E);
         return ASN_OBJECT_ID_E;
+    }
 
     /* could have NULL tag and 0 terminator, but may not */
     if (idx < maxIdx) {
@@ -5438,13 +5442,16 @@ int GetAlgoId(const byte* input, word32* inOutIdx, word32* oid,
         if (GetASNTag(input, &localIdx, &tag, maxIdx) == 0) {
             if (tag == ASN_TAG_NULL) {
                 ret = GetASNNull(input, &idx, maxIdx);
-                if (ret != 0)
+                if (ret != 0) {
+                    WOLFSSL_LEAVE("GetAlgoId", ret);
                     return ret;
+                }
             }
         }
     }
 
     *inOutIdx = idx;
+    WOLFSSL_LEAVE("GetAlgoId", 0);
 
     return 0;
 #else

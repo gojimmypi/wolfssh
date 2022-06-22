@@ -639,7 +639,8 @@ static int Hash_DRBG_Generate(DRBG_internal* drbg, byte* out, word32 outSz)
 
     if (drbg->reseedCtr == RESEED_INTERVAL) {
         return DRBG_NEED_RESEED;
-    } else {
+    }
+    else {
     #ifdef WC_ASYNC_ENABLE_SHA256
         WC_DECLARE_VAR(digest, byte, WC_SHA256_DIGEST_SIZE, drbg->heap);
         if (digest == NULL)

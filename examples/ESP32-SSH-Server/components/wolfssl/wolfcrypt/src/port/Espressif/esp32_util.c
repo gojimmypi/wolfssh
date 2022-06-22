@@ -33,7 +33,7 @@
  * returns:
  *   0 upon success,
  *   BAD_MUTEX_E for null mutex
- *   other non-zero error from wc_InitMutex()
+ *   other value from wc_InitMutex()
  *
  */
 int esp_CryptHwMutexInit(wolfSSL_Mutex* mutex) {
@@ -50,7 +50,7 @@ int esp_CryptHwMutexInit(wolfSSL_Mutex* mutex) {
  */
 int esp_CryptHwMutexLock(wolfSSL_Mutex* mutex, TickType_t xBlockTime) {
     if (mutex == NULL) {
-        WOLFSSL_ERROR_MSG("esp_CryptHwMutexLock called sith null mutex");
+        WOLFSSL_ERROR_MSG("esp_CryptHwMutexLock called with null mutex");
         return BAD_MUTEX_E;
     }
 
