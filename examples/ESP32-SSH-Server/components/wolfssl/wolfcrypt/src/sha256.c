@@ -1135,10 +1135,11 @@ where 0 <= L < 2^64.
             #endif
 
             #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
-                if (sha256->ctx.mode == ESP32_FAIL_NEED_INIT) {
-                    sha256->ctx.mode = ESP32_SHA_INIT;
-                }
-                if (sha256->ctx.mode == ESP32_SHA_INIT) {
+//                if (sha256->ctx.mode == ESP32_SHA_FAIL_NEED_UNROLL) {
+//                    sha256->ctx.mode = ESP32_SHA_INIT;
+//                }
+                if (sha256->ctx.mode == ESP32_SHA_INIT ||
+                    sha256->ctx.mode == ESP32_SHA_FAIL_NEED_UNROLL) {
                     esp_sha_try_hw_lock(&sha256->ctx);
                 }
 
@@ -1148,7 +1149,7 @@ where 0 <= L < 2^64.
                 else {
                     esp_sha256_process(sha256, (const byte*)local);
                 }
-#else
+            #else
                 ret = XTRANSFORM(sha256, (const byte*)local);
             #endif
 
