@@ -388,8 +388,9 @@ static int Hash_df(DRBG_internal* drbg, byte* out, word32 outSz, byte type,
     #else
         ret = wc_InitSha256(sha);
     #endif
-        if (ret != 0) /* TODO we don't want to break here, as we need to zeroize */
+        if (ret != 0) {
             break;
+        }
 #endif
         ret = wc_Sha256Update(sha, &ctr, sizeof(ctr));
         if (ret == 0) {
@@ -535,16 +536,23 @@ static int Hash_gen(DRBG_internal* drbg, byte* out, word32 outSz, const byte* V)
 
     /* hash all the blocks */
     for (i = 0; i < len; i++) {
-/* TODO really only init for not WOLFSSL_SMALL_STACK_CACHE ? */
+
+        /* WOLFSSL_SMALL_STACK_CACHE is used mainly for SHA256 with the RNG to
+         * keep the SHA256 struct off the stack and put into the WC_RNG struct.
+         * Prevents the init/free from having to be called over and over.
+         * Re-use the SHA256.
+         */
 #ifndef WOLFSSL_SMALL_STACK_CACHE
     #if defined(WOLFSSL_ASYNC_CRYPT) || defined(WOLF_CRYPTO_CB)
         ret = wc_InitSha256_ex(sha, drbg->heap, drbg->devId);
     #else
         ret = wc_InitSha256(sha);
     #endif
-        if (ret == 0)
+        if (ret != 0) {
+            break;
+        }
 #endif
-            ret = wc_Sha256Update(sha, data, sizeof(data));
+        ret = wc_Sha256Update(sha, data, sizeof(data));
         if (ret == 0) {
             ret = wc_Sha256Final(sha, digest);
         }

@@ -7345,10 +7345,17 @@ int SendKexDhReply(WOLFSSH* ssh)
                                                 ssh->handshake->eSz,
                                                 pubKey, primeId);
 
-                if (ret == 0)
+                if (ret == 0) {
+                    /* note that for HW acceleration, this next step
+                     * will likely need to fall back to SW as there's
+                     * still an incomplete hash being assembled in
+                     * &ssh->handshake->hash  (see above)
+                     * see also next wc_HashUpdate(), below. */
                     ret = wc_ecc_make_key_ex(ssh->rng,
-                                         wc_ecc_get_curve_size_from_id(primeId),
-                                         privKey, primeId);
+                        wc_ecc_get_curve_size_from_id(primeId),
+                        privKey,
+                        primeId);
+                }
                 if (ret == 0) {
                 #ifdef PRIVATE_KEY_UNLOCK
                     PRIVATE_KEY_UNLOCK();

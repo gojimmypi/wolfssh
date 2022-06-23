@@ -19,7 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-/* For more info on the algorithm, see https://tools.ietf.org/html/rfc6234 */
+/* For more info on the algorithm, see https://tools.ietf.org/html/rfc6234
+ *
+ * For more information on NIST FIPS PUB 180-4, see
+ * https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
+ */
+
 /*
 
 DESCRIPTION
@@ -28,7 +33,11 @@ SHA-256 performs processing on message blocks to produce a final hash digest
 output. It can be used to hash a message, M, having a length of L bits,
 where 0 <= L < 2^64.
 
+Note that in some cases, hardware acceleration may be enabled, depending
+on the specific device platform.
+
 */
+
 #ifdef HAVE_CONFIG_H
     #include <config.h>
 #endif
@@ -39,6 +48,7 @@ where 0 <= L < 2^64.
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     /* define a single keyword for simplicity & readability
+     *
      * by default the HW accleration is on for ESP32-WROOM32
      * but individual compoents can be turned off.
      */
@@ -1135,9 +1145,6 @@ where 0 <= L < 2^64.
             #endif
 
             #if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
-//                if (sha256->ctx.mode == ESP32_SHA_FAIL_NEED_UNROLL) {
-//                    sha256->ctx.mode = ESP32_SHA_INIT;
-//                }
                 if (sha256->ctx.mode == ESP32_SHA_INIT ||
                     sha256->ctx.mode == ESP32_SHA_FAIL_NEED_UNROLL) {
                     esp_sha_try_hw_lock(&sha256->ctx);
@@ -1154,6 +1161,7 @@ where 0 <= L < 2^64.
             #endif
 
                 if (ret == 0) {
+                    /* once we completed a block, reset length for next block*/
                     sha256->buffLen = 0;
                 }
                 else {
