@@ -23,7 +23,7 @@
 #endif
 
 #include <wolfssl/wolfcrypt/settings.h>
-
+/*****************************************************************************/
 /* this entire file content is excluded when NO_SHA, NO_SHA256
  * or when using WC_SHA384 or WC_SHA512
  */
@@ -38,7 +38,7 @@
    !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
 
 /* TODO this may be chip type dependant: */
-#include <hal/clk_gate_ll.h>
+#include <hal/clk_gate_ll.h> /* ESP32-WROOM */
 
 #include <wolfssl/wolfcrypt/sha.h>
 #include <wolfssl/wolfcrypt/sha256.h>
@@ -135,43 +135,60 @@ static void wc_esp_wait_until_idle()
  * hack alert. there really should have been something implemented
  * in periph_ctrl.c to detect ref_counts[periph] depth.
  *
+ * since there is not at this time, we have this brute-force method.
+ *
+ * when trying to unwrap an arbitrary depth of periperhal-enable(s),
+ * we'll check the register upon *enable* to see if we actuall did.
+ *
+ * Note that enable / disable only occurs when ref_counts[periph] == 0
+ *
  * TODO: check if this works with other ESP32 platforms ESP32-C3, ESP32-S3, etc
- *
- * since there is not at this time, we have this brute-force method:
- *
  */
 int esp_unroll_sha_module_enable(WC_ESP32SHA* ctx)
 {
-    /* there was a prior unexpected fail and we need to unroll enables */
+    /* if we end up here, there was a prior unexpected fail and
+     * we need to unroll enables */
     int ret = 0; /* assume succcess unless proven otherwose */
-    int i;
-    uint32_t this_sha_mask;
+    uint32_t this_sha_mask; /* this is the bit-mask for our SHA CLK_EN_REG */
     int actual_unroll_count = 0;
+    int max_unroll_count = 1000; /* never get stuck in a hardware wait loop */
 
-    /* TODO update to while() */
-    for (i = 0; i < ctx->lockDepth; i++) {
-        /* unwind prior calls to THIS ctx. decrement ref_counts[periph] */
+    this_sha_mask = periph_ll_get_clk_en_mask(PERIPH_SHA_MODULE);
+
+    /* unwind prior calls to THIS ctx. decrement ref_counts[periph] */
+    /* only when ref_counts[periph] == 0 does something actuall happen */
+
+    /* once the value we read is a 0 in the DPORT_PERI_CLK_EN_REG bit
+     * then we have fully unrolled the enables via ref_counts[periph]==0 */
+    while ((this_sha_mask & *(uint32_t*)DPORT_PERI_CLK_EN_REG) != 0) {
         periph_module_disable(PERIPH_SHA_MODULE);
         actual_unroll_count++;
-        /* only when ref_counts[periph] == 0 does something actuall happen */
-        this_sha_mask = periph_ll_get_clk_en_mask(PERIPH_SHA_MODULE);
+        ESP_LOGI(TAG, "unroll not yet successful. try #%d",
+                 actual_unroll_count);
 
-        /* once the value we read is a 0 in the DPORT_PERI_CLK_EN_REG bit
-         * then we have fully unrolled the enables via ref_counts[periph]==0 */
-        if ((this_sha_mask & *(uint32_t*)DPORT_PERI_CLK_EN_REG) == 0) {
-            ESP_LOGI(TAG, "unroll complete!\n");
+        /* we'll only try this some unreasonable number of times
+         * before giving up */
+        if (actual_unroll_count > max_unroll_count) {
+            ret = -1; /* failed to unroll */
             break;
         }
-        else {
-            ESP_LOGI(TAG, "unroll not yet successful. try #%d", actual_unroll_count);
+    }
+
+    if (ret == 0) {
+        if (ctx->lockDepth != actual_unroll_count) {
+            /* this could be a warning of wonkiness in RTOS envirvonment.
+             * we were successful, but not expected depth count*/
+
+            ESP_LOGE(TAG, "warning lockDepth mismatch.");
         }
+        ctx->lockDepth = 0;
+        ctx->mode = ESP32_SHA_INIT;
     }
-    if (ctx->lockDepth != actual_unroll_count) {
-        /* this could be a warning of wokiness in RTOS envirvonment */
-        ESP_LOGE(TAG, "lockDepth mismatch\n");
+    else {
+        ESP_LOGE(TAG, "Failed to unroll after %d attempts.",
+                 actual_unroll_count);
+        ctx->mode = ESP32_SHA_SW;
     }
-    ctx->lockDepth = 0;
-    ctx->mode = ESP32_SHA_INIT;
     return ret;
 }
 
@@ -211,7 +228,7 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
         ESP_LOGE(TAG, "unexpected error in esp_sha_try_hw_lock.");
         return -1;
     }
-#else
+#else /* not defined(SINGLE_THREADED) */
     /*
      * there's only one SHA engine for all the hash types
      * so when any hash is in use, no others can use it.
@@ -229,11 +246,6 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
 
     */
 
-    /* check to see if we had a prior fail and need to unroll enables */
-    if (ctx->mode == ESP32_SHA_FAIL_NEED_UNROLL) {
-        ret = esp_unroll_sha_module_enable(ctx);
-    }
-
     if (espsha_CryptHwMutexInit == 0) {
         ESP_LOGV(TAG, "set esp_CryptHwMutexInit");
         ret = esp_CryptHwMutexInit(&sha_mutex);
@@ -243,6 +255,7 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
         else {
             ESP_LOGE(TAG, " mutex initialization failed. revert to sofware");
             ctx->mode = ESP32_SHA_SW;
+            /* espsha_CryptHwMutexInit is still zero */
             return 0; /* success, just not using HW */
         }
     }
@@ -252,15 +265,16 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
         /* try to lock the hw engine */
         ESP_LOGV(TAG, "ESP32_SHA_INIT\n");
 
-        /* we don't wait: either the engine is free,
-         * or we fall back to SW
+        /* we don't wait:
+         * either the engine is free, or we fall back to SW
          */
         if (esp_CryptHwMutexLock(&sha_mutex, (TickType_t)0) == 0) {
-            ctx->mode = ESP32_SHA_HW;
+            /* check to see if we had a prior fail and need to unroll enables */
+            ret = esp_unroll_sha_module_enable(ctx);
             ESP_LOGV(TAG, "Hardware Mode, lock depth = %d", ctx->lockDepth);
         }
         else {
-            ESP_LOGI(TAG, ">>>> Hardware Mode REVERT to ESP32_SHA_SW");
+            ESP_LOGI(TAG, ">>>> Hardware in use; Mode REVERT to ESP32_SHA_SW");
             ctx->mode = ESP32_SHA_SW;
             return 0; /* success, but revert to SW */
         }
@@ -270,14 +284,22 @@ int esp_sha_try_hw_lock(WC_ESP32SHA* ctx)
         ESP_LOGE(TAG, "unexpected error in esp_sha_try_hw_lock.");
         return -1;
     }
-#endif
-   /* Enable SHA hardware only if no premature exit */
-    ctx->lockDepth++; /* depth for THIS ctx (there could be others!) */
-    periph_module_enable(PERIPH_SHA_MODULE);
+#endif /* not defined(SINGLE_THREADED) */
+
+    if (ret == 0) {
+        ctx->lockDepth++; /* depth for THIS ctx (there could be others!) */
+        periph_module_enable(PERIPH_SHA_MODULE);
+        ctx->mode = ESP32_SHA_HW;
+    }
+    else {
+        ESP_LOGI(TAG, ">>>> Other problem; Mode REVERT to ESP32_SHA_SW");
+        ctx->mode = ESP32_SHA_SW;
+    }
 
     ESP_LOGV(TAG, "leave esp_sha_hw_lock");
     return ret;
-}
+} /* esp_sha_try_hw_lock */
+
 /*
 * release hw engine. when we don't have it locked, SHA module is DISABLED
 */
@@ -296,9 +318,10 @@ int esp_sha_hw_unlock(WC_ESP32SHA* ctx)
     #endif
 
     /* we'll keep track of our lock depth.
-     * in case of unexpected results, all the periph_module_disable()
-     * and periph_module_disable() need to be unwound. see ref_counts[periph]
-     * in file: periph_ctrl.c */
+     * in case of unexpected results, all the periph_module_disable() calls
+     * and periph_module_disable() need to be unwound.
+     *
+     * see ref_counts[periph] in file: periph_ctrl.c */
     if (ctx->lockDepth > 0) {
         ctx->lockDepth--;
     }
@@ -306,10 +329,9 @@ int esp_sha_hw_unlock(WC_ESP32SHA* ctx)
         ctx->lockDepth = 0;
     }
 
-
     ESP_LOGV(TAG, "leave esp_sha_hw_unlock");
     return 0;
-}
+} /* esp_sha_hw_unlock */
 
 /*
 * start sha process by using hw engine.
@@ -391,7 +413,8 @@ static int esp_sha_start_process(WC_ESP32SHA* sha)
         #endif
 
             default:
-                sha->mode = ESP32_FAIL_NEED_INIT;
+                /* error for unsupported other values */
+                sha->mode = ESP32_SHA_FAIL_NEED_UNROLL;
                 ret = -1;
                 break;
        }
@@ -448,13 +471,15 @@ int esp32_Transform_Sha256_demo(wc_Sha256* target_sha256, const byte* data)
 
     /* TODO manually add 0x80 and zero padding, currently manual*/
 
-    /* instructions before volatile memory references to guarantee sequential consistency */
-    /*  At least one MEMW should be executed in between every load or store to a volatile variable*/
+    /* instructions before volatile memory references to guarantee sequential
+     * consistency. At least one MEMW should be executed in between every load
+     * or store to a volatile variable */
     asm volatile("memw");
 
-    /* start, the computation is hidden, the SHA_TEXT_BASE registers don't change
-     * if  START_REG is not used, the result registers words [0..7] contain zero.
-     **/
+    /* start, the computation is hidden, the SHA_TEXT_BASE registers don't
+     * change. If START_REG is not used, the result registers words [0..7]
+     * contain zero.
+     */
     DPORT_REG_WRITE(SHA_256_START_REG, 1);
     // DPORT_REG_WRITE(SHA_256_CONTINUE_REG, 1);
     while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
@@ -463,7 +488,8 @@ int esp32_Transform_Sha256_demo(wc_Sha256* target_sha256, const byte* data)
 
     while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
 
-    /* this is where the hidden SHA calculation is actually presented in the SHA_TEXT_BASE registers */
+    /* this is where the hidden SHA calculation is actually presented in the
+     * SHA_TEXT_BASE registers */
     DPORT_REG_WRITE(SHA_256_LOAD_REG, 1);
 
     // asm volatile("memw");
@@ -471,8 +497,9 @@ int esp32_Transform_Sha256_demo(wc_Sha256* target_sha256, const byte* data)
     /* wait for completion */
     while (DPORT_REG_READ(SHA_256_BUSY_REG) != 0) {}
 
-    /* instructions before volatile memory references to guarantee sequential consistency */
-    /*  At least one MEMW should be executed in between every load or store to a volatile variable*/
+    /* instructions before volatile memory references to guarantee sequential
+     * consistency. At least one MEMW should be executed in between every load
+     * or store to a volatile variable */
     asm volatile("memw");
 
     /* read results into digest */
@@ -481,19 +508,22 @@ int esp32_Transform_Sha256_demo(wc_Sha256* target_sha256, const byte* data)
         ESP_LOGI(TAG, "size warning!");
     }
 
-    // asm volatile("memw");
+    // TODO check compilter: asm volatile("memw");
 
-    // the answer is in the first [n] bytes: ((uint32_t[32])  (*(volatile uint32_t *)(SHA_TEXT_BASE)))
-
+    /* the answer is in the first [n] bytes:
+     * ((uint32_t[32])  (*(volatile uint32_t *)(SHA_TEXT_BASE)))
+     */
     esp_dport_access_read_buffer(
         (uint32_t *)target_sha256->digest,
         SHA_TEXT_BASE,
         wc_esp_sha_digest_size(SHA2_256) / sizeof(word32)
     );
 
-    // Software divides the message into blocks according to "5.2 Parsing the Message"
-    // 512 bits of the input block may be expressed as sixteen 32-bit words
-    // in FIPS PUB 180 - 4 and writes one block to the SHA_TEXT_n_REG registers each time
+    /* Software divides the message into blocks according to
+     * "5.2 Parsing the Message"; 512 bits of the input block may be expressed
+     * as sixteen 32-bit words and writes one block to the SHA_TEXT_n_REG
+     * registers each time. See FIPS PUB 180 - 4
+    */
     for (size_t i = 0; i < word_len; i++) {
         target_sha256->digest[i] = __builtin_bswap32(sha_text_reg[i]);
     }
@@ -558,6 +588,7 @@ int wc_esp_digest_state(WC_ESP32SHA* ctx, byte* hash)
 
     /* sanity check */
     if (ctx->sha_type == SHA_INVALID) {
+        ctx->mode = ESP32_SHA_FAIL_NEED_UNROLL;
         ESP_LOGE(TAG, "unexpected error. sha_type is invalid.");
         return -1;
     }
@@ -593,6 +624,7 @@ int wc_esp_digest_state(WC_ESP32SHA* ctx, byte* hash)
     #endif
 
         default:
+            ctx->mode = ESP32_SHA_FAIL_NEED_UNROLL;
             return -1;
             break;
     }
@@ -688,6 +720,8 @@ int esp_sha_digest_process(struct wc_Sha* sha, byte blockprocess)
 #ifndef NO_SHA256
 /*
 * sha256 process
+*
+* repeatedly call this for [N] blocks of [WC_SHA256_BLOCK_SIZE] bytes of data
 */
 int esp_sha256_process(struct wc_Sha256* sha, const byte* data)
 {
@@ -750,8 +784,10 @@ void esp_sha512_block(struct wc_Sha512* sha, const word32* data, byte isfinal)
         ByteReverseWords64(sha->buffer, sha->buffer,
                                WC_SHA512_BLOCK_SIZE);
         if(isfinal) {
-            sha->buffer[WC_SHA512_BLOCK_SIZE / sizeof(word64) - 2] = sha->hiLen;
-            sha->buffer[WC_SHA512_BLOCK_SIZE / sizeof(word64) - 1] = sha->loLen;
+            sha->buffer[WC_SHA512_BLOCK_SIZE / sizeof(word64) - 2] =
+                                        sha->hiLen;
+            sha->buffer[WC_SHA512_BLOCK_SIZE / sizeof(word64) - 1] =
+                                        sha->loLen;
         }
 
     }
