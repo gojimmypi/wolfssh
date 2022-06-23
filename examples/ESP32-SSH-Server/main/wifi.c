@@ -30,8 +30,6 @@
 #include "my_config.h"
 
 
-
-
 #ifndef  CONFIG_ESP_WIFI_CHANNEL
     #define CONFIG_ESP_WIFI_CHANNEL 1
 #endif

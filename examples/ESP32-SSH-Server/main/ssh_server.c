@@ -600,8 +600,12 @@ static PwMap* PwMapNew(PwMapList* list,
 
         wc_InitSha256(&sha);
         c32toa(pSz, flatSz);
+        /* TODO check return code */
         wc_Sha256Update(&sha, flatSz, sizeof(flatSz));
+        /* TODO check return code */
+
         wc_Sha256Update(&sha, p, pSz);
+        /* TODO check return code */
         wc_Sha256Final(&sha, map->p);
 
         map->next = list->head;
@@ -800,18 +804,23 @@ static int wsUserAuth(byte authType,
         wc_InitSha256(&sha);
         if (authType == WOLFSSH_USERAUTH_PASSWORD) {
             c32toa(authData->sf.password.passwordSz, flatSz);
+            /* TODO check return code */
             wc_Sha256Update(&sha, flatSz, sizeof(flatSz));
+            /* TODO check return code */
             wc_Sha256Update(&sha,
                 authData->sf.password.password,
                 authData->sf.password.passwordSz);
         }
         else if (authType == WOLFSSH_USERAUTH_PUBLICKEY) {
             c32toa(authData->sf.publicKey.publicKeySz, flatSz);
+            /* TODO check return code */
             wc_Sha256Update(&sha, flatSz, sizeof(flatSz));
+            /* TODO check return code */
             wc_Sha256Update(&sha,
                 authData->sf.publicKey.publicKey,
                 authData->sf.publicKey.publicKeySz);
         }
+        /* TODO check return code */
         wc_Sha256Final(&sha, authHash);
     }
 
