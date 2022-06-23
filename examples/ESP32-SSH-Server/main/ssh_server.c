@@ -1398,7 +1398,7 @@ void server_test(void *arg) {
         socklen_t     clientAddrSz = sizeof(clientAddr);
 #ifndef SINGLE_THREADED
         THREAD_TYPE   thread;
-        WOLFSSL_MSG("Found SINGLE_THREADED defined");
+        WOLFSSL_MSG("SINGLE_THREADED not defined");
 #endif
         WOLFSSH*      ssh;
 
