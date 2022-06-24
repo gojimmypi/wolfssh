@@ -132,6 +132,12 @@ int wolfCrypt_Init(void)
     if (initRefCount == 0) {
         WOLFSSL_ENTER("wolfCrypt_Init");
 
+    #ifdef WOLFSSL_CHECK_MEM_ZERO
+        /* Initialize the mutex for access to the list of memory locations that
+         * must be freed. */
+        wc_MemZero_Init();
+    #endif
+
     #ifdef WOLFSSL_FORCE_MALLOC_FAIL_TEST
         {
             word32 rngMallocFail;
@@ -422,6 +428,12 @@ int wolfCrypt_Cleanup(void)
     #endif
     #if defined(WOLFSSL_LINUXKM_SIMD_X86)
         free_wolfcrypt_linuxkm_fpu_states();
+    #endif
+
+    #ifdef WOLFSSL_CHECK_MEM_ZERO
+        /* Free the mutex for access to the list of memory locations that
+         * must be freed. */
+        wc_MemZero_Free();
     #endif
     }
 
@@ -1018,6 +1030,54 @@ size_t wc_strlcat(char *dst, const char *src, size_t dstSize)
 }
 #endif /* USE_WOLF_STRLCAT */
 
+#ifndef SINGLE_THREADED
+/* TODO: use atomic operations instead of mutex */
+void wolfSSL_RefInit(wolfSSL_Ref* ref, int* err)
+{
+    int ret = wc_InitMutex(&ref->mutex);
+    if (ret != 0) {
+        WOLFSSL_MSG("Failed to create mutex for reference counting!");
+    }
+    ref->count = 1;
+
+    *err = ret;
+}
+
+void wolfSSL_RefFree(wolfSSL_Ref* ref)
+{
+    if (wc_FreeMutex(&ref->mutex) != 0) {
+        WOLFSSL_MSG("Failed to free mutex of reference counting!");
+    }
+}
+
+void wolfSSL_RefInc(wolfSSL_Ref* ref, int* err)
+{
+    int ret = wc_LockMutex(&ref->mutex);
+    if (ret != 0) {
+        WOLFSSL_MSG("Failed to lock mutex for reference increment!");
+    }
+    else {
+        ref->count++;
+        wc_UnLockMutex(&ref->mutex);
+    }
+    *err = ret;
+}
+
+void wolfSSL_RefDec(wolfSSL_Ref* ref, int* isZero, int* err)
+{
+    int ret = wc_LockMutex(&ref->mutex);
+    if (ret != 0) {
+        WOLFSSL_MSG("Failed to lock mutex for reference decrement!");
+    }
+    else {
+        ref->count--;
+        *isZero = (ref->count == 0);
+        wc_UnLockMutex(&ref->mutex);
+    }
+    *err = ret;
+}
+#endif
+
 #if WOLFSSL_CRYPT_HW_MUTEX
 /* Mutex for protection of cryptography hardware */
 static wolfSSL_Mutex wcCryptHwMutex;
@@ -1126,7 +1186,7 @@ int wolfSSL_CryptHwMutexUnLock(void)
     {
         int ret = 0;
 
-        *m = ( wolfSSL_Mutex ) xSemaphoreCreateMutex();
+        *m = (wolfSSL_Mutex) xSemaphoreCreateMutex();
         if (*m == NULL) {
             ret = BAD_MUTEX_E;
             // WOLFSSL_ERROR_MSG("wc_InitMutex param .\n");
@@ -1315,7 +1375,7 @@ int wolfSSL_CryptHwMutexUnLock(void)
             return BAD_MUTEX_E;
     }
 
-#elif defined(WOLFSSL_KTHREADS)
+#elif defined(WOLFSSL_LINUXKM)
 
     /* Linux kernel mutex routines are voids, alas. */
 
@@ -2215,6 +2275,39 @@ int wolfSSL_CryptHwMutexUnLock(void)
             return BAD_MUTEX_E;
         }
 
+        return 0;
+    }
+
+#elif defined(WOLFSSL_EMBOS)
+
+    int wc_InitMutex(wolfSSL_Mutex* m)
+    {
+        int ret;
+
+        OS_MUTEX_Create((OS_MUTEX*) m);
+        if (m != NULL)
+            ret = 0;
+        else
+            ret = BAD_MUTEX_E;
+
+        return ret;
+    }
+
+    int wc_FreeMutex(wolfSSL_Mutex* m)
+    {
+        OS_MUTEX_Delete((OS_MUTEX*) m);
+        return 0;
+    }
+
+    int wc_LockMutex(wolfSSL_Mutex* m)
+    {
+        OS_MUTEX_Lock((OS_MUTEX*) m);
+        return 0;
+    }
+
+    int wc_UnLockMutex(wolfSSL_Mutex* m)
+    {
+        OS_MUTEX_Unlock((OS_MUTEX*) m);
         return 0;
     }
 

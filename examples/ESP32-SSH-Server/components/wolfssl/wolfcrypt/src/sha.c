@@ -137,7 +137,7 @@
         ret = wolfSSL_CryptHwMutexLock();
         if (ret == 0) {
             ret = wc_Stm32_Hash_Update(&sha->stmCtx, HASH_AlgoSelection_SHA1,
-                data, len);
+                data, len, WC_SHA_BLOCK_SIZE);
             wolfSSL_CryptHwMutexUnLock();
         }
         return ret;
@@ -676,7 +676,6 @@ int wc_ShaUpdate(wc_Sha* sha, const byte* data, word32 len)
             ret = XTRANSFORM(sha, (const byte*)local32);
         }
         else {
-            // ret = XTRANSFORM(sha, (const byte*)local32);
             esp_sha_process(sha, (const byte*)local32);
         }
     #else
@@ -797,13 +796,12 @@ int wc_ShaFinal(wc_Sha* sha, byte* hash)
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     if (sha->ctx.mode == ESP32_SHA_INIT) {
-       esp_sha_try_hw_lock(&sha->ctx);
+        esp_sha_try_hw_lock(&sha->ctx);
     }
     if (sha->ctx.mode == ESP32_SHA_SW) {
         ret = XTRANSFORM(sha, (const byte*)local);
     }
     else {
-        //ret = XTRANSFORM(sha, (const byte*)local);
         ret = esp_sha_digest_process(sha, 1);
     }
 #else
@@ -905,11 +903,9 @@ int wc_ShaGetHash(wc_Sha* sha, byte* hash)
 
     /* TODO check the logic here; what if we are doing HW?*/
     ret = wc_ShaCopy(sha, &tmpSha);
-
     if (ret == 0) {
-       /* if HW failed, use SW */
-       ret = wc_ShaFinal(&tmpSha, hash);
-
+        /* if HW failed, use SW */
+        ret = wc_ShaFinal(&tmpSha, hash);
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
         sha->ctx.mode = ESP32_SHA_SW;
