@@ -918,6 +918,14 @@ static int _InitRng(WC_RNG* rng, byte* nonce, word32 nonceSz,
         ret = DRBG_CONT_FAILURE;
 
     if (ret == DRBG_SUCCESS) {
+#ifdef WOLFSSL_CHECK_MEM_ZERO
+#ifdef HAVE_HASHDRBG
+        struct DRBG_internal* drbg = (struct DRBG_internal*)rng->drbg;
+        wc_MemZero_Add("DRBG V", &drbg->V, sizeof(drbg->V));
+        wc_MemZero_Add("DRBG C", &drbg->C, sizeof(drbg->C));
+#endif
+#endif
+
         rng->status = DRBG_OK;
         ret = 0;
     }
@@ -1122,6 +1130,8 @@ int wc_FreeRng(WC_RNG* rng)
 
     #if !defined(WOLFSSL_NO_MALLOC) || defined(WOLFSSL_STATIC_MEMORY)
         XFREE(rng->drbg, rng->heap, DYNAMIC_TYPE_RNG);
+    #elif defined(WOLFSSL_CHECK_MEM_ZERO)
+        wc_MemZero_Check(rng->drbg, sizeof(DRBG_internal));
     #endif
         rng->drbg = NULL;
     }
@@ -1349,7 +1359,6 @@ static int wc_RNG_HealthTestLocal(int reseed)
                                 NULL, 0,
                                 check, RNG_HEALTH_TEST_CHECK_SIZE);
         if (ret == 0) {
-            /* ESP32 HW failing here: */
             if (ConstantCompare(check, outputB,
                                 RNG_HEALTH_TEST_CHECK_SIZE) != 0)
                 ret = -1;

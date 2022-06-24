@@ -219,8 +219,6 @@
         typedef CRITICAL_SECTION wolfSSL_Mutex;
     #elif defined(WOLFSSL_PTHREADS)
         typedef pthread_mutex_t wolfSSL_Mutex;
-    #elif defined(WOLFSSL_KTHREADS)
-        typedef struct mutex wolfSSL_Mutex;
     #elif defined(THREADX)
         typedef TX_MUTEX wolfSSL_Mutex;
     #elif defined(WOLFSSL_DEOS)
@@ -277,6 +275,47 @@
         #error Need a mutex type in multithreaded mode
     #endif /* USE_WINDOWS_API */
 #endif /* SINGLE_THREADED */
+
+/* Reference counting. */
+typedef struct wolfSSL_Ref {
+/* TODO: use atomic operations instead of mutex. */
+#ifndef SINGLE_THREADED
+    wolfSSL_Mutex mutex;
+#endif
+    int count;
+} wolfSSL_Ref;
+
+#ifdef SINGLE_THREADED
+#define wolfSSL_RefInit(ref, err)           \
+    do {                                    \
+        (ref)->count = 1;                   \
+        *(err) = 0;                         \
+    }                                       \
+    while (0)
+
+#define wolfSSL_RefFree(ref)
+
+#define wolfSSL_RefInc(ref, err)            \
+    do {                                    \
+        (ref)->count++;                     \
+        *(err) = 0;                         \
+    }                                       \
+    while (0)
+
+#define wolfSSL_RefDec(ref, isZero, err)    \
+    do {                                    \
+        (ref)->count--;                     \
+        *(isZero) = ((ref)->count == 0);    \
+        *(err) = 0;                         \
+    }                                       \
+    while (0)
+#else
+WOLFSSL_LOCAL void wolfSSL_RefInit(wolfSSL_Ref* ref, int* err);
+WOLFSSL_LOCAL void wolfSSL_RefFree(wolfSSL_Ref* ref);
+WOLFSSL_LOCAL void wolfSSL_RefInc(wolfSSL_Ref* ref, int* err);
+WOLFSSL_LOCAL void wolfSSL_RefDec(wolfSSL_Ref* ref, int* isZero, int* err);
+#endif
+
 
 /* Enable crypt HW mutex for Freescale MMCAU, PIC32MZ or STM32 */
 #if defined(FREESCALE_MMCAU) || defined(WOLFSSL_MICROCHIP_PIC32MZ) || \

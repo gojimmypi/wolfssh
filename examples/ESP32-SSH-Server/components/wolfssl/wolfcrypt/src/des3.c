@@ -142,7 +142,7 @@
 
 
 /* Hardware Acceleration */
-#if defined(STM32_CRYPTO)
+#if defined(STM32_CRYPTO) && !defined(STM32_CRYPTO_AES_ONLY)
 
     /*
      * STM32F2/F4 hardware DES/3DES support through the standard
@@ -156,7 +156,7 @@
         (void)dir;
 
         XMEMCPY(dkey, key, 8);
-    #ifndef WOLFSSL_STM32_CUBEMX
+    #if !defined(WOLFSSL_STM32_CUBEMX) || defined(STM32_HAL_V2)
         ByteReverseWords(dkey, dkey, 8);
     #endif
 
@@ -187,7 +187,11 @@
             ByteReverseWords(dkey3, dkey3, 8);
         }
     #else
-        XMEMCPY(des->key[0], key, DES3_KEYLEN); /* CUBEMX wants keys in sequential memory */
+        /* CUBEMX wants keys in sequential memory */
+        XMEMCPY(des->key[0], key, DES3_KEYLEN);
+        #ifdef STM32_HAL_V2
+        ByteReverseWords((word32*)des->key, (word32*)des->key, DES3_KEYLEN);
+        #endif
     #endif
 
         return wc_Des3_SetIV(des, iv);
@@ -216,11 +220,31 @@
         hcryp.Instance = CRYP;
         hcryp.Init.KeySize  = CRYP_KEYSIZE_128B;
         hcryp.Init.DataType = CRYP_DATATYPE_8B;
-        hcryp.Init.pKey = (uint8_t*)des->key;
-        hcryp.Init.pInitVect = (uint8_t*)des->reg;
+        hcryp.Init.pKey = (STM_CRYPT_TYPE*)des->key;
+        hcryp.Init.pInitVect = (STM_CRYPT_TYPE*)des->reg;
+    #ifdef STM32_HAL_V2
+        hcryp.Init.DataWidthUnit = CRYP_DATAWIDTHUNIT_BYTE;
+        if (mode == DES_CBC)
+            hcryp.Init.Algorithm = CRYP_DES_CBC;
+        else
+            hcryp.Init.Algorithm = CRYP_DES_ECB;
+    #endif
 
         HAL_CRYP_Init(&hcryp);
 
+    #ifdef STM32_HAL_V2
+        if (dir == DES_ENCRYPTION) {
+            HAL_CRYP_Encrypt(&hcryp, (uint32_t*)in, sz, (uint32_t*)out,
+                STM32_HAL_TIMEOUT);
+        }
+        else {
+            HAL_CRYP_Decrypt(&hcryp, (uint32_t*)in, sz, (uint32_t*)out,
+                STM32_HAL_TIMEOUT);
+        }
+        /* save off IV */
+        des->reg[0] = hcryp.Instance->IV0LR;
+        des->reg[1] = hcryp.Instance->IV0RR;
+    #else
         while (sz > 0) {
             /* if input and output same will overwrite input iv */
             XMEMCPY(des->tmp, in + sz - DES_BLOCK_SIZE, DES_BLOCK_SIZE);
@@ -253,6 +277,7 @@
             in  += DES_BLOCK_SIZE;
             out += DES_BLOCK_SIZE;
         }
+    #endif /* STM32_HAL_V2 */
 
         HAL_CRYP_DeInit(&hcryp);
     #else
@@ -359,13 +384,29 @@
             hcryp.Instance = CRYP;
             hcryp.Init.KeySize  = CRYP_KEYSIZE_128B;
             hcryp.Init.DataType = CRYP_DATATYPE_8B;
-            hcryp.Init.pKey = (uint8_t*)des->key;
-            hcryp.Init.pInitVect = (uint8_t*)des->reg;
+            hcryp.Init.pKey = (STM_CRYPT_TYPE*)des->key;
+            hcryp.Init.pInitVect = (STM_CRYPT_TYPE*)des->reg;
+        #ifdef STM32_HAL_V2
+            hcryp.Init.DataWidthUnit = CRYP_DATAWIDTHUNIT_BYTE;
+            hcryp.Init.Algorithm = CRYP_TDES_CBC;
+        #endif
 
             HAL_CRYP_Init(&hcryp);
 
-            while (sz > 0)
-            {
+        #ifdef STM32_HAL_V2
+            if (dir == DES_ENCRYPTION) {
+                HAL_CRYP_Encrypt(&hcryp, (uint32_t*)in, sz, (uint32_t*)out,
+                    STM32_HAL_TIMEOUT);
+            }
+            else {
+                HAL_CRYP_Decrypt(&hcryp, (uint32_t*)in, sz, (uint32_t*)out,
+                    STM32_HAL_TIMEOUT);
+            }
+            /* save off IV */
+            des->reg[0] = hcryp.Instance->IV0LR;
+            des->reg[1] = hcryp.Instance->IV0RR;
+        #else
+            while (sz > 0) {
                 if (dir == DES_ENCRYPTION) {
                     HAL_CRYP_TDESCBC_Encrypt(&hcryp, (byte*)in,
                                        DES_BLOCK_SIZE, out, STM32_HAL_TIMEOUT);
@@ -382,6 +423,7 @@
                 in  += DES_BLOCK_SIZE;
                 out += DES_BLOCK_SIZE;
             }
+        #endif /* STM32_HAL_V2 */
 
             HAL_CRYP_DeInit(&hcryp);
         }
@@ -1780,8 +1822,12 @@
 
 void wc_Des_SetIV(Des* des, const byte* iv)
 {
-    if (des && iv)
+    if (des && iv) {
         XMEMCPY(des->reg, iv, DES_BLOCK_SIZE);
+    #if defined(STM32_CRYPTO) && !defined(STM32_CRYPTO_AES_ONLY) && defined(STM32_HAL_V2)
+        ByteReverseWords(des->reg, des->reg, DES_BLOCK_SIZE);
+    #endif
+    }
     else if (des)
         XMEMSET(des->reg,  0, DES_BLOCK_SIZE);
 }
@@ -1791,8 +1837,12 @@ int wc_Des3_SetIV(Des3* des, const byte* iv)
     if (des == NULL) {
         return BAD_FUNC_ARG;
     }
-    if (iv)
+    if (iv) {
         XMEMCPY(des->reg, iv, DES_BLOCK_SIZE);
+    #if defined(STM32_CRYPTO) && !defined(STM32_CRYPTO_AES_ONLY) && defined(STM32_HAL_V2)
+        ByteReverseWords(des->reg, des->reg, DES_BLOCK_SIZE);
+    #endif
+    }
     else
         XMEMSET(des->reg,  0, DES_BLOCK_SIZE);
 
@@ -1820,6 +1870,10 @@ int wc_Des3Init(Des3* des3, void* heap, int devId)
     ret = wolfAsync_DevCtxInit(&des3->asyncDev, WOLFSSL_ASYNC_MARKER_3DES,
                                                         des3->heap, devId);
 #endif
+#if defined(WOLFSSL_CHECK_MEM_ZERO) && (defined(WOLF_CRYPTO_CB) || \
+        (defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_3DES)))
+    wc_MemZero_Add("DES3 devKey", &des3->devKey, sizeof(des3->devKey));
+#endif
 
     return ret;
 }
@@ -1836,6 +1890,9 @@ void wc_Des3Free(Des3* des3)
 #if defined(WOLF_CRYPTO_CB) || \
         (defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_3DES))
     ForceZero(des3->devKey, sizeof(des3->devKey));
+#endif
+#ifdef WOLFSSL_CHECK_MEM_ZERO
+    wc_MemZero_Check(des3, sizeof(Des3));
 #endif
 }
 

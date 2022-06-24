@@ -443,9 +443,10 @@ typedef struct Cert {
     CertExtension customCertExt[NUM_CUSTOM_EXT];
     int customCertExtCount;
 #endif
-    void*   decodedCert;    /* internal DecodedCert allocated from heap */
-    byte*   der;            /* Pointer to buffer of current DecodedCert cache */
-    void*   heap;           /* heap hint */
+    void*   decodedCert;      /* internal DecodedCert allocated from heap */
+    byte*   der;              /* Pointer to buffer of current DecodedCert cache */
+    void*   heap;             /* heap hint */
+    byte    basicConstSet:1;  /* Indicator for when Basic Constaint is set */
 } Cert;
 
 
@@ -606,7 +607,10 @@ WOLFSSL_API void wc_FreeDer(DerBuffer** pDer);
     WOLFSSL_API int wc_RsaPublicKeyDecode_ex(const byte* input, word32* inOutIdx,
         word32 inSz, const byte** n, word32* nSz, const byte** e, word32* eSz);
     /* For FIPS v1/v2 and selftest this is in rsa.h */
-    #if !defined(HAVE_SELFTEST) && (!defined(HAVE_FIPS) || \
+    #if (!defined(HAVE_SELFTEST) || \
+            (defined(HAVE_SELFTEST) && defined(WOLFSSL_CERT_GEN) && \
+                !defined(WOLFSSL_KEY_GEN))) && \
+        (!defined(HAVE_FIPS) || \
          !defined(HAVE_FIPS_VERSION) || \
          ((HAVE_FIPS_VERSION > 2) && \
          (! ((HAVE_FIPS_VERSION == 5) && (HAVE_FIPS_VERSION_MINOR == 0)))))

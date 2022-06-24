@@ -2223,10 +2223,21 @@ static void sp_2048_sqr_64(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -2444,10 +2455,21 @@ static void sp_2048_sqr_32(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -4253,9 +4275,13 @@ static WC_INLINE int sp_2048_div_32(const sp_digit* a, const sp_digit* d, sp_dig
 
     div = d[31];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 32);
+    r1 = sp_2048_cmp_32(&t1[32], d) >= 0;
+    sp_2048_cond_sub_32(&t1[32], &t1[32], d, (sp_digit)0 - r1);
     for (i = 31; i >= 0; i--) {
-        sp_digit hi = t1[32 + i] - (t1[32 + i] == div);
+        sp_digit mask = 0 - (t1[32 + i] == div);
+        sp_digit hi = t1[32 + i] + mask;
         r1 = div_2048_word_32(hi, t1[32 + i - 1], div);
+        r1 |= mask;
 
         sp_2048_mul_d_32(t2, d, r1);
         t1[32 + i] += sp_2048_sub_in_place_32(&t1[i], t2);
@@ -5786,6 +5812,13 @@ static WC_INLINE int sp_2048_div_64_cond(const sp_digit* a, const sp_digit* d, s
 
     div = d[63];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 64);
+    for (i = 63; i > 0; i--) {
+        if (t1[i + 64] != d[i])
+            break;
+    }
+    if (t1[i + 64] >= d[i]) {
+        sp_2048_sub_in_place_64(&t1[64], d);
+    }
     for (i = 63; i >= 0; i--) {
         if (t1[64 + i] == div) {
             r1 = SP_DIGIT_MAX;
@@ -6637,9 +6670,13 @@ static WC_INLINE int sp_2048_div_64(const sp_digit* a, const sp_digit* d, sp_dig
 
     div = d[63];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 64);
+    r1 = sp_2048_cmp_64(&t1[64], d) >= 0;
+    sp_2048_cond_sub_64(&t1[64], &t1[64], d, (sp_digit)0 - r1);
     for (i = 63; i >= 0; i--) {
-        sp_digit hi = t1[64 + i] - (t1[64 + i] == div);
+        sp_digit mask = 0 - (t1[64 + i] == div);
+        sp_digit hi = t1[64 + i] + mask;
         r1 = div_2048_word_64(hi, t1[64 + i - 1], div);
+        r1 |= mask;
 
         sp_2048_mul_d_64(t2, d, r1);
         t1[64 + i] += sp_2048_sub_in_place_64(&t1[i], t2);
@@ -7186,118 +7223,310 @@ static sp_digit sp_2048_cond_add_32(sp_digit* r, const sp_digit* a, const sp_dig
     __asm__ __volatile__ (
 
         "mov	r8, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[b], #0]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[b], #0]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adds	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #8]\n\t"
+        "ldr	r5, [%[a], #12]\n\t"
+        "ldr	r6, [%[b], #8]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #8]\n\t"
         "ldrd	r6, r7, [%[b], #8]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #8]\n\t"
+        "str	r5, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[b], #16]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[b], #16]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+#else
         "strd	r4, r5, [%[r], #16]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #24]\n\t"
+        "ldr	r5, [%[a], #28]\n\t"
+        "ldr	r6, [%[b], #24]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #24]\n\t"
         "ldrd	r6, r7, [%[b], #24]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #24]\n\t"
+        "str	r5, [%[r], #28]\n\t"
+#else
         "strd	r4, r5, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #32]\n\t"
+        "ldr	r5, [%[a], #36]\n\t"
+        "ldr	r6, [%[b], #32]\n\t"
+        "ldr	r7, [%[b], #36]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #32]\n\t"
         "ldrd	r6, r7, [%[b], #32]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #32]\n\t"
+        "str	r5, [%[r], #36]\n\t"
+#else
         "strd	r4, r5, [%[r], #32]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #40]\n\t"
+        "ldr	r5, [%[a], #44]\n\t"
+        "ldr	r6, [%[b], #40]\n\t"
+        "ldr	r7, [%[b], #44]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #40]\n\t"
         "ldrd	r6, r7, [%[b], #40]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #40]\n\t"
+        "str	r5, [%[r], #44]\n\t"
+#else
         "strd	r4, r5, [%[r], #40]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #48]\n\t"
+        "ldr	r5, [%[a], #52]\n\t"
+        "ldr	r6, [%[b], #48]\n\t"
+        "ldr	r7, [%[b], #52]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #48]\n\t"
         "ldrd	r6, r7, [%[b], #48]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #48]\n\t"
+        "str	r5, [%[r], #52]\n\t"
+#else
         "strd	r4, r5, [%[r], #48]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #56]\n\t"
+        "ldr	r5, [%[a], #60]\n\t"
+        "ldr	r6, [%[b], #56]\n\t"
+        "ldr	r7, [%[b], #60]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #56]\n\t"
         "ldrd	r6, r7, [%[b], #56]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #56]\n\t"
+        "str	r5, [%[r], #60]\n\t"
+#else
         "strd	r4, r5, [%[r], #56]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #64]\n\t"
+        "ldr	r5, [%[a], #68]\n\t"
+        "ldr	r6, [%[b], #64]\n\t"
+        "ldr	r7, [%[b], #68]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #64]\n\t"
         "ldrd	r6, r7, [%[b], #64]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #64]\n\t"
+        "str	r5, [%[r], #68]\n\t"
+#else
         "strd	r4, r5, [%[r], #64]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #72]\n\t"
+        "ldr	r5, [%[a], #76]\n\t"
+        "ldr	r6, [%[b], #72]\n\t"
+        "ldr	r7, [%[b], #76]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #72]\n\t"
         "ldrd	r6, r7, [%[b], #72]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #72]\n\t"
+        "str	r5, [%[r], #76]\n\t"
+#else
         "strd	r4, r5, [%[r], #72]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #80]\n\t"
+        "ldr	r5, [%[a], #84]\n\t"
+        "ldr	r6, [%[b], #80]\n\t"
+        "ldr	r7, [%[b], #84]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #80]\n\t"
         "ldrd	r6, r7, [%[b], #80]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #80]\n\t"
+        "str	r5, [%[r], #84]\n\t"
+#else
         "strd	r4, r5, [%[r], #80]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #88]\n\t"
+        "ldr	r5, [%[a], #92]\n\t"
+        "ldr	r6, [%[b], #88]\n\t"
+        "ldr	r7, [%[b], #92]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #88]\n\t"
         "ldrd	r6, r7, [%[b], #88]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #88]\n\t"
+        "str	r5, [%[r], #92]\n\t"
+#else
         "strd	r4, r5, [%[r], #88]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #96]\n\t"
+        "ldr	r5, [%[a], #100]\n\t"
+        "ldr	r6, [%[b], #96]\n\t"
+        "ldr	r7, [%[b], #100]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #96]\n\t"
         "ldrd	r6, r7, [%[b], #96]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #96]\n\t"
+        "str	r5, [%[r], #100]\n\t"
+#else
         "strd	r4, r5, [%[r], #96]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #104]\n\t"
+        "ldr	r5, [%[a], #108]\n\t"
+        "ldr	r6, [%[b], #104]\n\t"
+        "ldr	r7, [%[b], #108]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #104]\n\t"
         "ldrd	r6, r7, [%[b], #104]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #104]\n\t"
+        "str	r5, [%[r], #108]\n\t"
+#else
         "strd	r4, r5, [%[r], #104]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #112]\n\t"
+        "ldr	r5, [%[a], #116]\n\t"
+        "ldr	r6, [%[b], #112]\n\t"
+        "ldr	r7, [%[b], #116]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #112]\n\t"
         "ldrd	r6, r7, [%[b], #112]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #112]\n\t"
+        "str	r5, [%[r], #116]\n\t"
+#else
         "strd	r4, r5, [%[r], #112]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #120]\n\t"
+        "ldr	r5, [%[a], #124]\n\t"
+        "ldr	r6, [%[b], #120]\n\t"
+        "ldr	r7, [%[b], #124]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #120]\n\t"
         "ldrd	r6, r7, [%[b], #120]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #120]\n\t"
+        "str	r5, [%[r], #124]\n\t"
+#else
         "strd	r4, r5, [%[r], #120]\n\t"
+#endif
         "adc	%[c], r8, r8\n\t"
         : [c] "+r" (c)
         : [r] "r" (r), [a] "r" (a), [b] "r" (b), [m] "r" (m)
@@ -11570,10 +11799,21 @@ static void sp_3072_sqr_96(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -11791,10 +12031,21 @@ static void sp_3072_sqr_48(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -14312,9 +14563,13 @@ static WC_INLINE int sp_3072_div_48(const sp_digit* a, const sp_digit* d, sp_dig
 
     div = d[47];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 48);
+    r1 = sp_3072_cmp_48(&t1[48], d) >= 0;
+    sp_3072_cond_sub_48(&t1[48], &t1[48], d, (sp_digit)0 - r1);
     for (i = 47; i >= 0; i--) {
-        sp_digit hi = t1[48 + i] - (t1[48 + i] == div);
+        sp_digit mask = 0 - (t1[48 + i] == div);
+        sp_digit hi = t1[48 + i] + mask;
         r1 = div_3072_word_48(hi, t1[48 + i - 1], div);
+        r1 |= mask;
 
         sp_3072_mul_d_48(t2, d, r1);
         t1[48 + i] += sp_3072_sub_in_place_48(&t1[i], t2);
@@ -16301,6 +16556,13 @@ static WC_INLINE int sp_3072_div_96_cond(const sp_digit* a, const sp_digit* d, s
 
     div = d[95];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 96);
+    for (i = 95; i > 0; i--) {
+        if (t1[i + 96] != d[i])
+            break;
+    }
+    if (t1[i + 96] >= d[i]) {
+        sp_3072_sub_in_place_96(&t1[96], d);
+    }
     for (i = 95; i >= 0; i--) {
         if (t1[96 + i] == div) {
             r1 = SP_DIGIT_MAX;
@@ -17504,9 +17766,13 @@ static WC_INLINE int sp_3072_div_96(const sp_digit* a, const sp_digit* d, sp_dig
 
     div = d[95];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 96);
+    r1 = sp_3072_cmp_96(&t1[96], d) >= 0;
+    sp_3072_cond_sub_96(&t1[96], &t1[96], d, (sp_digit)0 - r1);
     for (i = 95; i >= 0; i--) {
-        sp_digit hi = t1[96 + i] - (t1[96 + i] == div);
+        sp_digit mask = 0 - (t1[96 + i] == div);
+        sp_digit hi = t1[96 + i] + mask;
         r1 = div_3072_word_96(hi, t1[96 + i - 1], div);
+        r1 |= mask;
 
         sp_3072_mul_d_96(t2, d, r1);
         t1[96 + i] += sp_3072_sub_in_place_96(&t1[i], t2);
@@ -18053,174 +18319,462 @@ static sp_digit sp_3072_cond_add_48(sp_digit* r, const sp_digit* a, const sp_dig
     __asm__ __volatile__ (
 
         "mov	r8, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[b], #0]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[b], #0]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adds	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #8]\n\t"
+        "ldr	r5, [%[a], #12]\n\t"
+        "ldr	r6, [%[b], #8]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #8]\n\t"
         "ldrd	r6, r7, [%[b], #8]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #8]\n\t"
+        "str	r5, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[b], #16]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[b], #16]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+#else
         "strd	r4, r5, [%[r], #16]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #24]\n\t"
+        "ldr	r5, [%[a], #28]\n\t"
+        "ldr	r6, [%[b], #24]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #24]\n\t"
         "ldrd	r6, r7, [%[b], #24]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #24]\n\t"
+        "str	r5, [%[r], #28]\n\t"
+#else
         "strd	r4, r5, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #32]\n\t"
+        "ldr	r5, [%[a], #36]\n\t"
+        "ldr	r6, [%[b], #32]\n\t"
+        "ldr	r7, [%[b], #36]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #32]\n\t"
         "ldrd	r6, r7, [%[b], #32]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #32]\n\t"
+        "str	r5, [%[r], #36]\n\t"
+#else
         "strd	r4, r5, [%[r], #32]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #40]\n\t"
+        "ldr	r5, [%[a], #44]\n\t"
+        "ldr	r6, [%[b], #40]\n\t"
+        "ldr	r7, [%[b], #44]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #40]\n\t"
         "ldrd	r6, r7, [%[b], #40]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #40]\n\t"
+        "str	r5, [%[r], #44]\n\t"
+#else
         "strd	r4, r5, [%[r], #40]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #48]\n\t"
+        "ldr	r5, [%[a], #52]\n\t"
+        "ldr	r6, [%[b], #48]\n\t"
+        "ldr	r7, [%[b], #52]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #48]\n\t"
         "ldrd	r6, r7, [%[b], #48]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #48]\n\t"
+        "str	r5, [%[r], #52]\n\t"
+#else
         "strd	r4, r5, [%[r], #48]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #56]\n\t"
+        "ldr	r5, [%[a], #60]\n\t"
+        "ldr	r6, [%[b], #56]\n\t"
+        "ldr	r7, [%[b], #60]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #56]\n\t"
         "ldrd	r6, r7, [%[b], #56]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #56]\n\t"
+        "str	r5, [%[r], #60]\n\t"
+#else
         "strd	r4, r5, [%[r], #56]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #64]\n\t"
+        "ldr	r5, [%[a], #68]\n\t"
+        "ldr	r6, [%[b], #64]\n\t"
+        "ldr	r7, [%[b], #68]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #64]\n\t"
         "ldrd	r6, r7, [%[b], #64]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #64]\n\t"
+        "str	r5, [%[r], #68]\n\t"
+#else
         "strd	r4, r5, [%[r], #64]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #72]\n\t"
+        "ldr	r5, [%[a], #76]\n\t"
+        "ldr	r6, [%[b], #72]\n\t"
+        "ldr	r7, [%[b], #76]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #72]\n\t"
         "ldrd	r6, r7, [%[b], #72]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #72]\n\t"
+        "str	r5, [%[r], #76]\n\t"
+#else
         "strd	r4, r5, [%[r], #72]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #80]\n\t"
+        "ldr	r5, [%[a], #84]\n\t"
+        "ldr	r6, [%[b], #80]\n\t"
+        "ldr	r7, [%[b], #84]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #80]\n\t"
         "ldrd	r6, r7, [%[b], #80]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #80]\n\t"
+        "str	r5, [%[r], #84]\n\t"
+#else
         "strd	r4, r5, [%[r], #80]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #88]\n\t"
+        "ldr	r5, [%[a], #92]\n\t"
+        "ldr	r6, [%[b], #88]\n\t"
+        "ldr	r7, [%[b], #92]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #88]\n\t"
         "ldrd	r6, r7, [%[b], #88]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #88]\n\t"
+        "str	r5, [%[r], #92]\n\t"
+#else
         "strd	r4, r5, [%[r], #88]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #96]\n\t"
+        "ldr	r5, [%[a], #100]\n\t"
+        "ldr	r6, [%[b], #96]\n\t"
+        "ldr	r7, [%[b], #100]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #96]\n\t"
         "ldrd	r6, r7, [%[b], #96]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #96]\n\t"
+        "str	r5, [%[r], #100]\n\t"
+#else
         "strd	r4, r5, [%[r], #96]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #104]\n\t"
+        "ldr	r5, [%[a], #108]\n\t"
+        "ldr	r6, [%[b], #104]\n\t"
+        "ldr	r7, [%[b], #108]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #104]\n\t"
         "ldrd	r6, r7, [%[b], #104]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #104]\n\t"
+        "str	r5, [%[r], #108]\n\t"
+#else
         "strd	r4, r5, [%[r], #104]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #112]\n\t"
+        "ldr	r5, [%[a], #116]\n\t"
+        "ldr	r6, [%[b], #112]\n\t"
+        "ldr	r7, [%[b], #116]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #112]\n\t"
         "ldrd	r6, r7, [%[b], #112]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #112]\n\t"
+        "str	r5, [%[r], #116]\n\t"
+#else
         "strd	r4, r5, [%[r], #112]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #120]\n\t"
+        "ldr	r5, [%[a], #124]\n\t"
+        "ldr	r6, [%[b], #120]\n\t"
+        "ldr	r7, [%[b], #124]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #120]\n\t"
         "ldrd	r6, r7, [%[b], #120]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #120]\n\t"
+        "str	r5, [%[r], #124]\n\t"
+#else
         "strd	r4, r5, [%[r], #120]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #128]\n\t"
+        "ldr	r5, [%[a], #132]\n\t"
+        "ldr	r6, [%[b], #128]\n\t"
+        "ldr	r7, [%[b], #132]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #128]\n\t"
         "ldrd	r6, r7, [%[b], #128]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #128]\n\t"
+        "str	r5, [%[r], #132]\n\t"
+#else
         "strd	r4, r5, [%[r], #128]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #136]\n\t"
+        "ldr	r5, [%[a], #140]\n\t"
+        "ldr	r6, [%[b], #136]\n\t"
+        "ldr	r7, [%[b], #140]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #136]\n\t"
         "ldrd	r6, r7, [%[b], #136]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #136]\n\t"
+        "str	r5, [%[r], #140]\n\t"
+#else
         "strd	r4, r5, [%[r], #136]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #144]\n\t"
+        "ldr	r5, [%[a], #148]\n\t"
+        "ldr	r6, [%[b], #144]\n\t"
+        "ldr	r7, [%[b], #148]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #144]\n\t"
         "ldrd	r6, r7, [%[b], #144]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #144]\n\t"
+        "str	r5, [%[r], #148]\n\t"
+#else
         "strd	r4, r5, [%[r], #144]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #152]\n\t"
+        "ldr	r5, [%[a], #156]\n\t"
+        "ldr	r6, [%[b], #152]\n\t"
+        "ldr	r7, [%[b], #156]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #152]\n\t"
         "ldrd	r6, r7, [%[b], #152]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #152]\n\t"
+        "str	r5, [%[r], #156]\n\t"
+#else
         "strd	r4, r5, [%[r], #152]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #160]\n\t"
+        "ldr	r5, [%[a], #164]\n\t"
+        "ldr	r6, [%[b], #160]\n\t"
+        "ldr	r7, [%[b], #164]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #160]\n\t"
         "ldrd	r6, r7, [%[b], #160]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #160]\n\t"
+        "str	r5, [%[r], #164]\n\t"
+#else
         "strd	r4, r5, [%[r], #160]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #168]\n\t"
+        "ldr	r5, [%[a], #172]\n\t"
+        "ldr	r6, [%[b], #168]\n\t"
+        "ldr	r7, [%[b], #172]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #168]\n\t"
         "ldrd	r6, r7, [%[b], #168]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #168]\n\t"
+        "str	r5, [%[r], #172]\n\t"
+#else
         "strd	r4, r5, [%[r], #168]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #176]\n\t"
+        "ldr	r5, [%[a], #180]\n\t"
+        "ldr	r6, [%[b], #176]\n\t"
+        "ldr	r7, [%[b], #180]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #176]\n\t"
         "ldrd	r6, r7, [%[b], #176]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #176]\n\t"
+        "str	r5, [%[r], #180]\n\t"
+#else
         "strd	r4, r5, [%[r], #176]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #184]\n\t"
+        "ldr	r5, [%[a], #188]\n\t"
+        "ldr	r6, [%[b], #184]\n\t"
+        "ldr	r7, [%[b], #188]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #184]\n\t"
         "ldrd	r6, r7, [%[b], #184]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #184]\n\t"
+        "str	r5, [%[r], #188]\n\t"
+#else
         "strd	r4, r5, [%[r], #184]\n\t"
+#endif
         "adc	%[c], r8, r8\n\t"
         : [c] "+r" (c)
         : [r] "r" (r), [a] "r" (a), [b] "r" (b), [m] "r" (m)
@@ -20291,10 +20845,21 @@ static void sp_4096_sqr_128(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -23356,6 +23921,13 @@ static WC_INLINE int sp_4096_div_128_cond(const sp_digit* a, const sp_digit* d, 
 
     div = d[127];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 128);
+    for (i = 127; i > 0; i--) {
+        if (t1[i + 128] != d[i])
+            break;
+    }
+    if (t1[i + 128] >= d[i]) {
+        sp_4096_sub_in_place_128(&t1[128], d);
+    }
     for (i = 127; i >= 0; i--) {
         if (t1[128 + i] == div) {
             r1 = SP_DIGIT_MAX;
@@ -24911,9 +25483,13 @@ static WC_INLINE int sp_4096_div_128(const sp_digit* a, const sp_digit* d, sp_di
 
     div = d[127];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 128);
+    r1 = sp_4096_cmp_128(&t1[128], d) >= 0;
+    sp_4096_cond_sub_128(&t1[128], &t1[128], d, (sp_digit)0 - r1);
     for (i = 127; i >= 0; i--) {
-        sp_digit hi = t1[128 + i] - (t1[128 + i] == div);
+        sp_digit mask = 0 - (t1[128 + i] == div);
+        sp_digit hi = t1[128 + i] + mask;
         r1 = div_4096_word_128(hi, t1[128 + i - 1], div);
+        r1 |= mask;
 
         sp_4096_mul_d_128(t2, d, r1);
         t1[128 + i] += sp_4096_sub_in_place_128(&t1[i], t2);
@@ -25460,230 +26036,614 @@ static sp_digit sp_4096_cond_add_64(sp_digit* r, const sp_digit* a, const sp_dig
     __asm__ __volatile__ (
 
         "mov	r8, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[b], #0]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[b], #0]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adds	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #8]\n\t"
+        "ldr	r5, [%[a], #12]\n\t"
+        "ldr	r6, [%[b], #8]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #8]\n\t"
         "ldrd	r6, r7, [%[b], #8]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #8]\n\t"
+        "str	r5, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[b], #16]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[b], #16]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+#else
         "strd	r4, r5, [%[r], #16]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #24]\n\t"
+        "ldr	r5, [%[a], #28]\n\t"
+        "ldr	r6, [%[b], #24]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #24]\n\t"
         "ldrd	r6, r7, [%[b], #24]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #24]\n\t"
+        "str	r5, [%[r], #28]\n\t"
+#else
         "strd	r4, r5, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #32]\n\t"
+        "ldr	r5, [%[a], #36]\n\t"
+        "ldr	r6, [%[b], #32]\n\t"
+        "ldr	r7, [%[b], #36]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #32]\n\t"
         "ldrd	r6, r7, [%[b], #32]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #32]\n\t"
+        "str	r5, [%[r], #36]\n\t"
+#else
         "strd	r4, r5, [%[r], #32]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #40]\n\t"
+        "ldr	r5, [%[a], #44]\n\t"
+        "ldr	r6, [%[b], #40]\n\t"
+        "ldr	r7, [%[b], #44]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #40]\n\t"
         "ldrd	r6, r7, [%[b], #40]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #40]\n\t"
+        "str	r5, [%[r], #44]\n\t"
+#else
         "strd	r4, r5, [%[r], #40]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #48]\n\t"
+        "ldr	r5, [%[a], #52]\n\t"
+        "ldr	r6, [%[b], #48]\n\t"
+        "ldr	r7, [%[b], #52]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #48]\n\t"
         "ldrd	r6, r7, [%[b], #48]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #48]\n\t"
+        "str	r5, [%[r], #52]\n\t"
+#else
         "strd	r4, r5, [%[r], #48]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #56]\n\t"
+        "ldr	r5, [%[a], #60]\n\t"
+        "ldr	r6, [%[b], #56]\n\t"
+        "ldr	r7, [%[b], #60]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #56]\n\t"
         "ldrd	r6, r7, [%[b], #56]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #56]\n\t"
+        "str	r5, [%[r], #60]\n\t"
+#else
         "strd	r4, r5, [%[r], #56]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #64]\n\t"
+        "ldr	r5, [%[a], #68]\n\t"
+        "ldr	r6, [%[b], #64]\n\t"
+        "ldr	r7, [%[b], #68]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #64]\n\t"
         "ldrd	r6, r7, [%[b], #64]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #64]\n\t"
+        "str	r5, [%[r], #68]\n\t"
+#else
         "strd	r4, r5, [%[r], #64]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #72]\n\t"
+        "ldr	r5, [%[a], #76]\n\t"
+        "ldr	r6, [%[b], #72]\n\t"
+        "ldr	r7, [%[b], #76]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #72]\n\t"
         "ldrd	r6, r7, [%[b], #72]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #72]\n\t"
+        "str	r5, [%[r], #76]\n\t"
+#else
         "strd	r4, r5, [%[r], #72]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #80]\n\t"
+        "ldr	r5, [%[a], #84]\n\t"
+        "ldr	r6, [%[b], #80]\n\t"
+        "ldr	r7, [%[b], #84]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #80]\n\t"
         "ldrd	r6, r7, [%[b], #80]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #80]\n\t"
+        "str	r5, [%[r], #84]\n\t"
+#else
         "strd	r4, r5, [%[r], #80]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #88]\n\t"
+        "ldr	r5, [%[a], #92]\n\t"
+        "ldr	r6, [%[b], #88]\n\t"
+        "ldr	r7, [%[b], #92]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #88]\n\t"
         "ldrd	r6, r7, [%[b], #88]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #88]\n\t"
+        "str	r5, [%[r], #92]\n\t"
+#else
         "strd	r4, r5, [%[r], #88]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #96]\n\t"
+        "ldr	r5, [%[a], #100]\n\t"
+        "ldr	r6, [%[b], #96]\n\t"
+        "ldr	r7, [%[b], #100]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #96]\n\t"
         "ldrd	r6, r7, [%[b], #96]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #96]\n\t"
+        "str	r5, [%[r], #100]\n\t"
+#else
         "strd	r4, r5, [%[r], #96]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #104]\n\t"
+        "ldr	r5, [%[a], #108]\n\t"
+        "ldr	r6, [%[b], #104]\n\t"
+        "ldr	r7, [%[b], #108]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #104]\n\t"
         "ldrd	r6, r7, [%[b], #104]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #104]\n\t"
+        "str	r5, [%[r], #108]\n\t"
+#else
         "strd	r4, r5, [%[r], #104]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #112]\n\t"
+        "ldr	r5, [%[a], #116]\n\t"
+        "ldr	r6, [%[b], #112]\n\t"
+        "ldr	r7, [%[b], #116]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #112]\n\t"
         "ldrd	r6, r7, [%[b], #112]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #112]\n\t"
+        "str	r5, [%[r], #116]\n\t"
+#else
         "strd	r4, r5, [%[r], #112]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #120]\n\t"
+        "ldr	r5, [%[a], #124]\n\t"
+        "ldr	r6, [%[b], #120]\n\t"
+        "ldr	r7, [%[b], #124]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #120]\n\t"
         "ldrd	r6, r7, [%[b], #120]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #120]\n\t"
+        "str	r5, [%[r], #124]\n\t"
+#else
         "strd	r4, r5, [%[r], #120]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #128]\n\t"
+        "ldr	r5, [%[a], #132]\n\t"
+        "ldr	r6, [%[b], #128]\n\t"
+        "ldr	r7, [%[b], #132]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #128]\n\t"
         "ldrd	r6, r7, [%[b], #128]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #128]\n\t"
+        "str	r5, [%[r], #132]\n\t"
+#else
         "strd	r4, r5, [%[r], #128]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #136]\n\t"
+        "ldr	r5, [%[a], #140]\n\t"
+        "ldr	r6, [%[b], #136]\n\t"
+        "ldr	r7, [%[b], #140]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #136]\n\t"
         "ldrd	r6, r7, [%[b], #136]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #136]\n\t"
+        "str	r5, [%[r], #140]\n\t"
+#else
         "strd	r4, r5, [%[r], #136]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #144]\n\t"
+        "ldr	r5, [%[a], #148]\n\t"
+        "ldr	r6, [%[b], #144]\n\t"
+        "ldr	r7, [%[b], #148]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #144]\n\t"
         "ldrd	r6, r7, [%[b], #144]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #144]\n\t"
+        "str	r5, [%[r], #148]\n\t"
+#else
         "strd	r4, r5, [%[r], #144]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #152]\n\t"
+        "ldr	r5, [%[a], #156]\n\t"
+        "ldr	r6, [%[b], #152]\n\t"
+        "ldr	r7, [%[b], #156]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #152]\n\t"
         "ldrd	r6, r7, [%[b], #152]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #152]\n\t"
+        "str	r5, [%[r], #156]\n\t"
+#else
         "strd	r4, r5, [%[r], #152]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #160]\n\t"
+        "ldr	r5, [%[a], #164]\n\t"
+        "ldr	r6, [%[b], #160]\n\t"
+        "ldr	r7, [%[b], #164]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #160]\n\t"
         "ldrd	r6, r7, [%[b], #160]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #160]\n\t"
+        "str	r5, [%[r], #164]\n\t"
+#else
         "strd	r4, r5, [%[r], #160]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #168]\n\t"
+        "ldr	r5, [%[a], #172]\n\t"
+        "ldr	r6, [%[b], #168]\n\t"
+        "ldr	r7, [%[b], #172]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #168]\n\t"
         "ldrd	r6, r7, [%[b], #168]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #168]\n\t"
+        "str	r5, [%[r], #172]\n\t"
+#else
         "strd	r4, r5, [%[r], #168]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #176]\n\t"
+        "ldr	r5, [%[a], #180]\n\t"
+        "ldr	r6, [%[b], #176]\n\t"
+        "ldr	r7, [%[b], #180]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #176]\n\t"
         "ldrd	r6, r7, [%[b], #176]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #176]\n\t"
+        "str	r5, [%[r], #180]\n\t"
+#else
         "strd	r4, r5, [%[r], #176]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #184]\n\t"
+        "ldr	r5, [%[a], #188]\n\t"
+        "ldr	r6, [%[b], #184]\n\t"
+        "ldr	r7, [%[b], #188]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #184]\n\t"
         "ldrd	r6, r7, [%[b], #184]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #184]\n\t"
+        "str	r5, [%[r], #188]\n\t"
+#else
         "strd	r4, r5, [%[r], #184]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #192]\n\t"
+        "ldr	r5, [%[a], #196]\n\t"
+        "ldr	r6, [%[b], #192]\n\t"
+        "ldr	r7, [%[b], #196]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #192]\n\t"
         "ldrd	r6, r7, [%[b], #192]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #192]\n\t"
+        "str	r5, [%[r], #196]\n\t"
+#else
         "strd	r4, r5, [%[r], #192]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #200]\n\t"
+        "ldr	r5, [%[a], #204]\n\t"
+        "ldr	r6, [%[b], #200]\n\t"
+        "ldr	r7, [%[b], #204]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #200]\n\t"
         "ldrd	r6, r7, [%[b], #200]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #200]\n\t"
+        "str	r5, [%[r], #204]\n\t"
+#else
         "strd	r4, r5, [%[r], #200]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #208]\n\t"
+        "ldr	r5, [%[a], #212]\n\t"
+        "ldr	r6, [%[b], #208]\n\t"
+        "ldr	r7, [%[b], #212]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #208]\n\t"
         "ldrd	r6, r7, [%[b], #208]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #208]\n\t"
+        "str	r5, [%[r], #212]\n\t"
+#else
         "strd	r4, r5, [%[r], #208]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #216]\n\t"
+        "ldr	r5, [%[a], #220]\n\t"
+        "ldr	r6, [%[b], #216]\n\t"
+        "ldr	r7, [%[b], #220]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #216]\n\t"
         "ldrd	r6, r7, [%[b], #216]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #216]\n\t"
+        "str	r5, [%[r], #220]\n\t"
+#else
         "strd	r4, r5, [%[r], #216]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #224]\n\t"
+        "ldr	r5, [%[a], #228]\n\t"
+        "ldr	r6, [%[b], #224]\n\t"
+        "ldr	r7, [%[b], #228]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #224]\n\t"
         "ldrd	r6, r7, [%[b], #224]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #224]\n\t"
+        "str	r5, [%[r], #228]\n\t"
+#else
         "strd	r4, r5, [%[r], #224]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #232]\n\t"
+        "ldr	r5, [%[a], #236]\n\t"
+        "ldr	r6, [%[b], #232]\n\t"
+        "ldr	r7, [%[b], #236]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #232]\n\t"
         "ldrd	r6, r7, [%[b], #232]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #232]\n\t"
+        "str	r5, [%[r], #236]\n\t"
+#else
         "strd	r4, r5, [%[r], #232]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #240]\n\t"
+        "ldr	r5, [%[a], #244]\n\t"
+        "ldr	r6, [%[b], #240]\n\t"
+        "ldr	r7, [%[b], #244]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #240]\n\t"
         "ldrd	r6, r7, [%[b], #240]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #240]\n\t"
+        "str	r5, [%[r], #244]\n\t"
+#else
         "strd	r4, r5, [%[r], #240]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #248]\n\t"
+        "ldr	r5, [%[a], #252]\n\t"
+        "ldr	r6, [%[b], #248]\n\t"
+        "ldr	r7, [%[b], #252]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #248]\n\t"
         "ldrd	r6, r7, [%[b], #248]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #248]\n\t"
+        "str	r5, [%[r], #252]\n\t"
+#else
         "strd	r4, r5, [%[r], #248]\n\t"
+#endif
         "adc	%[c], r8, r8\n\t"
         : [c] "+r" (c)
         : [r] "r" (r), [a] "r" (a), [b] "r" (b), [m] "r" (m)
@@ -27639,10 +28599,21 @@ static void sp_256_sqr_8(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -28589,7 +29560,6 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "umull	r8, r9, r6, r7\n\t"
         "str	r8, [sp, #0]\n\t"
         "#  A[0] * B[1]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[b], #4]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
@@ -28602,9 +29572,8 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, #0\n\t"
         "str	r9, [sp, #4]\n\t"
-        "#  A[0] * B[2]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
-        "ldr	r7, [%[b], #8]\n\t"
+        "#  A[2] * B[0]\n\t"
+        "ldr	r6, [%[a], #8]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adc	r14, r4, r14\n\t"
@@ -28615,16 +29584,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, #0\n\t"
-        "#  A[2] * B[0]\n\t"
-        "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[b], #0]\n\t"
+        "#  A[0] * B[2]\n\t"
+        "ldr	r6, [%[a], #0]\n\t"
+        "ldr	r7, [%[b], #8]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
         "str	r10, [sp, #8]\n\t"
         "#  A[0] * B[3]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[b], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
@@ -28652,16 +29620,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r8, r4, r8\n\t"
         "adc	r9, r5, r9\n\t"
         "str	r14, [sp, #12]\n\t"
-        "#  A[0] * B[4]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
-        "ldr	r7, [%[b], #16]\n\t"
+        "#  A[4] * B[0]\n\t"
+        "ldr	r6, [%[a], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, #0\n\t"
-        "#  A[1] * B[3]\n\t"
-        "ldr	r6, [%[a], #4]\n\t"
-        "ldr	r7, [%[b], #12]\n\t"
+        "#  A[3] * B[1]\n\t"
+        "ldr	r6, [%[a], #12]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -28673,23 +29640,22 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[3] * B[1]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[b], #4]\n\t"
+        "#  A[1] * B[3]\n\t"
+        "ldr	r6, [%[a], #4]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[4] * B[0]\n\t"
-        "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[b], #0]\n\t"
+        "#  A[0] * B[4]\n\t"
+        "ldr	r6, [%[a], #0]\n\t"
+        "ldr	r7, [%[b], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
         "str	r8, [sp, #16]\n\t"
         "#  A[0] * B[5]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[b], #20]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
@@ -28731,30 +29697,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, r14\n\t"
         "str	r9, [sp, #20]\n\t"
-        "#  A[0] * B[6]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
-        "ldr	r7, [%[b], #24]\n\t"
+        "#  A[6] * B[0]\n\t"
+        "ldr	r6, [%[a], #24]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, #0\n\t"
-        "#  A[1] * B[5]\n\t"
-        "ldr	r6, [%[a], #4]\n\t"
-        "ldr	r7, [%[b], #20]\n\t"
-        "umull	r3, r4, r6, r7\n\t"
-        "adds	r10, r3, r10\n\t"
-        "adcs	r14, r4, r14\n\t"
-        "adc	r8, r5, r8\n\t"
-        "#  A[2] * B[4]\n\t"
-        "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[b], #16]\n\t"
-        "umull	r3, r4, r6, r7\n\t"
-        "adds	r10, r3, r10\n\t"
-        "adcs	r14, r4, r14\n\t"
-        "adc	r8, r5, r8\n\t"
-        "#  A[3] * B[3]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[b], #12]\n\t"
+        "#  A[5] * B[1]\n\t"
+        "ldr	r6, [%[a], #20]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
@@ -28766,23 +29717,36 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
-        "#  A[5] * B[1]\n\t"
-        "ldr	r6, [%[a], #20]\n\t"
-        "ldr	r7, [%[b], #4]\n\t"
+        "#  A[3] * B[3]\n\t"
+        "ldr	r6, [%[a], #12]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
-        "#  A[6] * B[0]\n\t"
-        "ldr	r6, [%[a], #24]\n\t"
-        "ldr	r7, [%[b], #0]\n\t"
+        "#  A[2] * B[4]\n\t"
+        "ldr	r6, [%[a], #8]\n\t"
+        "ldr	r7, [%[b], #16]\n\t"
+        "umull	r3, r4, r6, r7\n\t"
+        "adds	r10, r3, r10\n\t"
+        "adcs	r14, r4, r14\n\t"
+        "adc	r8, r5, r8\n\t"
+        "#  A[1] * B[5]\n\t"
+        "ldr	r6, [%[a], #4]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+        "umull	r3, r4, r6, r7\n\t"
+        "adds	r10, r3, r10\n\t"
+        "adcs	r14, r4, r14\n\t"
+        "adc	r8, r5, r8\n\t"
+        "#  A[0] * B[6]\n\t"
+        "ldr	r6, [%[a], #0]\n\t"
+        "ldr	r7, [%[b], #24]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
         "str	r10, [sp, #24]\n\t"
         "#  A[0] * B[7]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
@@ -28838,30 +29802,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r8, r4, r8\n\t"
         "adc	r9, r5, r9\n\t"
         "str	r14, [sp, #28]\n\t"
-        "#  A[1] * B[7]\n\t"
-        "ldr	r6, [%[a], #4]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
+        "#  A[7] * B[1]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, #0\n\t"
-        "#  A[2] * B[6]\n\t"
-        "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[b], #24]\n\t"
-        "umull	r3, r4, r6, r7\n\t"
-        "adds	r8, r3, r8\n\t"
-        "adcs	r9, r4, r9\n\t"
-        "adc	r10, r5, r10\n\t"
-        "#  A[3] * B[5]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[b], #20]\n\t"
-        "umull	r3, r4, r6, r7\n\t"
-        "adds	r8, r3, r8\n\t"
-        "adcs	r9, r4, r9\n\t"
-        "adc	r10, r5, r10\n\t"
-        "#  A[4] * B[4]\n\t"
-        "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[b], #16]\n\t"
+        "#  A[6] * B[2]\n\t"
+        "ldr	r6, [%[a], #24]\n\t"
+        "ldr	r7, [%[b], #8]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -28873,16 +29822,30 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[6] * B[2]\n\t"
-        "ldr	r6, [%[a], #24]\n\t"
-        "ldr	r7, [%[b], #8]\n\t"
+        "#  A[4] * B[4]\n\t"
+        "ldr	r6, [%[a], #16]\n\t"
+        "ldr	r7, [%[b], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[7] * B[1]\n\t"
-        "ldr	r6, [%[a], #28]\n\t"
-        "ldr	r7, [%[b], #4]\n\t"
+        "#  A[3] * B[5]\n\t"
+        "ldr	r6, [%[a], #12]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+        "umull	r3, r4, r6, r7\n\t"
+        "adds	r8, r3, r8\n\t"
+        "adcs	r9, r4, r9\n\t"
+        "adc	r10, r5, r10\n\t"
+        "#  A[2] * B[6]\n\t"
+        "ldr	r6, [%[a], #8]\n\t"
+        "ldr	r7, [%[b], #24]\n\t"
+        "umull	r3, r4, r6, r7\n\t"
+        "adds	r8, r3, r8\n\t"
+        "adcs	r9, r4, r9\n\t"
+        "adc	r10, r5, r10\n\t"
+        "#  A[1] * B[7]\n\t"
+        "ldr	r6, [%[a], #4]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -28890,7 +29853,6 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "str	r8, [sp, #32]\n\t"
         "#  A[2] * B[7]\n\t"
         "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
         "adcs	r10, r4, r10\n\t"
@@ -28931,16 +29893,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, r14\n\t"
         "str	r9, [sp, #36]\n\t"
-        "#  A[3] * B[7]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
+        "#  A[7] * B[3]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, #0\n\t"
-        "#  A[4] * B[6]\n\t"
-        "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[b], #24]\n\t"
+        "#  A[6] * B[4]\n\t"
+        "ldr	r6, [%[a], #24]\n\t"
+        "ldr	r7, [%[b], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
@@ -28952,16 +29913,16 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
-        "#  A[6] * B[4]\n\t"
-        "ldr	r6, [%[a], #24]\n\t"
-        "ldr	r7, [%[b], #16]\n\t"
+        "#  A[4] * B[6]\n\t"
+        "ldr	r6, [%[a], #16]\n\t"
+        "ldr	r7, [%[b], #24]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
-        "#  A[7] * B[3]\n\t"
-        "ldr	r6, [%[a], #28]\n\t"
-        "ldr	r7, [%[b], #12]\n\t"
+        "#  A[3] * B[7]\n\t"
+        "ldr	r6, [%[a], #12]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
@@ -28969,7 +29930,6 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "str	r10, [sp, #40]\n\t"
         "#  A[4] * B[7]\n\t"
         "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
         "adcs	r8, r4, r8\n\t"
@@ -28996,9 +29956,8 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r8, r4, r8\n\t"
         "adc	r9, r5, r9\n\t"
         "str	r14, [sp, #44]\n\t"
-        "#  A[5] * B[7]\n\t"
-        "ldr	r6, [%[a], #20]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
+        "#  A[7] * B[5]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -29010,16 +29969,15 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[7] * B[5]\n\t"
-        "ldr	r6, [%[a], #28]\n\t"
-        "ldr	r7, [%[b], #20]\n\t"
+        "#  A[5] * B[7]\n\t"
+        "ldr	r6, [%[a], #20]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
         "#  A[6] * B[7]\n\t"
         "ldr	r6, [%[a], #24]\n\t"
-        "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
         "adcs	r10, r4, r10\n\t"
@@ -29032,7 +29990,6 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, r14\n\t"
         "#  A[7] * B[7]\n\t"
-        "ldr	r6, [%[a], #28]\n\t"
         "ldr	r7, [%[b], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
@@ -29050,16 +30007,16 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "ldr	r9, [sp, #20]\n\t"
         "ldr	r10, [sp, #24]\n\t"
         "ldr	r14, [sp, #28]\n\t"
-        "# mu = a[0]-a[7] + a[0]-a[4] << 96 + (a[0]-a[1] * 2) << 192\n\t"
+        "# mu = a[0..7] + a[0..4] << 96 + (a[0..1] * 2) << 192\n\t"
         "#    - a[0] << 224\n\t"
-        "#   + (a[0]-a[1] * 2) << (6 * 32)\n\t"
+        "#   + (a[0..1] * 2) << (6 * 32)\n\t"
         "adds	r10, r10, r4\n\t"
         "adc	r14, r14, r5\n\t"
         "adds	r10, r10, r4\n\t"
         "adc	r14, r14, r5\n\t"
         "#   - a[0] << (7 * 32)\n\t"
         "sub	r14, r14, r4\n\t"
-        "#   + a[0]-a[4] << (3 * 32)\n\t"
+        "#   + a[0..4] << (3 * 32)\n\t"
         "mov	%[a], r7\n\t"
         "mov	%[b], r8\n\t"
         "adds	r7, r7, r4\n\t"
@@ -29067,9 +30024,6 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r9, r9, r6\n\t"
         "adcs	r10, r10, %[a]\n\t"
         "adc	r14, r14, %[b]\n\t"
-        "str	r4, [sp, #0]\n\t"
-        "str	r5, [sp, #4]\n\t"
-        "str	r6, [sp, #8]\n\t"
         "str	r7, [sp, #12]\n\t"
         "str	r8, [sp, #16]\n\t"
         "str	r9, [sp, #20]\n\t"
@@ -29185,38 +30139,28 @@ SP_NOINLINE static void sp_256_mont_mul_8(sp_digit* r, const sp_digit* a, const 
         "sbcs	r5, r5, r10\n\t"
         "sbcs	r6, r6, r14\n\t"
         "sbc	r7, r7, #0\n\t"
-        "str	r3, [sp, #44]\n\t"
-        "str	r4, [sp, #48]\n\t"
-        "str	r5, [sp, #52]\n\t"
-        "str	r6, [sp, #56]\n\t"
-        "str	r7, [sp, #60]\n\t"
         "# mask m and sub from result if overflow\n\t"
         "sub	%[b], %[a], %[b]\n\t"
         "and	%[a], %[b], #1\n\t"
-        "ldr	r3, [sp, #32]\n\t"
-        "ldr	r4, [sp, #36]\n\t"
-        "ldr	r5, [sp, #40]\n\t"
-        "ldr	r6, [sp, #44]\n\t"
-        "ldr	r7, [sp, #48]\n\t"
-        "ldr	r8, [sp, #52]\n\t"
-        "ldr	r9, [sp, #56]\n\t"
-        "ldr	r10, [sp, #60]\n\t"
-        "subs	r3, r3, %[b]\n\t"
-        "sbcs	r4, r4, %[b]\n\t"
-        "sbcs	r5, r5, %[b]\n\t"
-        "sbcs	r6, r6, #0\n\t"
-        "sbcs	r7, r7, #0\n\t"
-        "sbcs	r8, r8, #0\n\t"
-        "sbcs	r9, r9, %[a]\n\t"
-        "sbc	r10, r10, %[b]\n\t"
-        "str	r3, [%[r], #0]\n\t"
-        "str	r4, [%[r], #4]\n\t"
-        "str	r5, [%[r], #8]\n\t"
-        "str	r6, [%[r], #12]\n\t"
-        "str	r7, [%[r], #16]\n\t"
-        "str	r8, [%[r], #20]\n\t"
-        "str	r9, [%[r], #24]\n\t"
-        "str	r10, [%[r], #28]\n\t"
+        "ldr	r8, [sp, #32]\n\t"
+        "ldr	r9, [sp, #36]\n\t"
+        "ldr	r10, [sp, #40]\n\t"
+        "subs	r8, r8, %[b]\n\t"
+        "sbcs	r9, r9, %[b]\n\t"
+        "sbcs	r10, r10, %[b]\n\t"
+        "sbcs	r3, r3, #0\n\t"
+        "sbcs	r4, r4, #0\n\t"
+        "sbcs	r5, r5, #0\n\t"
+        "sbcs	r6, r6, %[a]\n\t"
+        "sbc	r7, r7, %[b]\n\t"
+        "str	r8, [%[r], #0]\n\t"
+        "str	r9, [%[r], #4]\n\t"
+        "str	r10, [%[r], #8]\n\t"
+        "str	r3, [%[r], #12]\n\t"
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+        "str	r6, [%[r], #24]\n\t"
+        "str	r7, [%[r], #28]\n\t"
         "add	sp, sp, #68\n\t"
         : [a] "+r" (a), [b] "+r" (b)
         : [r] "r" (r)
@@ -29246,14 +30190,12 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "umull	r9, r10, r6, r7\n\t"
         "str	r9, [sp, #4]\n\t"
         "#  A[0] * A[2]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[a], #8]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adc	r14, r4, #0\n\t"
         "str	r10, [sp, #8]\n\t"
         "#  A[0] * A[3]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[a], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
@@ -29266,22 +30208,20 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r8, r4, r8\n\t"
         "adc	r9, r5, #0\n\t"
         "str	r14, [sp, #12]\n\t"
-        "#  A[0] * A[4]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
-        "ldr	r7, [%[a], #16]\n\t"
+        "#  A[1] * A[3]\n\t"
+        "ldr	r7, [%[a], #12]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adc	r9, r4, r9\n\t"
-        "#  A[1] * A[3]\n\t"
-        "ldr	r6, [%[a], #4]\n\t"
-        "ldr	r7, [%[a], #12]\n\t"
+        "#  A[0] * A[4]\n\t"
+        "ldr	r6, [%[a], #0]\n\t"
+        "ldr	r7, [%[a], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, #0\n\t"
         "str	r8, [sp, #16]\n\t"
         "#  A[0] * A[5]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[a], #20]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
@@ -29301,9 +30241,8 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, r14\n\t"
         "str	r9, [sp, #20]\n\t"
-        "#  A[0] * A[6]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
-        "ldr	r7, [%[a], #24]\n\t"
+        "#  A[2] * A[4]\n\t"
+        "ldr	r7, [%[a], #16]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
@@ -29315,16 +30254,15 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
-        "#  A[2] * A[4]\n\t"
-        "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[a], #16]\n\t"
+        "#  A[0] * A[6]\n\t"
+        "ldr	r6, [%[a], #0]\n\t"
+        "ldr	r7, [%[a], #24]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, r8\n\t"
         "str	r10, [sp, #24]\n\t"
         "#  A[0] * A[7]\n\t"
-        "ldr	r6, [%[a], #0]\n\t"
         "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
@@ -29352,9 +30290,8 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r8, r4, r8\n\t"
         "adc	r9, r5, r9\n\t"
         "str	r14, [sp, #28]\n\t"
-        "#  A[1] * A[7]\n\t"
-        "ldr	r6, [%[a], #4]\n\t"
-        "ldr	r7, [%[a], #28]\n\t"
+        "#  A[3] * A[5]\n\t"
+        "ldr	r7, [%[a], #20]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -29366,9 +30303,9 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
         "adc	r10, r5, r10\n\t"
-        "#  A[3] * A[5]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[a], #20]\n\t"
+        "#  A[1] * A[7]\n\t"
+        "ldr	r6, [%[a], #4]\n\t"
+        "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
         "adcs	r9, r4, r9\n\t"
@@ -29376,7 +30313,6 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "str	r8, [sp, #32]\n\t"
         "#  A[2] * A[7]\n\t"
         "ldr	r6, [%[a], #8]\n\t"
-        "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
         "adcs	r10, r4, r10\n\t"
@@ -29396,16 +30332,15 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r10, r4, r10\n\t"
         "adc	r14, r5, r14\n\t"
         "str	r9, [sp, #36]\n\t"
-        "#  A[3] * A[7]\n\t"
-        "ldr	r6, [%[a], #12]\n\t"
-        "ldr	r7, [%[a], #28]\n\t"
+        "#  A[4] * A[6]\n\t"
+        "ldr	r7, [%[a], #24]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
         "adc	r8, r5, #0\n\t"
-        "#  A[4] * A[6]\n\t"
-        "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[a], #24]\n\t"
+        "#  A[3] * A[7]\n\t"
+        "ldr	r6, [%[a], #12]\n\t"
+        "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r10, r3, r10\n\t"
         "adcs	r14, r4, r14\n\t"
@@ -29413,7 +30348,6 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "str	r10, [sp, #40]\n\t"
         "#  A[4] * A[7]\n\t"
         "ldr	r6, [%[a], #16]\n\t"
-        "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r14, r3, r14\n\t"
         "adcs	r8, r4, r8\n\t"
@@ -29427,7 +30361,6 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adc	r9, r5, r9\n\t"
         "str	r14, [sp, #44]\n\t"
         "#  A[5] * A[7]\n\t"
-        "ldr	r6, [%[a], #20]\n\t"
         "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r8, r3, r8\n\t"
@@ -29436,7 +30369,6 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "str	r8, [sp, #48]\n\t"
         "#  A[6] * A[7]\n\t"
         "ldr	r6, [%[a], #24]\n\t"
-        "ldr	r7, [%[a], #28]\n\t"
         "umull	r3, r4, r6, r7\n\t"
         "adds	r9, r3, r9\n\t"
         "adc	r10, r4, r10\n\t"
@@ -29566,16 +30498,16 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "ldr	r9, [sp, #20]\n\t"
         "ldr	r10, [sp, #24]\n\t"
         "ldr	r14, [sp, #28]\n\t"
-        "# mu = a[0]-a[7] + a[0]-a[4] << 96 + (a[0]-a[1] * 2) << 192\n\t"
+        "# mu = a[0..7] + a[0..4] << 96 + (a[0..1] * 2) << 192\n\t"
         "#    - a[0] << 224\n\t"
-        "#   + (a[0]-a[1] * 2) << (6 * 32)\n\t"
+        "#   + (a[0..1] * 2) << (6 * 32)\n\t"
         "adds	r10, r10, r4\n\t"
         "adc	r14, r14, r5\n\t"
         "adds	r10, r10, r4\n\t"
         "adc	r14, r14, r5\n\t"
         "#   - a[0] << (7 * 32)\n\t"
         "sub	r14, r14, r4\n\t"
-        "#   + a[0]-a[4] << (3 * 32)\n\t"
+        "#   + a[0..4] << (3 * 32)\n\t"
         "mov	%[a], r7\n\t"
         "mov	r12, r8\n\t"
         "adds	r7, r7, r4\n\t"
@@ -29583,9 +30515,6 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "adcs	r9, r9, r6\n\t"
         "adcs	r10, r10, %[a]\n\t"
         "adc	r14, r14, r12\n\t"
-        "str	r4, [sp, #0]\n\t"
-        "str	r5, [sp, #4]\n\t"
-        "str	r6, [sp, #8]\n\t"
         "str	r7, [sp, #12]\n\t"
         "str	r8, [sp, #16]\n\t"
         "str	r9, [sp, #20]\n\t"
@@ -29701,38 +30630,28 @@ SP_NOINLINE static void sp_256_mont_sqr_8(sp_digit* r, const sp_digit* a, const 
         "sbcs	r5, r5, r10\n\t"
         "sbcs	r6, r6, r14\n\t"
         "sbc	r7, r7, #0\n\t"
-        "str	r3, [sp, #44]\n\t"
-        "str	r4, [sp, #48]\n\t"
-        "str	r5, [sp, #52]\n\t"
-        "str	r6, [sp, #56]\n\t"
-        "str	r7, [sp, #60]\n\t"
         "# mask m and sub from result if overflow\n\t"
         "sub	r12, %[a], r12\n\t"
         "and	%[a], r12, #1\n\t"
-        "ldr	r3, [sp, #32]\n\t"
-        "ldr	r4, [sp, #36]\n\t"
-        "ldr	r5, [sp, #40]\n\t"
-        "ldr	r6, [sp, #44]\n\t"
-        "ldr	r7, [sp, #48]\n\t"
-        "ldr	r8, [sp, #52]\n\t"
-        "ldr	r9, [sp, #56]\n\t"
-        "ldr	r10, [sp, #60]\n\t"
-        "subs	r3, r3, r12\n\t"
-        "sbcs	r4, r4, r12\n\t"
-        "sbcs	r5, r5, r12\n\t"
-        "sbcs	r6, r6, #0\n\t"
-        "sbcs	r7, r7, #0\n\t"
-        "sbcs	r8, r8, #0\n\t"
-        "sbcs	r9, r9, %[a]\n\t"
-        "sbc	r10, r10, r12\n\t"
-        "str	r3, [%[r], #0]\n\t"
-        "str	r4, [%[r], #4]\n\t"
-        "str	r5, [%[r], #8]\n\t"
-        "str	r6, [%[r], #12]\n\t"
-        "str	r7, [%[r], #16]\n\t"
-        "str	r8, [%[r], #20]\n\t"
-        "str	r9, [%[r], #24]\n\t"
-        "str	r10, [%[r], #28]\n\t"
+        "ldr	r8, [sp, #32]\n\t"
+        "ldr	r9, [sp, #36]\n\t"
+        "ldr	r10, [sp, #40]\n\t"
+        "subs	r8, r8, r12\n\t"
+        "sbcs	r9, r9, r12\n\t"
+        "sbcs	r10, r10, r12\n\t"
+        "sbcs	r3, r3, #0\n\t"
+        "sbcs	r4, r4, #0\n\t"
+        "sbcs	r5, r5, #0\n\t"
+        "sbcs	r6, r6, %[a]\n\t"
+        "sbc	r7, r7, r12\n\t"
+        "str	r8, [%[r], #0]\n\t"
+        "str	r9, [%[r], #4]\n\t"
+        "str	r10, [%[r], #8]\n\t"
+        "str	r3, [%[r], #12]\n\t"
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+        "str	r6, [%[r], #24]\n\t"
+        "str	r7, [%[r], #28]\n\t"
         "add	sp, sp, #68\n\t"
         : [a] "+r" (a)
         : [r] "r" (r)
@@ -30506,8 +31425,15 @@ static void sp_256_div2_8(sp_digit* r, const sp_digit* a, const sp_digit* m)
 {
     __asm__ __volatile__ (
         "mov	r10, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[a], #8]\n\t"
+        "ldr	r7, [%[a], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[a], #8]\n\t"
+#endif
         "and	r14, r4, #1\n\t"
         "sub	r8, r10, r14\n\t"
         "and	r9, r8, #1\n\t"
@@ -30515,10 +31441,24 @@ static void sp_256_div2_8(sp_digit* r, const sp_digit* a, const sp_digit* m)
         "adcs	r5, r5, r8\n\t"
         "adcs	r6, r6, r8\n\t"
         "adcs	r7, r7, r10\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+        "str	r6, [%[r], #8]\n\t"
+        "str	r7, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
         "strd	r6, r7, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[a], #24]\n\t"
+        "ldr	r7, [%[a], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[a], #24]\n\t"
+#endif
         "adcs	r4, r4, r10\n\t"
         "adcs	r5, r5, r10\n\t"
         "adcs	r6, r6, r9\n\t"
@@ -30533,10 +31473,24 @@ static void sp_256_div2_8(sp_digit* r, const sp_digit* a, const sp_digit* m)
         "orr	r10, r10, r7, lsl #31\n\t"
         "orr	r11, r11, r14, lsl #31\n\t"
         "mov	r14, r4\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r8, [%[r], #16]\n\t"
+        "str	r9, [%[r], #20]\n\t"
+        "str	r10, [%[r], #24]\n\t"
+        "str	r11, [%[r], #28]\n\t"
+#else
         "strd	r8, r9, [%[r], #16]\n\t"
         "strd	r10, r11, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[r], #0]\n\t"
+        "ldr	r5, [%[r], #4]\n\t"
+        "ldr	r6, [%[r], #8]\n\t"
+        "ldr	r7, [%[r], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[r], #0]\n\t"
         "ldrd	r6, r7, [%[r], #8]\n\t"
+#endif
         "lsr	r8, r4, #1\n\t"
         "lsr	r9, r5, #1\n\t"
         "lsr	r10, r6, #1\n\t"
@@ -30545,8 +31499,15 @@ static void sp_256_div2_8(sp_digit* r, const sp_digit* a, const sp_digit* m)
         "orr	r9, r9, r6, lsl #31\n\t"
         "orr	r10, r10, r7, lsl #31\n\t"
         "orr	r11, r11, r14, lsl #31\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r8, [%[r], #0]\n\t"
+        "str	r9, [%[r], #4]\n\t"
+        "str	r10, [%[r], #8]\n\t"
+        "str	r11, [%[r], #12]\n\t"
+#else
         "strd	r8, r9, [%[r], #0]\n\t"
         "strd	r10, r11, [%[r], #8]\n\t"
+#endif
         :
         : [r] "r" (r), [a] "r" (a), [m] "r" (m)
         : "memory", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r14"
@@ -34575,9 +35536,13 @@ static WC_INLINE int sp_256_div_8(const sp_digit* a, const sp_digit* d, sp_digit
 
     div = d[7];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 8);
+    r1 = sp_256_cmp_8(&t1[8], d) >= 0;
+    sp_256_cond_sub_8(&t1[8], &t1[8], d, (sp_digit)0 - r1);
     for (i = 7; i >= 0; i--) {
-        sp_digit hi = t1[8 + i] - (t1[8 + i] == div);
+        sp_digit mask = 0 - (t1[8 + i] == div);
+        sp_digit hi = t1[8 + i] + mask;
         r1 = div_256_word_8(hi, t1[8 + i - 1], div);
+        r1 |= mask;
 
         sp_256_mul_d_8(t2, d, r1);
         t1[8 + i] += sp_256_sub_in_place_8(&t1[i], t2);
@@ -34912,9 +35877,6 @@ int sp_ecc_sign_256_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
     case 0: /* INIT */
         ctx->s = ctx->e;
         ctx->kInv = ctx->k;
-        if (hashLen > 32U) {
-            hashLen = 32U;
-        }
 
         ctx->i = SP_ECC_MAX_SIG_GEN;
         ctx->state = 1;
@@ -34949,6 +35911,9 @@ int sp_ecc_sign_256_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
             (sp_digit)0 - (sp_digit)(c >= 0));
         sp_256_norm_8(ctx->r);
 
+        if (hashLen > 32U) {
+            hashLen = 32U;
+        }
         sp_256_from_mp(ctx->x, 8, priv);
         sp_256_from_bin(ctx->e, 8, hash, (int)hashLen);
         ctx->state = 4;
@@ -35169,8 +36134,15 @@ static void sp_256_rshift1_8(sp_digit* r, const sp_digit* a)
     __asm__ __volatile__ (
         "mov	r10, #0\n\t"
         "mov	r14, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[a], #24]\n\t"
+        "ldr	r7, [%[a], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[a], #24]\n\t"
+#endif
         "lsr	r8, r4, #1\n\t"
         "lsr	r9, r5, #1\n\t"
         "lsr	r10, r6, #1\n\t"
@@ -35180,10 +36152,24 @@ static void sp_256_rshift1_8(sp_digit* r, const sp_digit* a)
         "orr	r10, r10, r7, lsl #31\n\t"
         "orr	r11, r11, r14, lsl #31\n\t"
         "mov	r14, r4\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r8, [%[r], #16]\n\t"
+        "str	r9, [%[r], #20]\n\t"
+        "str	r10, [%[r], #24]\n\t"
+        "str	r11, [%[r], #28]\n\t"
+#else
         "strd	r8, r9, [%[r], #16]\n\t"
         "strd	r10, r11, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[r], #0]\n\t"
+        "ldr	r5, [%[r], #4]\n\t"
+        "ldr	r6, [%[r], #8]\n\t"
+        "ldr	r7, [%[r], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[r], #0]\n\t"
         "ldrd	r6, r7, [%[r], #8]\n\t"
+#endif
         "lsr	r8, r4, #1\n\t"
         "lsr	r9, r5, #1\n\t"
         "lsr	r10, r6, #1\n\t"
@@ -35192,8 +36178,15 @@ static void sp_256_rshift1_8(sp_digit* r, const sp_digit* a)
         "orr	r9, r9, r6, lsl #31\n\t"
         "orr	r10, r10, r7, lsl #31\n\t"
         "orr	r11, r11, r14, lsl #31\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r8, [%[r], #0]\n\t"
+        "str	r9, [%[r], #4]\n\t"
+        "str	r10, [%[r], #8]\n\t"
+        "str	r11, [%[r], #12]\n\t"
+#else
         "strd	r8, r9, [%[r], #0]\n\t"
         "strd	r10, r11, [%[r], #8]\n\t"
+#endif
         :
         : [r] "r" (r), [a] "r" (a)
         : "memory", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r14"
@@ -35286,6 +36279,314 @@ static void sp_256_div2_mod_8(sp_digit* r, const sp_digit* a,
     );
 }
 
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+static int sp_256_num_bits_8(sp_digit* a)
+{
+    static const byte sp_num_bits_table[256] = {
+        0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    };
+    const byte* table = sp_num_bits_table;
+    int r = 0;
+
+    __asm__ __volatile__ (
+        "ldr	r2, [%[a], #28]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	7f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	307f\n\t"
+        "mov	r3, #248\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n307:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	207f\n\t"
+        "mov	r3, #240\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n207:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	107f\n\t"
+        "mov	r3, #232\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n107:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #224\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n7:\n\t"
+        "ldr	r2, [%[a], #24]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	6f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	306f\n\t"
+        "mov	r3, #216\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n306:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	206f\n\t"
+        "mov	r3, #208\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n206:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	106f\n\t"
+        "mov	r3, #200\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n106:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #192\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n6:\n\t"
+        "ldr	r2, [%[a], #20]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	5f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	305f\n\t"
+        "mov	r3, #184\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n305:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	205f\n\t"
+        "mov	r3, #176\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n205:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	105f\n\t"
+        "mov	r3, #168\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n105:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #160\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n5:\n\t"
+        "ldr	r2, [%[a], #16]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	4f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	304f\n\t"
+        "mov	r3, #152\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n304:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	204f\n\t"
+        "mov	r3, #144\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n204:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	104f\n\t"
+        "mov	r3, #136\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n104:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #128\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n4:\n\t"
+        "ldr	r2, [%[a], #12]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	3f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	303f\n\t"
+        "mov	r3, #120\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n303:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	203f\n\t"
+        "mov	r3, #112\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n203:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	103f\n\t"
+        "mov	r3, #104\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n103:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #96\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n3:\n\t"
+        "ldr	r2, [%[a], #8]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	2f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	302f\n\t"
+        "mov	r3, #88\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n302:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	202f\n\t"
+        "mov	r3, #80\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n202:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	102f\n\t"
+        "mov	r3, #72\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n102:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #64\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n2:\n\t"
+        "ldr	r2, [%[a], #4]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	1f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	301f\n\t"
+        "mov	r3, #56\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n301:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	201f\n\t"
+        "mov	r3, #48\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n201:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	101f\n\t"
+        "mov	r3, #40\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n101:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #32\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n1:\n\t"
+        "ldr	r2, [%[a], #0]\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	300f\n\t"
+        "mov	r3, #24\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n300:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	200f\n\t"
+        "mov	r3, #16\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n200:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	100f\n\t"
+        "mov	r3, #8\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	9f\n\t"
+        "\n100:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "\n9:\n\t"
+        : [r] "+r" (r)
+        : [a] "r" (a), [table] "r" (table)
+        : "r2", "r3", "r4"
+    );
+
+    return r;
+}
+#else
 static int sp_256_num_bits_8(sp_digit* a)
 {
     int r = 0;
@@ -35359,6 +36660,7 @@ static int sp_256_num_bits_8(sp_digit* a)
 
     return r;
 }
+#endif
 
 /* Non-constant time modular inversion.
  *
@@ -37564,10 +38866,21 @@ static void sp_384_sqr_12(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -39415,48 +40728,120 @@ static sp_digit sp_384_cond_add_12(sp_digit* r, const sp_digit* a, const sp_digi
     __asm__ __volatile__ (
 
         "mov	r8, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[b], #0]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[b], #0]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adds	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #8]\n\t"
+        "ldr	r5, [%[a], #12]\n\t"
+        "ldr	r6, [%[b], #8]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #8]\n\t"
         "ldrd	r6, r7, [%[b], #8]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #8]\n\t"
+        "str	r5, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[b], #16]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[b], #16]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+#else
         "strd	r4, r5, [%[r], #16]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #24]\n\t"
+        "ldr	r5, [%[a], #28]\n\t"
+        "ldr	r6, [%[b], #24]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #24]\n\t"
         "ldrd	r6, r7, [%[b], #24]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #24]\n\t"
+        "str	r5, [%[r], #28]\n\t"
+#else
         "strd	r4, r5, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #32]\n\t"
+        "ldr	r5, [%[a], #36]\n\t"
+        "ldr	r6, [%[b], #32]\n\t"
+        "ldr	r7, [%[b], #36]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #32]\n\t"
         "ldrd	r6, r7, [%[b], #32]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #32]\n\t"
+        "str	r5, [%[r], #36]\n\t"
+#else
         "strd	r4, r5, [%[r], #32]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #40]\n\t"
+        "ldr	r5, [%[a], #44]\n\t"
+        "ldr	r6, [%[b], #40]\n\t"
+        "ldr	r7, [%[b], #44]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #40]\n\t"
         "ldrd	r6, r7, [%[b], #40]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #40]\n\t"
+        "str	r5, [%[r], #44]\n\t"
+#else
         "strd	r4, r5, [%[r], #40]\n\t"
+#endif
         "adc	%[c], r8, r8\n\t"
         : [c] "+r" (c)
         : [r] "r" (r), [a] "r" (a), [b] "r" (b), [m] "r" (m)
@@ -39487,7 +40872,12 @@ static void sp_384_mont_sub_12(sp_digit* r, const sp_digit* a, const sp_digit* b
 static void sp_384_rshift1_12(sp_digit* r, const sp_digit* a)
 {
     __asm__ __volatile__ (
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r2, [%[a]]\n\t"
+        "ldr	r3, [%[a], #4]\n\t"
+#else
         "ldrd	r2, r3, [%[a]]\n\t"
+#endif
         "lsr	r2, r2, #1\n\t"
         "orr	r2, r2, r3, lsl #31\n\t"
         "lsr	r3, r3, #1\n\t"
@@ -43678,9 +45068,13 @@ static WC_INLINE int sp_384_div_12(const sp_digit* a, const sp_digit* d, sp_digi
 
     div = d[11];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 12);
+    r1 = sp_384_cmp_12(&t1[12], d) >= 0;
+    sp_384_cond_sub_12(&t1[12], &t1[12], d, (sp_digit)0 - r1);
     for (i = 11; i >= 0; i--) {
-        sp_digit hi = t1[12 + i] - (t1[12 + i] == div);
+        sp_digit mask = 0 - (t1[12 + i] == div);
+        sp_digit hi = t1[12 + i] + mask;
         r1 = div_384_word_12(hi, t1[12 + i - 1], div);
+        r1 |= mask;
 
         sp_384_mul_d_12(t2, d, r1);
         t1[12 + i] += sp_384_sub_in_place_12(&t1[i], t2);
@@ -43986,9 +45380,6 @@ int sp_ecc_sign_384_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
     case 0: /* INIT */
         ctx->s = ctx->e;
         ctx->kInv = ctx->k;
-        if (hashLen > 48U) {
-            hashLen = 48U;
-        }
 
         ctx->i = SP_ECC_MAX_SIG_GEN;
         ctx->state = 1;
@@ -44023,6 +45414,9 @@ int sp_ecc_sign_384_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
             (sp_digit)0 - (sp_digit)(c >= 0));
         sp_384_norm_12(ctx->r);
 
+        if (hashLen > 48U) {
+            hashLen = 48U;
+        }
         sp_384_from_mp(ctx->x, 12, priv);
         sp_384_from_bin(ctx->e, 12, hash, (int)hashLen);
         ctx->state = 4;
@@ -44380,6 +45774,454 @@ static void sp_384_div2_mod_12(sp_digit* r, const sp_digit* a,
     );
 }
 
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+static int sp_384_num_bits_12(sp_digit* a)
+{
+    static const byte sp_num_bits_table[256] = {
+        0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    };
+    const byte* table = sp_num_bits_table;
+    int r = 0;
+
+    __asm__ __volatile__ (
+        "ldr	r2, [%[a], #44]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	11f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	311f\n\t"
+        "mov	r3, #376\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n311:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	211f\n\t"
+        "mov	r3, #368\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n211:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	111f\n\t"
+        "mov	r3, #360\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n111:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #352\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n11:\n\t"
+        "ldr	r2, [%[a], #40]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	10f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	310f\n\t"
+        "mov	r3, #344\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n310:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	210f\n\t"
+        "mov	r3, #336\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n210:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	110f\n\t"
+        "mov	r3, #328\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n110:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #320\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n10:\n\t"
+        "ldr	r2, [%[a], #36]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	9f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	309f\n\t"
+        "mov	r3, #312\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n309:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	209f\n\t"
+        "mov	r3, #304\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n209:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	109f\n\t"
+        "mov	r3, #296\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n109:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #288\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n9:\n\t"
+        "ldr	r2, [%[a], #32]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	8f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	308f\n\t"
+        "mov	r3, #280\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n308:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	208f\n\t"
+        "mov	r3, #272\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n208:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	108f\n\t"
+        "mov	r3, #264\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n108:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #256\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n8:\n\t"
+        "ldr	r2, [%[a], #28]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	7f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	307f\n\t"
+        "mov	r3, #248\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n307:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	207f\n\t"
+        "mov	r3, #240\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n207:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	107f\n\t"
+        "mov	r3, #232\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n107:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #224\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n7:\n\t"
+        "ldr	r2, [%[a], #24]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	6f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	306f\n\t"
+        "mov	r3, #216\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n306:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	206f\n\t"
+        "mov	r3, #208\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n206:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	106f\n\t"
+        "mov	r3, #200\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n106:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #192\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n6:\n\t"
+        "ldr	r2, [%[a], #20]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	5f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	305f\n\t"
+        "mov	r3, #184\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n305:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	205f\n\t"
+        "mov	r3, #176\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n205:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	105f\n\t"
+        "mov	r3, #168\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n105:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #160\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n5:\n\t"
+        "ldr	r2, [%[a], #16]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	4f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	304f\n\t"
+        "mov	r3, #152\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n304:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	204f\n\t"
+        "mov	r3, #144\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n204:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	104f\n\t"
+        "mov	r3, #136\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n104:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #128\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n4:\n\t"
+        "ldr	r2, [%[a], #12]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	3f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	303f\n\t"
+        "mov	r3, #120\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n303:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	203f\n\t"
+        "mov	r3, #112\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n203:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	103f\n\t"
+        "mov	r3, #104\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n103:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #96\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n3:\n\t"
+        "ldr	r2, [%[a], #8]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	2f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	302f\n\t"
+        "mov	r3, #88\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n302:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	202f\n\t"
+        "mov	r3, #80\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n202:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	102f\n\t"
+        "mov	r3, #72\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n102:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #64\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n2:\n\t"
+        "ldr	r2, [%[a], #4]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	1f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	301f\n\t"
+        "mov	r3, #56\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n301:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	201f\n\t"
+        "mov	r3, #48\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n201:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	101f\n\t"
+        "mov	r3, #40\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n101:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #32\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n1:\n\t"
+        "ldr	r2, [%[a], #0]\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	300f\n\t"
+        "mov	r3, #24\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n300:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	200f\n\t"
+        "mov	r3, #16\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n200:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	100f\n\t"
+        "mov	r3, #8\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	13f\n\t"
+        "\n100:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "\n13:\n\t"
+        : [r] "+r" (r)
+        : [a] "r" (a), [table] "r" (table)
+        : "r2", "r3", "r4"
+    );
+
+    return r;
+}
+#else
 static int sp_384_num_bits_12(sp_digit* a)
 {
     int r = 0;
@@ -44485,6 +46327,7 @@ static int sp_384_num_bits_12(sp_digit* a)
 
     return r;
 }
+#endif
 
 /* Non-constant time modular inversion.
  *
@@ -47754,10 +49597,21 @@ static void sp_521_sqr_17(sp_digit* r, const sp_digit* a)
         "add	%[r], %[r], #8\n\t"
         "subs	r5, r5, #8\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -50751,7 +52605,12 @@ static void sp_521_mont_sub_17(sp_digit* r, const sp_digit* a, const sp_digit* b
 static void sp_521_rshift1_17(sp_digit* r, const sp_digit* a)
 {
     __asm__ __volatile__ (
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r2, [%[a]]\n\t"
+        "ldr	r3, [%[a], #4]\n\t"
+#else
         "ldrd	r2, r3, [%[a]]\n\t"
+#endif
         "lsr	r2, r2, #1\n\t"
         "orr	r2, r2, r3, lsl #31\n\t"
         "lsr	r3, r3, #1\n\t"
@@ -55280,7 +57139,12 @@ static void sp_521_rshift_17(sp_digit* r, const sp_digit* a, byte n)
 {
     __asm__ __volatile__ (
         "rsb	r6, %[n], #32\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r2, [%[a]]\n\t"
+        "ldr	r3, [%[a], #4]\n\t"
+#else
         "ldrd	r2, r3, [%[a]]\n\t"
+#endif
         "lsr	r2, r2, %[n]\n\t"
         "lsl	r5, r3, r6\n\t"
         "lsr	r3, r3, %[n]\n\t"
@@ -56399,9 +58263,6 @@ int sp_ecc_sign_521_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
     case 0: /* INIT */
         ctx->s = ctx->e;
         ctx->kInv = ctx->k;
-        if (hashLen > 66U) {
-            hashLen = 66U;
-        }
 
         ctx->i = SP_ECC_MAX_SIG_GEN;
         ctx->state = 1;
@@ -56436,6 +58297,9 @@ int sp_ecc_sign_521_nb(sp_ecc_ctx_t* sp_ctx, const byte* hash, word32 hashLen, W
             (sp_digit)0 - (sp_digit)(c >= 0));
         sp_521_norm_17(ctx->r);
 
+        if (hashLen > 66U) {
+            hashLen = 66U;
+        }
         sp_521_from_mp(ctx->x, 17, priv);
         sp_521_from_bin(ctx->e, 17, hash, (int)hashLen);
         if (hashLen == 66U) {
@@ -56848,6 +58712,629 @@ static void sp_521_div2_mod_17(sp_digit* r, const sp_digit* a,
     );
 }
 
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+static int sp_521_num_bits_17(sp_digit* a)
+{
+    static const byte sp_num_bits_table[256] = {
+        0, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    };
+    const byte* table = sp_num_bits_table;
+    int r = 0;
+
+    __asm__ __volatile__ (
+        "ldr	r2, [%[a], #64]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	16f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	316f\n\t"
+        "mov	r3, #536\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n316:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	216f\n\t"
+        "mov	r3, #528\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n216:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	116f\n\t"
+        "mov	r3, #520\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n116:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #512\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n16:\n\t"
+        "ldr	r2, [%[a], #60]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	15f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	315f\n\t"
+        "mov	r3, #504\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n315:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	215f\n\t"
+        "mov	r3, #496\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n215:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	115f\n\t"
+        "mov	r3, #488\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n115:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #480\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n15:\n\t"
+        "ldr	r2, [%[a], #56]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	14f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	314f\n\t"
+        "mov	r3, #472\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n314:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	214f\n\t"
+        "mov	r3, #464\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n214:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	114f\n\t"
+        "mov	r3, #456\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n114:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #448\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n14:\n\t"
+        "ldr	r2, [%[a], #52]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	13f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	313f\n\t"
+        "mov	r3, #440\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n313:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	213f\n\t"
+        "mov	r3, #432\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n213:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	113f\n\t"
+        "mov	r3, #424\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n113:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #416\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n13:\n\t"
+        "ldr	r2, [%[a], #48]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	12f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	312f\n\t"
+        "mov	r3, #408\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n312:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	212f\n\t"
+        "mov	r3, #400\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n212:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	112f\n\t"
+        "mov	r3, #392\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n112:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #384\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n12:\n\t"
+        "ldr	r2, [%[a], #44]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	11f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	311f\n\t"
+        "mov	r3, #376\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n311:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	211f\n\t"
+        "mov	r3, #368\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n211:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	111f\n\t"
+        "mov	r3, #360\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n111:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #352\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n11:\n\t"
+        "ldr	r2, [%[a], #40]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	10f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	310f\n\t"
+        "mov	r3, #344\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n310:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	210f\n\t"
+        "mov	r3, #336\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n210:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	110f\n\t"
+        "mov	r3, #328\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n110:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #320\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n10:\n\t"
+        "ldr	r2, [%[a], #36]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	9f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	309f\n\t"
+        "mov	r3, #312\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n309:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	209f\n\t"
+        "mov	r3, #304\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n209:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	109f\n\t"
+        "mov	r3, #296\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n109:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #288\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n9:\n\t"
+        "ldr	r2, [%[a], #32]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	8f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	308f\n\t"
+        "mov	r3, #280\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n308:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	208f\n\t"
+        "mov	r3, #272\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n208:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	108f\n\t"
+        "mov	r3, #264\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n108:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #256\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n8:\n\t"
+        "ldr	r2, [%[a], #28]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	7f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	307f\n\t"
+        "mov	r3, #248\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n307:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	207f\n\t"
+        "mov	r3, #240\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n207:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	107f\n\t"
+        "mov	r3, #232\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n107:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #224\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n7:\n\t"
+        "ldr	r2, [%[a], #24]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	6f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	306f\n\t"
+        "mov	r3, #216\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n306:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	206f\n\t"
+        "mov	r3, #208\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n206:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	106f\n\t"
+        "mov	r3, #200\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n106:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #192\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n6:\n\t"
+        "ldr	r2, [%[a], #20]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	5f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	305f\n\t"
+        "mov	r3, #184\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n305:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	205f\n\t"
+        "mov	r3, #176\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n205:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	105f\n\t"
+        "mov	r3, #168\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n105:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #160\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n5:\n\t"
+        "ldr	r2, [%[a], #16]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	4f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	304f\n\t"
+        "mov	r3, #152\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n304:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	204f\n\t"
+        "mov	r3, #144\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n204:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	104f\n\t"
+        "mov	r3, #136\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n104:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #128\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n4:\n\t"
+        "ldr	r2, [%[a], #12]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	3f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	303f\n\t"
+        "mov	r3, #120\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n303:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	203f\n\t"
+        "mov	r3, #112\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n203:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	103f\n\t"
+        "mov	r3, #104\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n103:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #96\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n3:\n\t"
+        "ldr	r2, [%[a], #8]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	2f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	302f\n\t"
+        "mov	r3, #88\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n302:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	202f\n\t"
+        "mov	r3, #80\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n202:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	102f\n\t"
+        "mov	r3, #72\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n102:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #64\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n2:\n\t"
+        "ldr	r2, [%[a], #4]\n\t"
+        "cmp	r2, #0\n\t"
+        "beq	1f\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	301f\n\t"
+        "mov	r3, #56\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n301:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	201f\n\t"
+        "mov	r3, #48\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n201:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	101f\n\t"
+        "mov	r3, #40\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n101:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "mov	r3, #32\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n1:\n\t"
+        "ldr	r2, [%[a], #0]\n\t"
+        "lsr	r4, r2, #24\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	300f\n\t"
+        "mov	r3, #24\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n300:\n\t"
+        "lsr	r4, r2, #16\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	200f\n\t"
+        "mov	r3, #16\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n200:\n\t"
+        "lsr	r4, r2, #8\n\t"
+        "and	r4, r4, #0xff\n\t"
+        "cmp	r4, #0\n\t"
+        "beq	100f\n\t"
+        "mov	r3, #8\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "add	%[r], r3, %[r]\n\t"
+        "b	18f\n\t"
+        "\n100:\n\t"
+        "and	r4, r2, #0xff\n\t"
+        "ldrb	%[r], [%[table], r4]\n\t"
+        "\n18:\n\t"
+        : [r] "+r" (r)
+        : [a] "r" (a), [table] "r" (table)
+        : "r2", "r3", "r4"
+    );
+
+    return r;
+}
+#else
 static int sp_521_num_bits_17(sp_digit* a)
 {
     int r = 0;
@@ -56993,6 +59480,7 @@ static int sp_521_num_bits_17(sp_digit* a)
 
     return r;
 }
+#endif
 
 /* Non-constant time modular inversion.
  *
@@ -61386,10 +63874,21 @@ static void sp_1024_sqr_32(sp_digit* r, const sp_digit* a)
         "ble	1b\n\t"
         "str	r6, [sp, r5]\n\t"
         "\n4:\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r6, [sp, #0]\n\t"
+        "ldr	r7, [sp, #4]\n\t"
+        "ldr	r8, [sp, #8]\n\t"
+        "ldr	r9, [sp, #12]\n\t"
+        "str	r6, [%[r], #0]\n\t"
+        "str	r7, [%[r], #4]\n\t"
+        "str	r8, [%[r], #8]\n\t"
+        "str	r9, [%[r], #12]\n\t"
+#else
         "ldrd	r6, r7, [sp, #0]\n\t"
         "ldrd	r8, r9, [sp, #8]\n\t"
         "strd	r6, r7, [%[r], #0]\n\t"
         "strd	r8, r9, [%[r], #8]\n\t"
+#endif
         "add	sp, sp, #16\n\t"
         "add	%[r], %[r], #16\n\t"
         "subs	r5, r5, #16\n\t"
@@ -62498,9 +64997,13 @@ static WC_INLINE int sp_1024_div_32(const sp_digit* a, const sp_digit* d, sp_dig
 
     div = d[31];
     XMEMCPY(t1, a, sizeof(*t1) * 2 * 32);
+    r1 = sp_1024_cmp_32(&t1[32], d) >= 0;
+    sp_1024_cond_sub_32(&t1[32], &t1[32], d, (sp_digit)0 - r1);
     for (i = 31; i >= 0; i--) {
-        sp_digit hi = t1[32 + i] - (t1[32 + i] == div);
+        sp_digit mask = 0 - (t1[32 + i] == div);
+        sp_digit hi = t1[32 + i] + mask;
         r1 = div_1024_word_32(hi, t1[32 + i - 1], div);
+        r1 |= mask;
 
         sp_1024_mul_d_32(t2, d, r1);
         t1[32 + i] += sp_1024_sub_in_place_32(&t1[i], t2);
@@ -64107,118 +66610,310 @@ static sp_digit sp_1024_cond_add_32(sp_digit* r, const sp_digit* a, const sp_dig
     __asm__ __volatile__ (
 
         "mov	r8, #0\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #0]\n\t"
+        "ldr	r5, [%[a], #4]\n\t"
+        "ldr	r6, [%[b], #0]\n\t"
+        "ldr	r7, [%[b], #4]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #0]\n\t"
         "ldrd	r6, r7, [%[b], #0]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adds	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #0]\n\t"
+        "str	r5, [%[r], #4]\n\t"
+#else
         "strd	r4, r5, [%[r], #0]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #8]\n\t"
+        "ldr	r5, [%[a], #12]\n\t"
+        "ldr	r6, [%[b], #8]\n\t"
+        "ldr	r7, [%[b], #12]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #8]\n\t"
         "ldrd	r6, r7, [%[b], #8]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #8]\n\t"
+        "str	r5, [%[r], #12]\n\t"
+#else
         "strd	r4, r5, [%[r], #8]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #16]\n\t"
+        "ldr	r5, [%[a], #20]\n\t"
+        "ldr	r6, [%[b], #16]\n\t"
+        "ldr	r7, [%[b], #20]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #16]\n\t"
         "ldrd	r6, r7, [%[b], #16]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #16]\n\t"
+        "str	r5, [%[r], #20]\n\t"
+#else
         "strd	r4, r5, [%[r], #16]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #24]\n\t"
+        "ldr	r5, [%[a], #28]\n\t"
+        "ldr	r6, [%[b], #24]\n\t"
+        "ldr	r7, [%[b], #28]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #24]\n\t"
         "ldrd	r6, r7, [%[b], #24]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #24]\n\t"
+        "str	r5, [%[r], #28]\n\t"
+#else
         "strd	r4, r5, [%[r], #24]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #32]\n\t"
+        "ldr	r5, [%[a], #36]\n\t"
+        "ldr	r6, [%[b], #32]\n\t"
+        "ldr	r7, [%[b], #36]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #32]\n\t"
         "ldrd	r6, r7, [%[b], #32]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #32]\n\t"
+        "str	r5, [%[r], #36]\n\t"
+#else
         "strd	r4, r5, [%[r], #32]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #40]\n\t"
+        "ldr	r5, [%[a], #44]\n\t"
+        "ldr	r6, [%[b], #40]\n\t"
+        "ldr	r7, [%[b], #44]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #40]\n\t"
         "ldrd	r6, r7, [%[b], #40]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #40]\n\t"
+        "str	r5, [%[r], #44]\n\t"
+#else
         "strd	r4, r5, [%[r], #40]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #48]\n\t"
+        "ldr	r5, [%[a], #52]\n\t"
+        "ldr	r6, [%[b], #48]\n\t"
+        "ldr	r7, [%[b], #52]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #48]\n\t"
         "ldrd	r6, r7, [%[b], #48]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #48]\n\t"
+        "str	r5, [%[r], #52]\n\t"
+#else
         "strd	r4, r5, [%[r], #48]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #56]\n\t"
+        "ldr	r5, [%[a], #60]\n\t"
+        "ldr	r6, [%[b], #56]\n\t"
+        "ldr	r7, [%[b], #60]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #56]\n\t"
         "ldrd	r6, r7, [%[b], #56]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #56]\n\t"
+        "str	r5, [%[r], #60]\n\t"
+#else
         "strd	r4, r5, [%[r], #56]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #64]\n\t"
+        "ldr	r5, [%[a], #68]\n\t"
+        "ldr	r6, [%[b], #64]\n\t"
+        "ldr	r7, [%[b], #68]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #64]\n\t"
         "ldrd	r6, r7, [%[b], #64]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #64]\n\t"
+        "str	r5, [%[r], #68]\n\t"
+#else
         "strd	r4, r5, [%[r], #64]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #72]\n\t"
+        "ldr	r5, [%[a], #76]\n\t"
+        "ldr	r6, [%[b], #72]\n\t"
+        "ldr	r7, [%[b], #76]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #72]\n\t"
         "ldrd	r6, r7, [%[b], #72]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #72]\n\t"
+        "str	r5, [%[r], #76]\n\t"
+#else
         "strd	r4, r5, [%[r], #72]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #80]\n\t"
+        "ldr	r5, [%[a], #84]\n\t"
+        "ldr	r6, [%[b], #80]\n\t"
+        "ldr	r7, [%[b], #84]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #80]\n\t"
         "ldrd	r6, r7, [%[b], #80]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #80]\n\t"
+        "str	r5, [%[r], #84]\n\t"
+#else
         "strd	r4, r5, [%[r], #80]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #88]\n\t"
+        "ldr	r5, [%[a], #92]\n\t"
+        "ldr	r6, [%[b], #88]\n\t"
+        "ldr	r7, [%[b], #92]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #88]\n\t"
         "ldrd	r6, r7, [%[b], #88]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #88]\n\t"
+        "str	r5, [%[r], #92]\n\t"
+#else
         "strd	r4, r5, [%[r], #88]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #96]\n\t"
+        "ldr	r5, [%[a], #100]\n\t"
+        "ldr	r6, [%[b], #96]\n\t"
+        "ldr	r7, [%[b], #100]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #96]\n\t"
         "ldrd	r6, r7, [%[b], #96]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #96]\n\t"
+        "str	r5, [%[r], #100]\n\t"
+#else
         "strd	r4, r5, [%[r], #96]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #104]\n\t"
+        "ldr	r5, [%[a], #108]\n\t"
+        "ldr	r6, [%[b], #104]\n\t"
+        "ldr	r7, [%[b], #108]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #104]\n\t"
         "ldrd	r6, r7, [%[b], #104]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #104]\n\t"
+        "str	r5, [%[r], #108]\n\t"
+#else
         "strd	r4, r5, [%[r], #104]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #112]\n\t"
+        "ldr	r5, [%[a], #116]\n\t"
+        "ldr	r6, [%[b], #112]\n\t"
+        "ldr	r7, [%[b], #116]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #112]\n\t"
         "ldrd	r6, r7, [%[b], #112]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #112]\n\t"
+        "str	r5, [%[r], #116]\n\t"
+#else
         "strd	r4, r5, [%[r], #112]\n\t"
+#endif
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, [%[a], #120]\n\t"
+        "ldr	r5, [%[a], #124]\n\t"
+        "ldr	r6, [%[b], #120]\n\t"
+        "ldr	r7, [%[b], #124]\n\t"
+#else
         "ldrd	r4, r5, [%[a], #120]\n\t"
         "ldrd	r6, r7, [%[b], #120]\n\t"
+#endif
         "and	r6, r6, %[m]\n\t"
         "and	r7, r7, %[m]\n\t"
         "adcs	r4, r4, r6\n\t"
         "adcs	r5, r5, r7\n\t"
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "str	r4, [%[r], #120]\n\t"
+        "str	r5, [%[r], #124]\n\t"
+#else
         "strd	r4, r5, [%[r], #120]\n\t"
+#endif
         "adc	%[c], r8, r8\n\t"
         : [c] "+r" (c)
         : [r] "r" (r), [a] "r" (a), [b] "r" (b), [m] "r" (m)
@@ -64232,7 +66927,12 @@ static sp_digit sp_1024_cond_add_32(sp_digit* r, const sp_digit* a, const sp_dig
 static void sp_1024_rshift1_32(sp_digit* r, const sp_digit* a)
 {
     __asm__ __volatile__ (
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r2, [%[a]]\n\t"
+        "ldr	r3, [%[a], #4]\n\t"
+#else
         "ldrd	r2, r3, [%[a]]\n\t"
+#endif
         "lsr	r2, r2, #1\n\t"
         "orr	r2, r2, r3, lsl #31\n\t"
         "lsr	r3, r3, #1\n\t"
