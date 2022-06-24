@@ -81,7 +81,7 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
         ESP32_AES_UNLOCKHW          = 4
     } ESP32_AESPROCESS;
 
-    struct Aes;
+    struct Aes; /* see aes.h */
     int wc_esp32AesCbcEncrypt(struct Aes* aes, byte* out, const byte* in, word32 sz);
     int wc_esp32AesCbcDecrypt(struct Aes* aes, byte* out, const byte* in, word32 sz);
     int wc_esp32AesEncrypt(struct Aes *aes, const byte* in, byte* out);
@@ -163,12 +163,36 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
         #define ESP_RSA_TIMEOUT_CNT     0x249F00
     #endif
 
+    /* operands can be up to 4096 bits long.
+     * here we store the bits in wolfSSL fp_int struct.
+     * see wolfCrypt tfm.h
+     */
     struct fp_int;
-    int esp_mp_mul(struct fp_int* X, struct fp_int* Y, struct fp_int* Z);
-    int esp_mp_exptmod(struct fp_int* G,
-                       struct fp_int* X, word32 Xbits,
-                       struct fp_int* P,
-                       struct fp_int* Y);
+
+
+    /*
+     * The parameter names in the Espressif implementation are arbitrary.
+     *
+     * The wolfSSL names come from DH: Y=G^x mod M
+     *
+     * G=base, X is the private exponent, Y is the public value w
+     **/
+
+    /* Z = (X ^ Y) mod M */
+    /* Y = (G ^ X) mod P */                 /* aka */
+    int esp_mp_exptmod(struct fp_int* X,    /* G  */
+                       struct fp_int* Y,    /* X  */
+                              word32 Xbits, /* Ys   typically = fp_count_bits (X) */
+                       struct fp_int* M,    /* P  */
+                       struct fp_int* Z);   /* Y  */
+
+    /* Z = X * Y */
+    int esp_mp_mul(struct fp_int* X,
+                   struct fp_int* Y,
+                   struct fp_int* Z);
+
+
+    /* Z = X * Y (mod M) */
     int esp_mp_mulmod(struct fp_int* X,
                       struct fp_int* Y,
                       struct fp_int* M,

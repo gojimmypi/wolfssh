@@ -514,6 +514,8 @@ int esp_mp_mulmod(fp_int* X, fp_int* Y, fp_int* M, fp_int* Z)
 .* 2560, 3072, 3584, 4096} bits. The bit length of arguments Z, X, Y , M,
 .* and r can be any one from the N set, but all numbers in a calculation must
 .* be of the same length. The bit length of M′ is always 32.
+.*
+.* Note some DH refererences may use: Y = (G ^ X) mod P
  */
 int esp_mp_exptmod(fp_int* X, fp_int* Y, word32 Ys, fp_int* M, fp_int* Z)
 {
