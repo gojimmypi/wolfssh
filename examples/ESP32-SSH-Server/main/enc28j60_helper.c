@@ -21,14 +21,25 @@
 #define USE_ENC28J60
 #define JTAG_DEBUG
 
-#include "enc28j60_helper.h"
-
 #include "esp_netif.h"
 #include "esp_eth.h"
 #include "esp_event.h"
 #include "esp_eth_enc28j60.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+
+#include "enc28j60_helper.h"
+#include "ethernet_helper.h"
+
+/* logging
+ * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+ */
+#ifdef LOG_LOCAL_LEVEL
+    #undef LOG_LOCAL_LEVEL
+#endif
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+#include "esp_log.h"
+
 
 #define JTAG_SAFE_MISO 25
 #if defined (JTAG_DEBUG)
@@ -53,82 +64,12 @@ static uint8_t myMacAddress[] = {
     0x56
 };
 
-/* logging
- * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
- */
-#ifdef LOG_LOCAL_LEVEL
-    #undef LOG_LOCAL_LEVEL
-#endif
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#include "esp_log.h"
 
 static const char *TAG = "enc28j60_helper";
-static bool _EthernetReady = false;
 
-bool EthernetReady_ENC28J60() {
-    return _EthernetReady;
-}
-
-/** Event handler for Ethernet events */
-static void eth_event_handler(void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data) {
-    uint8_t mac_addr[6] = { 0 };
-    /* we can get the ethernet driver handle from event data */
-    esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
-
-    switch (event_id) {
-    case ETHERNET_EVENT_CONNECTED:
-        esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
-        ESP_LOGI(TAG, "Ethernet Link Up");
-        ESP_LOGI(TAG,
-            "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
-            mac_addr[0],
-            mac_addr[1],
-            mac_addr[2],
-            mac_addr[3],
-            mac_addr[4],
-            mac_addr[5]);
-        break;
-    case ETHERNET_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "Ethernet Link Down");
-        _EthernetReady = false;
-        break;
-    case ETHERNET_EVENT_START:
-        ESP_LOGI(TAG, "Ethernet Started");
-        /* just because the itnerface has started, does not mean Ethernet is ready or not.
-         *  see got_ip_event_handler
-         */
-        break;
-    case ETHERNET_EVENT_STOP:
-        ESP_LOGI(TAG, "Ethernet Stopped");
-        _EthernetReady = false;
-        break;
-    default:
-        break;
-    }
-}
-
-/** Event handler for IP_EVENT_ETH_GOT_IP */
-static void got_ip_event_handler(void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data) {
-    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-    const esp_netif_ip_info_t *ip_info = &event->ip_info;
-
-    ESP_LOGI(TAG, "Ethernet Got IP Address");
-    ESP_LOGI(TAG, "~~~~~~~~~~~");
-    ESP_LOGI(TAG, "ETHIP:" IPSTR, IP2STR(&ip_info->ip));
-    ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
-    ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
-    ESP_LOGI(TAG, "~~~~~~~~~~~");
-    _EthernetReady = true;
-}
 
 /*
- * initialize the ENC28J60 wired ethernet SPI device.
+ * initialize the ENC28J60 wired Ethernet SPI device.
  * See optional define of USE_ENC28J60
  */
 int init_ENC28J60(uint8_t MacAddressToAssign[6])
@@ -166,7 +107,7 @@ int init_ENC28J60(uint8_t MacAddressToAssign[6])
     };
     ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_EXAMPLE_ENC28J60_SPI_HOST,
                     &buscfg, 1));
-    /* ENC28J60 ethernet driver is based on spi driver */
+    /* ENC28J60 Ethernet driver is based on SPI driver */
     spi_device_interface_config_t devcfg = {
         .command_bits = 3,
         .address_bits = 5,
