@@ -420,9 +420,9 @@ static int esp_sha_start_process(WC_ESP32SHA* sha)
        }
         #if defined(DEBUG_WOLFSSL)
             this_block_num++; /* one-based counter */
+            ESP_LOGV(TAG, "      continue block #%d", this_block_num);
         #endif
 
-        ESP_LOGV(TAG, "      continue block #%d", this_block_num);
    }
 
    ESP_LOGV(TAG, "    leave esp_sha_start_process");
