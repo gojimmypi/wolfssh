@@ -52,7 +52,7 @@ void InitReceiveSemaphore() {
         /* the case of recursive mutexes is interstinbg, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 
         _xExternalReceiveBuffer_Semaphore =  xSemaphoreCreateMutex();
@@ -68,7 +68,7 @@ void InitTransmitSemaphore() {
         /* the case of recursive mutexes is interstinbg, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
         _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
     }
@@ -90,7 +90,7 @@ bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue
         {
             if (_ExternalReceiveBufferSz == 1)
             {
-                thisChar =  (char)_ExternalReceiveBuffer;
+                thisChar =  _ExternalReceiveBuffer[0];
                 ret = (thisChar == charValue);
            }
         }
@@ -290,14 +290,14 @@ int Get_ExternalTransmitBuffer(byte **ToData) {
         int thisSize = _ExternalTransmitBufferSz;
         if (thisSize == 0) {
             /* nothing to do */
-            WOLFSSL_MSG("Get_ExternalTransmitBuffer size is already zero");
+            ESP_LOGI(TAG, "Get_ExternalTransmitBuffer size is already zero");
         }
 
         else {
             if (*ToData == NULL) {
                 /* we could not allocate memory, so fail */
                 ret = -1;
-                WOLFSSL_MSG("Get_ExternalTransmitBuffer *ToData == NULL");
+                ESP_LOGI(TAG, "Get_ExternalTransmitBuffer *ToData == NULL");
             }
             else {
                 memcpy(*ToData,
@@ -313,7 +313,7 @@ int Get_ExternalTransmitBuffer(byte **ToData) {
     else {
         /* we could not get the semaphore to update the value! TODO how to handle this? */
         ret = -1;
-        WOLFSSL_ERROR_MSG("ERROR: Get_ExternalTransmitBuffer SemaphoreTake _xExternalTransmitBuffer_Semaphore failed.");
+        ESP_LOGE(TAG, "ERROR: Get_ExternalTransmitBuffer SemaphoreTake _xExternalTransmitBuffer_Semaphore failed.");
     }
 
     return ret;
@@ -409,7 +409,7 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
     }
     else {
-        WOLFSSL_ERROR_MSG("ERROR: bad value for TxPin");
+        ESP_LOGE(TAG, "ERROR: bad value for TxPin");
         ret = 1;
     }
 
@@ -425,7 +425,7 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
     }
     else {
-        WOLFSSL_ERROR_MSG("ERROR: bad value for RxPin");
+        ESP_LOGE(TAG, "ERROR: bad value for RxPin");
         ret = 1;
     }
 
@@ -436,6 +436,3 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
 
     return ret;
 }
-
-
-

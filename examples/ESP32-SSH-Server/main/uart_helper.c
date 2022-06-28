@@ -42,9 +42,9 @@
  * see examples: https://github.com/espressif/esp-idf/blob/master/examples/peripherals/uart/uart_echo/main/uart_echo_example_main.c
  */
 
-
+char * TAG = "uart_helper";
 /* we are going to use a real backspace instead of 0x7f observed */
-const char* backspace = (char*)0x08;
+const char backspace[1] = { (char)0x08 };
 static SemaphoreHandle_t xUART_Semaphore = NULL;
 
 
@@ -70,6 +70,10 @@ void uart_send_welcome() {
  *  send character string at char* data to UART
  */
 int sendData(const char* logName, const char* data) {
+    if ((uint8_t)(*data) == 0) {
+        return 0;
+    }
+
     const int len = strlen(data);
 
     /* note we are always using UART_NUM_1 but the GPIO pins may vary */
@@ -95,7 +99,7 @@ void uart_tx_task(void *arg) {
     while (1) {
         if (ExternalReceiveBufferSz() > 0)
         {
-            WOLFSSL_MSG("UART Send Data");
+            ESP_LOGI(TAG, "UART Send Data");
 
             /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
@@ -136,7 +140,7 @@ void InitSemaphore()
 
 #ifdef configUSE_RECURSIVE_MUTEXES
     /* this may be interesting; see semphr.h */
-    WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+    ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 }
 
@@ -170,7 +174,7 @@ void uart_rx_task(void *arg) {
                                             UART_TICKS_TO_WAIT);
 
         if (rxBytes > 0) {
-            WOLFSSL_MSG("UART Rx Data!");
+            ESP_LOGI(TAG, "UART Rx Data!");
             data[rxBytes] = 0;
 
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes:", rxBytes);
