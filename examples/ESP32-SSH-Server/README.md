@@ -19,10 +19,7 @@ as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/
 
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
 
-test
 \
-\
-test
 
 ## Linux Quick Start
 
