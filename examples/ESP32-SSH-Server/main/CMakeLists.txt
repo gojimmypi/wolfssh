@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
 #
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_SHELL -DDEBUG_WOLFSSL")
+
 set(srcs main.c ssh_server.c uart_helper.c uart_helper.c wifi.c ssh_server_config.c enc28j60_helper.c int_to_string.c tx_rx_buffer.c test_task.c ethernet_helper.c)
 
 idf_component_register(
