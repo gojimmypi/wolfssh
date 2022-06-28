@@ -20,10 +20,6 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
- * see CMakeLists.txt
- */
-#define WOLFSSL_USER_SETTINGS
 
 #include <driver/gpio.h>
 
@@ -35,8 +31,6 @@
  ******************************************************************************
  **/
 #define SINGLE_THREADED
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
 
 
 /* Edgerouter is 57600, others are typically 115200
