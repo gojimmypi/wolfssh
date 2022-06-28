@@ -18,7 +18,6 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/blob/master/wolfcrypt/src/port/Espressif/README.md).
 
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
-\
 
 ## Linux Quick Start
 
@@ -87,7 +86,7 @@ Serial port console monitoring port is typically 74800 baud, 8N1.
 
 For more details on the UARTs and the ESP32 in general, refer to the 
 [ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
-<br />
+
 
 ## Private Config
 
@@ -108,7 +107,7 @@ As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these fi
 ~/my_private_config.h
 ```
 If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
-<br />
+
 
 ## Building
 
@@ -126,7 +125,7 @@ but the ESP-IDF commandline will use `sdkconfig`.
 
 Note for wired ethernet, the ENC28J60 component make not be available in some versions of the ESP-IDF. See below: [Wired Ethernet Notes](#wired-ethernet-enc28j60-notes).
 
-<br />
+
 
 ## ESP32 Toolchain
 
@@ -166,7 +165,7 @@ Linux
 export IDF_PATH=~/esp-idf
 export WORKSPACE=~/workspace
 ```
-<br />
+
 
 ## Configuration
 
@@ -206,7 +205,7 @@ To enable RSA, remove both definitions `WOLFSSH_NO_RSA` and `NO_RSA` at compile 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA")
 ```
 
-<br />
+
 
 ## Defaults
 
@@ -226,7 +225,7 @@ to define `WOLFSSH_SERVER_IS_AP` or `WOLFSSH_SERVER_IS_STA`.
 The default SSH port for this demo is `22222` and is defined in [main/ssh_server_config.h](./main/ssh_server_config.h).
 
 
-<br />
+
 
 ## Connecting
 
@@ -260,7 +259,7 @@ cd anybaud
 gcc gistfile.c -o anybaud
 anybaud /dev/ttyUSB0 74880
 ```
-<br />
+
 
 ## Quick Start
 
@@ -290,7 +289,7 @@ cd ./examples/ESP32-SSH-Server
 idf.py -p /dev/ttyS15 -baud 460800 flash
 
 ```
-<br />
+
 
 ## Wired Ethernet ENC28J60 Notes
 
@@ -309,7 +308,7 @@ Note some early versions may not properly get an IP address, so it is best to us
 
 Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/), 
 the ESP32 is much more graceful. The console port at boot time should look like this:
-<br />
+
 
 ```text
 ets Jun  8 2016 00:22:57
