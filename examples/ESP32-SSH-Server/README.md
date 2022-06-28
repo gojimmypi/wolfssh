@@ -18,7 +18,6 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/blob/master/wolfcrypt/src/port/Espressif/README.md).
 
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
-
 \
 
 ## Linux Quick Start
