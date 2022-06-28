@@ -44,7 +44,7 @@
 /* Place OS specific preprocessor flags, defines, includes here, will be
    included into every file because types.h includes it */
 
-#warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"
+// #warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"
 
 
 #ifndef WOLF_CRYPT_SETTINGS_H

@@ -173,13 +173,13 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
     /*
      * The parameter names in the Espressif implementation are arbitrary.
      *
-     * The wolfSSL names come from DH: Y=G^x mod M
+     * The wolfSSL names come from DH: Y=G^x mod M  (see wolfcrypt/tfm.h)
      *
      * G=base, X is the private exponent, Y is the public value w
      **/
 
-    /* Z = (X ^ Y) mod M */
-    /* Y = (G ^ X) mod P */                 /* aka */
+    /* Z = (X ^ Y) mod M   : Espressif generic notation    */
+    /* Y = (G ^ X) mod P   : wolfSSL DH reference notation */
     int esp_mp_exptmod(struct fp_int* X,    /* G  */
                        struct fp_int* Y,    /* X  */
                               word32 Xbits, /* Ys   typically = fp_count_bits (X) */
