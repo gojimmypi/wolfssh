@@ -44,7 +44,7 @@
 /* Place OS specific preprocessor flags, defines, includes here, will be
    included into every file because types.h includes it */
 
-// #warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"
+#warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"
 
 
 #ifndef WOLF_CRYPT_SETTINGS_H
@@ -325,7 +325,7 @@
 #endif
 
 #if defined(WOLFSSL_ESPIDF)
-    #pragma message ( "ALERT Using WOLFSSL_ESPIDF settings.h !" )
+    /*   #pragma message ( "ALERT Using WOLFSSL_ESPIDF settings.h !" ) */
     #define FREERTOS
     #define WOLFSSL_LWIP
     #define NO_WRITEV
@@ -339,7 +339,7 @@
 
 #if defined(WOLFSSL_ESPWROOM32) || defined(WOLFSSL_ESPWROOM32SE)
    #ifndef NO_ESP32WROOM32_CRYPT
-        #pragma message ( "ALERT turning on WOLFSSL_ESP32WROOM32_CRYPT in settings.h !" )
+        /* #pragma message ( "ALERT turning on WOLFSSL_ESP32WROOM32_CRYPT in settings.h !" ) */
         #define WOLFSSL_ESP32WROOM32_CRYPT
         #if defined(ESP32_USE_RSA_PRIMITIVE) && \
             !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI)
