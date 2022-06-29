@@ -38,7 +38,7 @@
 #define WOLFSSH_TEST_SERVER
 #define WOLFSSH_TEST_THREADING
 
-// make sure this appears before any other wolfSSL headers
+/* ensure this appears before any other wolfSSL headers */
 #ifdef WOLFSSL_USER_SETTINGS
 #include <wolfssl/wolfcrypt/settings.h>
 #else
@@ -52,7 +52,6 @@
 #include <wolfssl/wolfcrypt/coding.h>
 
 #include <wolfssh/ssh.h>
-// #include <wolfssh/test.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 
 
