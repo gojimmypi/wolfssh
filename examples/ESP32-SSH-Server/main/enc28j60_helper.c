@@ -55,16 +55,6 @@
    see enc28j60_helper
 */
 
-static uint8_t myMacAddress[] = {
-    0x02,
-    0x00,
-    0x00,
-    0x12,
-    0x34,
-    0x56
-};
-
-
 static const char *TAG = "enc28j60_helper";
 
 
