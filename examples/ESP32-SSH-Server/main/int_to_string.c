@@ -23,7 +23,8 @@
 extern "C" {
 #endif
 
-    int int_to_string_VERSION() {
+    int int_to_string_VERSION(void)
+    {
         return 1;
     }
 
@@ -37,7 +38,8 @@ extern "C" {
      * convert [n] to a text string in [dest].
      * m is minus sign negative number indicator: 0 if positive, 1 if negative
      */
-    char *int_to_base(char *dest, long n, int base, int m) {
+    char *int_to_base(char *dest, long n, int base, int m)
+    {
         char *outbuf = dest;
         int i = 12;
         int j = 0;
@@ -72,10 +74,11 @@ extern "C" {
     /*
      * if we wanted a signed number from n, check the high bit
      */
-    char *int_to_signed_base(char *dest, long n, int base) {
+    char *int_to_signed_base(char *dest, long n, int base)
+    {
         int m = 0;
         /* check to see if we have a negative number
-         * we'll check the high bit by shiftinh a 1 over by 1 minus the number
+         * we'll check the high bit by shifting a 1 over by 1 minus the number
          * of bytes in our log (typically 4) by 3 bits
          * (which multiplies by 8). (e.g. 32-1)
         */
@@ -106,7 +109,8 @@ extern "C" {
     /*
      * convert [n] to signed decimal string
      */
-    char *int_to_signed_dec(char *dest, long n) {
+    char *int_to_signed_dec(char *dest, long n)
+    {
         return int_to_signed_base(dest, n, 10);
     }
 

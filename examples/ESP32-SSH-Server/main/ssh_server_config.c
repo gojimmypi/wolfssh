@@ -21,7 +21,7 @@
 
 char* ntpServerList[NTP_SERVER_COUNT] = NTP_SERVER_LIST;
 
-void ssh_server_config_init()
+void ssh_server_config_init(void)
 {
     ESP_LOGI("init", "ssh_server_config_init");
 }

@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-    int int_to_string_VERSION();
+    int int_to_string_VERSION(void);
 
     char *int_to_bin(char *dest, unsigned long n);
     char *int_to_hex(char *dest, unsigned long n);

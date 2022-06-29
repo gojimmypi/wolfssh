@@ -173,7 +173,7 @@ extern char* ntpServerList[NTP_SERVER_COUNT];
     #endif
 #endif
 
-void ssh_server_config_init();
+void ssh_server_config_init(void);
 
 /* sanity checks */
 

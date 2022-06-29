@@ -82,7 +82,8 @@ typedef struct {
 }spi_eth_module_config_t;
 #endif
 
-bool EthernetReady_ENC28J60() {
+bool EthernetReady_ENC28J60(void)
+{
     return _EthernetReady;
 }
 
@@ -147,7 +148,8 @@ void got_ip_event_handler(void *arg,
 }
 
 
-void init_ethernet(void) {
+void init_ethernet(void)
+    {
     // Initialize TCP/IP network interface (should be called only once in application)
     ESP_ERROR_CHECK(esp_netif_init());
     // Create default event loop that running in background
