@@ -43,13 +43,14 @@ static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
 
 
 /*
- * initialize the external buffer (typically a UART) Receive Semaphor.
+ * initialize the external buffer (typically a UART) Receive Semaphore.
  */
-void InitReceiveSemaphore() {
+void InitReceiveSemaphore(void)
+{
     if (_xExternalReceiveBuffer_Semaphore == NULL) {
         ESP_LOGI(TAG, "InitReceiveSemaphore.");
 
-        /* the case of recursive mutexes is interstinbg, so alert */
+        /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
         ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
@@ -60,12 +61,13 @@ void InitReceiveSemaphore() {
 }
 
 /*
- * initialize the external buffer (typically a UART) Transmit Semaphor.
+ * initialize the external buffer (typically a UART) Transmit Semaphore.
  */
-void InitTransmitSemaphore() {
+void InitTransmitSemaphore(void)
+{
     if (_xExternalTransmitBuffer_Semaphore == NULL) {
 
-        /* the case of recursive mutexes is interstinbg, so alert */
+        /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
         ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
@@ -105,15 +107,18 @@ bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue
 }
 
 
-volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer() {
+volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer(void)
+{
     return _ExternalReceiveBuffer;
 }
 
-volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer() {
+volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer(void)
+{
     return _ExternalTransmitBuffer;
 }
 
-int ExternalReceiveBufferSz() {
+int ExternalReceiveBufferSz()
+{
     int ret = 0;
 
     InitReceiveSemaphore();
@@ -138,7 +143,8 @@ int ExternalReceiveBufferSz() {
     return ret;
 }
 
-int ExternalTransmitBufferSz() {
+int ExternalTransmitBufferSz()
+{
     int ret;
 
     InitTransmitSemaphore();
@@ -169,7 +175,8 @@ int ExternalTransmitBufferSz() {
 /*
  * returns zero if ExternalReceiveBufferSz successfully assigned
  */
-int Set_ExternalReceiveBufferSz(int n) {
+int Set_ExternalReceiveBufferSz(int n)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     InitReceiveSemaphore();
@@ -194,7 +201,7 @@ int Set_ExternalReceiveBufferSz(int n) {
         }
     }
     else {
-        /* the new length must be betwwen zero and maximum length! */
+        /* the new length must be between zero and maximum length! */
         ret = 1;
     }
     return ret;
@@ -203,7 +210,8 @@ int Set_ExternalReceiveBufferSz(int n) {
 /*
  * returns zero if ExternalTransmitBufferSz successfully assigned
  */
-int Set_ExternalTransmitBufferSz(int n) {
+int Set_ExternalTransmitBufferSz(int n)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     InitTransmitSemaphore();
@@ -212,7 +220,7 @@ int Set_ExternalTransmitBufferSz(int n) {
      * since we also append our own zero string termination
      */
     if ( (n < 0) || (n > ExternalTransmitBufferMaxLength + 1) ) {
-        /* the new buffer size length must be betwwen zero and maximum length! */
+        /* the new buffer size length must be between zero and maximum length! */
         ret = 1;
     }
     else {
@@ -239,7 +247,8 @@ int Set_ExternalTransmitBufferSz(int n) {
 }
 
 
-int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
+int Set_ExternalReceiveBuffer(byte *FromData, int sz)
+{
     /* TODO this block has not yet been tested */
     int ret = 0; /* we assume success unless proven otherwise */
 
@@ -280,7 +289,8 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
  * thread safe populate ToData with the contents of _ExternalTransmitBuffer
  * returns the size of the data, negative values are errors.
  **/
-int Get_ExternalTransmitBuffer(byte **ToData) {
+int Get_ExternalTransmitBuffer(byte **ToData)
+{
     int ret = 0;
     InitTransmitSemaphore();
 
@@ -321,7 +331,8 @@ int Get_ExternalTransmitBuffer(byte **ToData) {
 
 
 
-int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
+int Set_ExternalTransmitBuffer(byte *FromData, int sz)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     /* here we need to call the thread-safe ExternalTransmitBufferSz() */
@@ -374,11 +385,13 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
  * initialize external buffers and show welcome message.
  * TxPin and RxPin are for display purposes only.
  */
-int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
+int  init_tx_rx_buffer(byte TxPin, byte RxPin)
+{
     int ret = 0;
     char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
 
-    /* these inits need to be called only once, but can be repeatedly called as needed */
+    /* these inits need to be called only once,
+     * but can be repeatedly called as needed */
     InitReceiveSemaphore();
     InitTransmitSemaphore();
 

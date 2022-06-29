@@ -56,7 +56,8 @@ static char startupMessage[] =
 /*
  * welcome message
  */
-void uart_send_welcome() {
+void uart_send_welcome(void)
+{
     static const char *TX_TASK_TAG = "TX_TASK_WELCOME";
     sendData(TX_TASK_TAG, startupMessage);
 }
@@ -65,7 +66,8 @@ void uart_send_welcome() {
 /*
  *  send character string at char* data to UART
  */
-int sendData(const char* logName, const char* data) {
+int sendData(const char* logName, const char* data)
+{
     if ((uint8_t)(*data) == 0) {
         return 0;
     }
@@ -84,7 +86,8 @@ int sendData(const char* logName, const char* data) {
  *  if the external Receive Buffer has data (e.g. from SSH client)
  *  then send that data to the UART (ExternalReceiveBufferSz bytes)
  */
-void uart_tx_task(void *arg) {
+void uart_tx_task(void *arg)
+{
     /*
      * when we receive chars from ssh, we'll send them out the UART
     */
@@ -128,7 +131,7 @@ void uart_tx_task(void *arg) {
  * reading and writing memory from different threads requires coordination.
  * we'll use exclusive mutex semaphores for this.
  */
-void InitSemaphore()
+void InitSemaphore(void)
 {
     if (xUART_Semaphore == NULL) {
         xUART_Semaphore = xSemaphoreCreateMutex();
@@ -144,13 +147,14 @@ void InitSemaphore()
  * for any data received FROM the UART, put it in the External Transmit
  * buffer to SEND (typically out to the SSH client)
  */
-void uart_rx_task(void *arg) {
+void uart_rx_task(void *arg)
+{
     InitSemaphore();
 
     /* TODO do we really want malloc? probably not.
      * but in this thread, it only gets allocated once.
      **/
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
+    uint8_t* data = (uint8_t*) malloc(ExternalReceiveBufferMaxLength + 1);
 
     /*
      * when we receive chars from UART, we'll send them out SSH
@@ -166,7 +170,7 @@ void uart_rx_task(void *arg) {
          * a known good value is (20 / portTICK_RATE_MS) */
         const int rxBytes = uart_read_bytes(UART_NUM_1,
                                             data,
-                                            RX_BUF_SIZE,
+                                            ExternalReceiveBufferMaxLength,
                                             UART_TICKS_TO_WAIT);
 
         if (rxBytes > 0) {
@@ -193,4 +197,29 @@ void uart_rx_task(void *arg) {
 
     /* we never actually get here */
     free(data);
+}
+
+int init_UART(int tx_pin, int rx_pin, int baud_rate)
+{
+    ESP_LOGI(TAG, "Begin init_UART.");
+    const uart_config_t uart_config = {
+        .baud_rate = baud_rate,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_APB,
+    };
+    int intr_alloc_flags = 0;
+
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+    /* We won't use a buffer for sending data. */
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, ExternalReceiveBufferMaxLength * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    ESP_LOGI(TAG, "End init_UART.");
+    return 0; /* TODO return actual error code from install, above */
 }

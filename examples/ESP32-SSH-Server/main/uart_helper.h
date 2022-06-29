@@ -28,10 +28,20 @@
 #include "string.h"
 #include "driver/gpio.h"
 
-static const int RX_BUF_SIZE = 1024; /* TODO remove duplicate definition */
+/* see also tx_rx_buffer */
 
-void uart_send_welcome();
+/* typically used for SSH, this sends the login welcome */
+void uart_send_welcome(void);
+
+
+/* FreeRTOS task for sending data */
 void uart_tx_task(void *arg);
+
+/* FreeRTOS task for receiving data */
 void uart_rx_task(void *arg);
 
+/* when we have specific data we want to send */
 int sendData(const char* logName, const char* data);
+
+/* initialization */
+int init_UART(int tx_pin, int rx_pin, int baud_rate);
