@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Adapted from Public Domain Expressif ENC28J60 Example
+ * Adapted from Public Domain Espressif ENC28J60 Example
  *
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
  *
@@ -32,8 +32,8 @@
 
 /* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
  * see CMakeLists.txt
- */
 #define WOLFSSL_USER_SETTINGS
+ */
 
 #include "sdkconfig.h"
 
@@ -86,7 +86,7 @@
 #define WOLFSSH_TEST_THREADING
 
 /*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM
- *  and "access an actual filesystem via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
+ *  and "access an actual file system via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
  *  we'll typically have neither on an embedded device:
  */
 #define NO_FILESYSTEM
@@ -99,6 +99,13 @@
 
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
+
+/* optional memory tracking */
+/* #define WOLFSSL_TRACK_MEMORY */
+#define WOLFSSL_TRACK_MEMORY
+#ifdef WOLFSSL_TRACK_MEMORY
+    #include <wolfssl/wolfcrypt/mem_track.h>
+#endif
 
 #ifdef USE_ENC28J60
     /* no WiFi when using external ethernet */
@@ -127,7 +134,8 @@ static const char *TAG = "SSH Server main";
 static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
 
 
-int set_time() {
+int set_time(void)
+{
     /* we'll also return a result code of zero */
     int res = 0;
 
@@ -174,28 +182,6 @@ int set_time() {
 
 #include "driver/uart.h"
 
-void init_UART(void) {
-    ESP_LOGI(TAG, "Begin init_UART.");
-    const uart_config_t uart_config = {
-        .baud_rate = BAUD_RATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_APB,
-    };
-    int intr_alloc_flags = 0;
-
-#if CONFIG_UART_ISR_IN_IRAM
-    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-#endif
-    /* We won't use a buffer for sending data. */
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-
-    ESP_LOGI(TAG, "End init_UART.");
-}
 
 void server_session(void* args)
 {
@@ -211,7 +197,7 @@ void server_session(void* args)
  * there may be any one of multiple ethernet interfaces
  * do we have one or not?
  **/
-bool NoEthernet()
+bool NoEthernet(void)
 {
     bool ret = true;
 #ifdef USE_ENC28J60
@@ -232,7 +218,8 @@ bool NoEthernet()
 }
 
 #if defined(WOLFSSH_SERVER_IS_AP) || defined(WOLFSSH_SERVER_IS_STA)
-void init_nvsflash() {
+void init_nvsflash(void)
+{
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES
@@ -249,7 +236,8 @@ void init_nvsflash() {
 /*
  * main initialization for UART, optional ethernet, time, etc.
  */
-void init() {
+void init(void)
+{
     TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
 
     ESP_LOGI(TAG, "Begin main init.");
@@ -267,7 +255,7 @@ void init() {
     /* TODO ShowCiphers(); */
 #endif
 
-    init_UART();
+    init_UART(TXD_PIN, RXD_PIN, BAUD_RATE);
 
     /*
      * here we have one of three options:
@@ -314,11 +302,21 @@ void init() {
 
     ESP_LOGI(TAG, "inet_pton"); /* TODO */
 
+#ifdef WOLFSSL_TRACK_MEMORY
+    InitMemoryTracker();
+#endif
+
     wolfSSH_Init();
+
+#ifdef WOLFSSL_TRACK_MEMORY
+    ShowMemoryTracker();
+#endif
+
 }
 
 
-void app_main(void) {
+void app_main(void)
+{
     init();
 
     /* note that by the time we get here, the scheduler is already running!
@@ -353,6 +351,6 @@ void app_main(void) {
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
     }
 
-    /* todo this is unreachable with RTOS threads, do we ever want to shut down? */
+    /* TODO this is unreachable with RTOS threads, do we ever want to shut down? */
     wolfSSH_Cleanup();
 }

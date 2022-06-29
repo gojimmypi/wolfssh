@@ -24,8 +24,54 @@
 #include <esp_task_wdt.h>
 #include <wolfssl/wolfcrypt/logging.h>
 
+/* optional memory tracking */
+/* #define WOLFSSL_TRACK_MEMORY */
+#define WOLFSSL_TRACK_MEMORY
+#ifdef WOLFSSL_TRACK_MEMORY
+    #include <wolfssl/wolfcrypt/mem_track.h>
+#endif
 
-/* note our actual buffer is used by RTOS threads, and eventually interrrupts */
+/* optional server profiling */
+#define SSH_SERVER_PROFILE
+
+#ifdef SSH_SERVER_PROFILE
+    int MaxSeenRxSize = 0;
+    int MaxSeenTxSize = 0;
+#endif
+
+static const char samplePasswordBuffer[] =
+    "jill:upthehill\n"
+    "jack:fetchapail\n";
+
+
+static const char samplePublicKeyEccBuffer[] =
+    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
+    "BBBNkI5JTP6D0lF42tbxX19cE87hztUS6FSDoGvPfiU0CgeNSbI+aFdKIzTP5CQEJSvm25"
+    "qUzgDtH7oyaQROUnNvk= hansel\n"
+    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
+    "BBBKAtH8cqaDbtJFjtviLobHBmjCtG56DMkP6A4M2H9zX2/YCg1h9bYS7WHd9UQDwXO1Hh"
+    "IZzRYecXh7SG9P4GhRY= gretel\n"
+    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
+    "BBBIuaGC8Y+GsIwhuw3tGbqqp+KtuyCewgFfU/prGo29G1EonNdFkWGsB9383pOLlwJqTG"
+    "UpQ/8B0KfWZKbv8bpcM= gojimmypi@DESKTOP\n";
+
+
+static const char samplePublicKeyRsaBuffer[] =
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9P3ZFowOsONXHD5MwWiCciXytBRZGho"
+    "MNiisWSgUs5HdHcACuHYPi2W6Z1PBFmBWT9odOrGRjoZXJfDDoPi+j8SSfDGsc/hsCmc3G"
+    "p2yEhUZUEkDhtOXyqjns1ickC9Gh4u80aSVtwHRnJZh9xPhSq5tLOhId4eP61s+a5pwjTj"
+    "nEhBaIPUJO2C/M0pFnnbZxKgJlX7t1Doy7h5eXxviymOIvaCZKU+x5OopfzM/wFkey0EPW"
+    "NmzI5y/+pzU5afsdeEWdiQDIQc80H6Pz8fsoFPvYSG+s4/wz0duu7yeeV1Ypoho65Zr+pE"
+    "nIf7dO0B8EblgWt+ud+JI8wrAhfE4x hansel\n"
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqDwRVTRVk/wjPhoo66+Mztrc31KsxDZ"
+    "+kAV0139PHQ+wsueNpba6jNn5o6mUTEOrxrz0LMsDJOBM7CmG0983kF4gRIihECpQ0rcjO"
+    "P6BSfbVTE9mfIK5IsUiZGd8SoE9kSV2pJ2FvZeBQENoAxEFk0zZL9tchPS+OCUGbK4SDjz"
+    "uNZl/30Mczs73N3MBzi6J1oPo7sFlqzB6ecBjK2Kpjus4Y1rYFphJnUxtKvB0s+hoaadru"
+    "biE57dK6BrH5iZwVLTQKux31uCJLPhiktI3iLbdlGZEctJkTasfVSsUizwVIyRjhVKmbdI"
+    "RGwkU38D043AR1h0mUoGCPIKuqcFMf gretel\n";
+
+
+/* note our actual buffer is used by RTOS threads, and eventually interrupts */
 volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
 volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
 
@@ -43,13 +89,31 @@ typedef struct {
     char nonBlock;
 } thread_ctx_t;
 
+/* Map user names to passwords */
+/* Use arrays for username and p. The password or public key can
+ * be hashed and the hash stored here. Then I won't need the type. */
+typedef struct PwMap {
+    byte type;
+    byte username[32];
+    word32 usernameSz;
+    byte p[WC_SHA256_DIGEST_SIZE];
+    struct PwMap* next;
+} PwMap;
+
+
+typedef struct PwMapList {
+    PwMap* head;
+} PwMapList;
+
+
 static char* TAG = "ssh_server";
 
 /* find a byte character [str] of length [bufSz] within [buf];
- * returns byte position if found, otherise zero
+ * returns byte position if found, otherwise zero
  * TODO what if bufSz > 255?
  */
-static byte find_char(const byte* str, const byte* buf, word32 bufSz) {
+static byte find_char(const byte* str, const byte* buf, word32 bufSz)
+{
     const byte* cur;
     while (bufSz) {
         cur = str;
@@ -66,7 +130,8 @@ static byte find_char(const byte* str, const byte* buf, word32 bufSz) {
 }
 
 
-static int dump_stats(thread_ctx_t* ctx) {
+static int dump_stats(thread_ctx_t* ctx)
+{
     ESP_LOGE(TAG, "dumpstats");
     char stats[1024];
     word32 statsSz;
@@ -91,10 +156,11 @@ static int dump_stats(thread_ctx_t* ctx) {
 }
 
 static INLINE int wSelect(int nfds,
-    WFD_SET_TYPE* recvfds,
-    WFD_SET_TYPE *writefds,
-    WFD_SET_TYPE *errfds,
-    struct timeval* timeout) {
+                          WFD_SET_TYPE* recvfds,
+                          WFD_SET_TYPE *writefds,
+                          WFD_SET_TYPE *errfds,
+                         struct timeval* timeout)
+{
 #ifdef WOLFSSL_NUCLEUS
     int ret = NU_Select(nfds,
         recvfds,
@@ -113,7 +179,9 @@ static INLINE int wSelect(int nfds,
 /*
  * tcp_select; call wSelect & check for success or fail
  */
-static INLINE int tcp_select(SOCKET_T socketfd, int to_sec) {
+static INLINE int tcp_select(SOCKET_T socketfd,
+                             int to_sec)
+{
     WFD_SET_TYPE recvfds, errfds;
     int nfds = (int)socketfd + 1;
     struct timeval timeout = { (to_sec > 0) ? to_sec : 0, 0 };
@@ -138,7 +206,8 @@ static INLINE int tcp_select(SOCKET_T socketfd, int to_sec) {
     return WS_SELECT_FAIL;
 }
 
-static int NonBlockSSH_accept(WOLFSSH* ssh) {
+static int NonBlockSSH_accept(WOLFSSH* ssh)
+{
     int ret;
     int error;
     int sockfd;
@@ -158,6 +227,9 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
             error = WS_FATAL_ERROR;
         }
 /*
+
+optional info:
+
         if (error == WS_WANT_READ)
             ESP_LOGE(TAG, "... client would read block\n");
         else if (error == WS_WANT_WRITE)
@@ -185,20 +257,15 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     return ret;
 }
 
-#define SSH_SERVER_PROFILE
-
-#ifdef SSH_SERVER_PROFILE
-    int MaxSeenRxSize = 0;
-    int MaxSeenTxSize = 0;
-#endif
 
 
 /*
  * server_worker is the main thread for a given SSH connection.
  *
- * this code is called upon initial inbound port conneciton.
+ * this code is called upon initial inbound port connection.
  **/
-static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
+static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
+{
     int ret;
     esp_log_level_set("*", ESP_LOG_VERBOSE);
 
@@ -279,7 +346,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         stop = 1;
                     }
 
-                    /* this is a blocking call, awaiting an SSH keypress
+                    /* this is a blocking call, awaiting an SSH key press
                      * unless nonBlock = 1 (normally we are NOT blocking) */
                     rxSz = wolfSSH_stream_read(threadCtx->ssh,
                                                this_rx_buf + backlogSz,
@@ -315,10 +382,10 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     ESP_LOGI(TAG, "Tx UART!");
 
                     /* our actual transit buffer array is not on the local stack
-                     * to minimze RTOS requirements; we'll setup a pointer to it.
+                     * to minimize RTOS requirements; we'll setup a pointer to it.
                      *
                      * Note this is a *different* buffer from the external (UART)
-                     * which may change during RTOS threads, and future interrpt code.
+                     * which may change during RTOS threads, and future interrupt code.
                      * */
                     byte* sshStreamTransmitBuffer = (byte*)&sshStreamTransmitBufferArray;
 
@@ -331,7 +398,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 
                     if (sshStreamTransmitBuffer == NULL) {
                         /* TODO this is an error as the buffer should never
-                         * be null if the size was garger than zero */
+                         * be null if the size was greater than zero */
                         stop = 1;
                     }
                     else {
@@ -355,7 +422,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     /* append external data, for something such as UART forwarding
                      * note any prior data saved in the buffer was _ExternalReceiveBufferSz
                      *
-                     * Here we perform the thread-safe equvalent of:
+                     * Here we perform the thread-safe equivalent of:
                      *
                         memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
                                buf,
@@ -485,7 +552,8 @@ TODO: any benefit to yield / watchdog reset ?
 }
 
 #ifndef NO_FILESYSTEM
-static int load_file(const char* fileName, byte* buf, word32 bufSz) {
+static int load_file(const char* fileName, byte* buf, word32 bufSz)
+{
     FILE* file;
     word32 fileSz;
     word32 readSz;
@@ -518,7 +586,8 @@ static int load_file(const char* fileName, byte* buf, word32 bufSz) {
 
 
 /* returns buffer size on success */
-static int load_key(byte isEcc, byte* buf, word32 bufSz) {
+static int load_key(byte isEcc, byte* buf, word32 bufSz)
+{
     word32 sz = 0;
 
 #ifndef NO_FILESYSTEM
@@ -548,29 +617,14 @@ static int load_key(byte isEcc, byte* buf, word32 bufSz) {
 }
 
 
-static INLINE void c32toa(word32 u32, byte* c) {
+static INLINE void c32toa(word32 u32, byte* c)
+{
     c[0] = (u32 >> 24) & 0xff;
     c[1] = (u32 >> 16) & 0xff;
     c[2] = (u32 >>  8) & 0xff;
     c[3] =  u32 & 0xff;
 }
 
-
-/* Map user names to passwords */
-/* Use arrays for username and p. The password or public key can
- * be hashed and the hash stored here. Then I won't need the type. */
-typedef struct PwMap {
-    byte type;
-    byte username[32];
-    word32 usernameSz;
-    byte p[WC_SHA256_DIGEST_SIZE];
-    struct PwMap* next;
-} PwMap;
-
-
-typedef struct PwMapList {
-    PwMap* head;
-} PwMapList;
 
 
 static PwMap* PwMapNew(PwMapList* list,
@@ -628,37 +682,6 @@ static void PwMapListDelete(PwMapList* list)
     }
 }
 
-
-static const char samplePasswordBuffer[] =
-    "jill:upthehill\n"
-    "jack:fetchapail\n";
-
-
-static const char samplePublicKeyEccBuffer[] =
-    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
-    "BBBNkI5JTP6D0lF42tbxX19cE87hztUS6FSDoGvPfiU0CgeNSbI+aFdKIzTP5CQEJSvm25"
-    "qUzgDtH7oyaQROUnNvk= hansel\n"
-    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
-    "BBBKAtH8cqaDbtJFjtviLobHBmjCtG56DMkP6A4M2H9zX2/YCg1h9bYS7WHd9UQDwXO1Hh"
-    "IZzRYecXh7SG9P4GhRY= gretel\n"
-    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAA"
-    "BBBIuaGC8Y+GsIwhuw3tGbqqp+KtuyCewgFfU/prGo29G1EonNdFkWGsB9383pOLlwJqTG"
-    "UpQ/8B0KfWZKbv8bpcM= gojimmypi@DESKTOP\n";
-
-
-static const char samplePublicKeyRsaBuffer[] =
-    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9P3ZFowOsONXHD5MwWiCciXytBRZGho"
-    "MNiisWSgUs5HdHcACuHYPi2W6Z1PBFmBWT9odOrGRjoZXJfDDoPi+j8SSfDGsc/hsCmc3G"
-    "p2yEhUZUEkDhtOXyqjns1ickC9Gh4u80aSVtwHRnJZh9xPhSq5tLOhId4eP61s+a5pwjTj"
-    "nEhBaIPUJO2C/M0pFnnbZxKgJlX7t1Doy7h5eXxviymOIvaCZKU+x5OopfzM/wFkey0EPW"
-    "NmzI5y/+pzU5afsdeEWdiQDIQc80H6Pz8fsoFPvYSG+s4/wz0duu7yeeV1Ypoho65Zr+pE"
-    "nIf7dO0B8EblgWt+ud+JI8wrAhfE4x hansel\n"
-    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqDwRVTRVk/wjPhoo66+Mztrc31KsxDZ"
-    "+kAV0139PHQ+wsueNpba6jNn5o6mUTEOrxrz0LMsDJOBM7CmG0983kF4gRIihECpQ0rcjO"
-    "P6BSfbVTE9mfIK5IsUiZGd8SoE9kSV2pJ2FvZeBQENoAxEFk0zZL9tchPS+OCUGbK4SDjz"
-    "uNZl/30Mczs73N3MBzi6J1oPo7sFlqzB6ecBjK2Kpjus4Y1rYFphJnUxtKvB0s+hoaadru"
-    "biE57dK6BrH5iZwVLTQKux31uCJLPhiktI3iLbdlGZEctJkTasfVSsUizwVIyRjhVKmbdI"
-    "RGwkU38D043AR1h0mUoGCPIKuqcFMf gretel\n";
 
 
 static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list)
@@ -854,7 +877,8 @@ static int wsUserAuth(byte authType,
 typedef THREAD_RETURN WOLFSSH_THREAD THREAD_FUNC(void*);
 
 
-static INLINE void ThreadStart(THREAD_FUNC fun, void* args, THREAD_TYPE* thread) {
+static INLINE void ThreadStart(THREAD_FUNC fun, void* args, THREAD_TYPE* thread)
+{
 #ifdef SINGLE_THREADED
     (void)fun;
     (void)args;
@@ -888,7 +912,8 @@ static INLINE void ThreadStart(THREAD_FUNC fun, void* args, THREAD_TYPE* thread)
 }
 
 
-static INLINE void ThreadJoin(THREAD_TYPE thread) {
+static INLINE void ThreadJoin(THREAD_TYPE thread)
+{
 #ifdef SINGLE_THREADED
     (void)thread;
 #elif defined(_POSIX_THREADS) && !defined(__MINGW32__)
@@ -911,7 +936,8 @@ static INLINE void ThreadJoin(THREAD_TYPE thread) {
 }
 
 
-static INLINE void ThreadDetach(THREAD_TYPE thread) {
+static INLINE void ThreadDetach(THREAD_TYPE thread)
+{
 #ifdef SINGLE_THREADED
     (void)thread;
 #elif defined(_POSIX_THREADS) && !defined(__MINGW32__)
@@ -996,7 +1022,8 @@ static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
     #endif
 }
 
-void server_test(void *arg) {
+void server_test(void *arg)
+{
     int DEFAULT_PORT = SSH_UART_PORT;
     int ret = WOLFSSL_SUCCESS; /* assume success until proven wrong */
     int sockfd = 0; /* the socket that will carry our secure connection */
@@ -1163,12 +1190,18 @@ void server_test(void *arg) {
     *  be set to the protocol number of TCP
     *
     *  Return Value
-    *    On success, zero is returned. On error, -1 is returned, and errno is set appropriately.
+    *    On success, zero is returned. On error, -1 is returned,
+    *    and errno is set appropriately.
     *
     *  Errors
     *    EBADF       The argument sockfd is not a valid descriptor.
-    *    EFAULT      The address pointed to by optval is not in a valid part of the process address space. For getsockopt(), this error may also be returned if optlen is not in a valid part of the process address space.
-    *    EINVAL      optlen invalid in setsockopt(). In some cases this error can also occur for an invalid value in optval (e.g., for the IP_ADD_MEMBERSHIP option described in ip(7)).
+    *    EFAULT      The address pointed to by optval is not in a valid part of
+    *                the process address space. For getsockopt(), this error
+    *                may also be returned if optlen is not in a valid part of
+    *                the process address space.
+    *    EINVAL      optlen invalid in setsockopt(). In some cases this error
+    *                can also occur for an invalid value in optval
+    *                (e.g. for the IP_ADD_MEMBERSHIP option described in ip(7))
     *    ENOPROTOOPT The option is unknown at the level indicated.
     *    ENOTSOCK    The argument sockfd is a file, not a socket.
     *
@@ -1246,7 +1279,8 @@ void server_test(void *arg) {
     *   a SOCK_STREAM socket may receive connections.
     *
     *  Return Value
-    *    On success, zero is returned. On error, -1 is returned, and errno is set appropriately.
+    *    On success, zero is returned. On error, -1 is returned,
+    *    and errno is set appropriately.
     *
     *  Errors
     *    EACCES     The address is protected, and the user is not the superuser.
@@ -1307,9 +1341,10 @@ void server_test(void *arg) {
     *     EADDRINUSE   Another socket is already listening on the same port.
     *     EBADF        The argument sockfd is not a valid descriptor.
     *     ENOTSOCK     The argument sockfd is not a socket.
-    *     EOPNOTSUPP   The socket is not of a type that supports the listen() operation.
+    *     EOPNOTSUPP   The socket is not of a type that supports
+    *                  the listen() operation.
     *
-    *  ses: https://linux.die.net/man/2/listen
+    *  see: https://linux.die.net/man/2/listen
     */
 
     if (ret == WOLFSSL_SUCCESS) {
@@ -1347,6 +1382,10 @@ void server_test(void *arg) {
         exit(EXIT_FAILURE);
     }
 
+#ifdef WOLFSSL_TRACK_MEMORY
+    ESP_LOGI(TAG, "wolfSSH_CTX_new complete. Memory:");
+    ShowMemoryTracker();
+#endif
 
     memset(&pwMapList, 0, sizeof(pwMapList));
 
@@ -1386,6 +1425,11 @@ void server_test(void *arg) {
         buf[bufSz] = 0;
         LoadPublicKeyBuffer(buf, bufSz, &pwMapList);
     }
+
+#ifdef WOLFSSL_TRACK_MEMORY
+    ESP_LOGI(TAG, "wolfSSL listen ready. Memory:");
+    ShowMemoryTracker();
+#endif
 
     listen(sockfd, 5);
 
@@ -1457,6 +1501,12 @@ void server_test(void *arg) {
         else
             ThreadJoin(thread);
 #else
+
+    #ifdef WOLFSSL_TRACK_MEMORY
+        ESP_LOGI(TAG, "wolfSSL server_worker. Memory:");
+        ShowMemoryTracker();
+    #endif
+
         server_worker(threadCtx);
 #endif /* SINGLE_THREADED */
         ESP_LOGI(TAG, "server_worker completed.");
