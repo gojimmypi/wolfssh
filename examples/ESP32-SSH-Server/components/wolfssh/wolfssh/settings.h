@@ -79,8 +79,8 @@ extern "C" {
     !defined(HAVE_SELFTEST)
     /* Enable use of wc_ecc_set_rng */
     #define HAVE_WC_ECC_SET_RNG
-#endif    
-    
+#endif
+
 #ifdef __cplusplus
 }
 #endif

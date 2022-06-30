@@ -1184,65 +1184,34 @@ int wolfSSL_CryptHwMutexUnLock(void)
 
     int wc_InitMutex(wolfSSL_Mutex* m)
     {
-        int ret = 0;
+        int iReturn;
 
-        *m = (wolfSSL_Mutex) xSemaphoreCreateMutex();
-        if (*m == NULL) {
-            ret = BAD_MUTEX_E;
-            // WOLFSSL_ERROR_MSG("wc_InitMutex param .\n");
-        }
-        else {
-            // WOLFSSL_MSG("wc_InitMutex completed wuth success.");
-        }
+        *m = ( wolfSSL_Mutex ) xSemaphoreCreateMutex();
+        if( *m != NULL )
+            iReturn = 0;
+        else
+            iReturn = BAD_MUTEX_E;
 
-        return ret;
+        return iReturn;
     }
 
-    int wc_FreeMutex(wolfSSL_Mutex* m) {
-        int ret = 0;
-        if (*m == NULL) {
-            ret = BAD_MUTEX_E;
-            #if defined(DEBUG_WOLFSSL_VERBOSE)
-                WOLFSSL_ERROR_MSG("wc_FreeMutex param null.\n");
-            #endif
-        }
-        else {
-            #if defined(DEBUG_WOLFSSL_VERBOSE)
-                WOLFSSL_MSG("wc_FreeMutex vSemaphoreDelete success.");
-            #endif
-        }
-
+    int wc_FreeMutex(wolfSSL_Mutex* m)
+    {
         vSemaphoreDelete( *m );
-        return ret;
+        return 0;
     }
 
-    /*
-     * wc_LockMutex: take the mutex param
-     *
-     * wc_LockMutex is used in ssl.c and internal.c
-     * returns
-     *    0 upon success
-     *    BAD_MUTEX_E for errors
-     */
     int wc_LockMutex(wolfSSL_Mutex* m)
     {
-        if (*m == NULL) {
-            WOLFSSL_ERROR_MSG("wc_LockMutex param null.\n");
-            return BAD_MUTEX_E;
-        }
-
         /* Assume an infinite block, or should there be zero block? */
-        return ((xSemaphoreTake(*m, portMAX_DELAY) == pdTRUE) ? 0 : BAD_MUTEX_E);
+        xSemaphoreTake( *m, portMAX_DELAY );
+        return 0;
     }
 
     int wc_UnLockMutex(wolfSSL_Mutex* m)
     {
-        if (*m == NULL) {
-            WOLFSSL_ERROR_MSG("wc_UnLockMutex param null.\n");
-            return BAD_MUTEX_E;
-        }
-
-        return ((xSemaphoreGive(*m) == pdTRUE) ? 0 : BAD_MUTEX_E);
+        xSemaphoreGive( *m );
+        return 0;
     }
 
 #elif defined(RTTHREAD)
