@@ -24,9 +24,9 @@
 
 
 /*
- * we code .gitignore to also exclude my_private_config.h with wifi
+ * we code .gitignore to also exclude my_private_config.h with WiFi
  * SSID and passwords, etc. But it needs to be included in this project
- * but we don't know if other's will be on different envrionments...
+ * but we don't know if other's will be on different environments ...
  *
  * So:
  *

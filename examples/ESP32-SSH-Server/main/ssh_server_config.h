@@ -33,7 +33,7 @@
 #define SINGLE_THREADED
 
 
-/* Edgerouter is 57600, others are typically 115200
+/* EdgeRouter-X is 57600, others are typically 115200
  *
  **/
 #define BAUD_RATE (57600)
@@ -50,15 +50,15 @@
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-#define USE_ENC28J60
+// #define USE_ENC28J60
 
-/* wifi can be either STA or AP
+/* WiFi can be either STA or AP
  *  #define WOLFSSH_SERVER_IS_AP
  *  #define WOLFSSH_SERVER_IS_STA
  **/
 
 /* #define WOLFSSH_SERVER_IS_AP */
-
+#define WOLFSSH_SERVER_IS_AP
 
 /* set GPIO pins for UART_NUM_1 */
 
@@ -101,11 +101,11 @@
 /*
  * Time server settings.
  *
- * Accurate time is often important in cryptocgraphic key exchange.
+ * Accurate time is often important in cryptographic key exchange.
  *
  * see https://tf.nist.gov/tf-cgi/servers.cgi
  */
-#define NTP_SERVER_LIST ( (char*[]) {        \
+#define NTP_SERVER_LIST ( (char*[]) {                        \
                                      "pool.ntp.org",         \
                                      "time.nist.gov",        \
                                      "utcnist.colorado.edu"  \
@@ -141,7 +141,7 @@
 /* UART pins and config */
 #include "uart_helper.h"
 
-/* TODO check / optimimize these values */
+/* TODO check / optimize these values */
 #ifndef EXAMPLE_HIGHWATER_MARK
     #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
 #endif
@@ -158,10 +158,12 @@
  **/
 #define NELEMS(x)  ( (int)(sizeof(x) / sizeof((x)[0])) )
 
-/* #define NTP_SERVER_COUNT  (int)(sizeof(NTP_SERVER_LIST) / sizeof(NTP_SERVER_LIST[0])) */
+/* #define NTP_SERVER_COUNT using NELEMS:
+ *
+ *  (int)(sizeof(NTP_SERVER_LIST) / sizeof(NTP_SERVER_LIST[0]))
+ */
 #define NTP_SERVER_COUNT NELEMS(NTP_SERVER_LIST)
 
-// extern char* ntpServerList[NTP_SERVER_COUNT];
 extern char* ntpServerList[NTP_SERVER_COUNT];
 
 

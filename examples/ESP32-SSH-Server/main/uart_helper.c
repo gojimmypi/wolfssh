@@ -38,9 +38,9 @@
  * see examples: https://github.com/espressif/esp-idf/blob/master/examples/peripherals/uart/uart_echo/main/uart_echo_example_main.c
  */
 
-char * TAG = "uart_helper";
+static char * TAG = "uart_helper";
 /* we are going to use a real backspace instead of 0x7f observed */
-const char backspace[1] = { (char)0x08 };
+static const char backspace[1] = { (char)0x08 };
 static SemaphoreHandle_t xUART_Semaphore = NULL;
 
 

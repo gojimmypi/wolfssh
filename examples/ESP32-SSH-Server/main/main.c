@@ -138,16 +138,18 @@ int set_time(void)
 {
     /* we'll also return a result code of zero */
     int res = 0;
+    int i = 0; /* counter for time servers */
+    time_t t;
 
     /* ideally, we'd like to set time from network, but let's set a default time, just in case */
-    struct tm timeinfo;
-    timeinfo.tm_year = 2022 - 1900;
-    timeinfo.tm_mon = 4;
-    timeinfo.tm_mday = 17;
-    timeinfo.tm_hour = 10;
-    timeinfo.tm_min = 46;
-    timeinfo.tm_sec = 10;
-    time_t t;
+    struct tm timeinfo = {
+        .tm_year = 2022 - 1900,
+        .tm_mon = 4,
+        .tm_mday = 17,
+        .tm_hour = 10,
+        .tm_min = 46,
+        .tm_sec = 10
+    };
     t = mktime(&timeinfo);
 
     struct timeval now = { .tv_sec = t };
@@ -163,7 +165,6 @@ int set_time(void)
     */
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
-    int i = 0;
     ESP_LOGI(TAG, "sntp_setservername:");
     for (i = 0; i < NTP_SERVER_COUNT; i++) {
         const char* thisServer = ntpServerList[i];
@@ -335,14 +336,14 @@ void app_main(void)
     xTaskCreate(server_session, "server_session", 6024 * 2, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-//    xTaskCreate(test_task,
-//        "test_task",
-//        6024 * 2,
-//        NULL,
-//        tskIDLE_PRIORITY,
-//        NULL);
-
-
+#ifdef ENABLE_TEST_TASK
+    xTaskCreate(test_task,
+        "test_task",
+        6024 * 2,
+        NULL,
+        tskIDLE_PRIORITY,
+        NULL);
+#endif
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
         ESP_LOGI(TAG, "wolfSSH Server main loop heartbeat!");

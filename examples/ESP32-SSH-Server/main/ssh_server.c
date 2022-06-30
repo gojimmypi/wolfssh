@@ -72,8 +72,8 @@ static const char samplePublicKeyRsaBuffer[] =
 
 
 /* note our actual buffer is used by RTOS threads, and eventually interrupts */
-volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
-volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
+static volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
+static volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
 
 enum {
     WS_SELECT_FAIL,
