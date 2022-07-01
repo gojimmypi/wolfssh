@@ -28,7 +28,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+    #include <config.h>
 #endif
 
 #define DEBUG_WOLFSSL
@@ -40,9 +40,9 @@
 
 /* ensure this appears before any other wolfSSL headers */
 #ifdef WOLFSSL_USER_SETTINGS
-#include <wolfssl/wolfcrypt/settings.h>
+    #include <wolfssl/wolfcrypt/settings.h>
 #else
-#include <wolfssl/options.h>
+    #include <wolfssl/options.h>
 #endif
 
 /* wolfSSL */
