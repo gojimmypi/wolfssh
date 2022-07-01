@@ -1,6 +1,5 @@
 #pragma once
-
-/* tx_rx_buffer.h
+/* my_config.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -23,12 +22,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#include <wolfssl/wolfcrypt/logging.h>
-
+#include <string.h>
 /* TODO do these really need to be so big? probably not */
 #define ExternalReceiveBufferMaxLength 2047
 #define ExternalTransmitBufferMaxLength 2047
 
+typedef uint8_t byte;
 
 int  init_tx_rx_buffer(byte TxPin, byte RxPin);
 int Get_ExternalTransmitBuffer(byte **ToData);

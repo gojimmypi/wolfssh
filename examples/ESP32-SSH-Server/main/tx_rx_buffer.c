@@ -16,6 +16,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 #include "tx_rx_buffer.h"
 #include "int_to_string.h"
@@ -31,9 +32,9 @@
 static const char *TAG = "SSH Server lib";
 
 
-/* TODO define size and check when assigning */
-volatile static char __attribute__((optimize("O0"))) _ExternalReceiveBuffer[ExternalReceiveBufferMaxLength];
-volatile static char __attribute__((optimize("O0"))) _ExternalTransmitBuffer[ExternalTransmitBufferMaxLength];
+/* TODO check when assigning for optimal size, implement high-water */
+volatile static char  _ExternalReceiveBuffer[ExternalReceiveBufferMaxLength];
+volatile static char  _ExternalTransmitBuffer[ExternalTransmitBufferMaxLength];
 volatile static int _ExternalReceiveBufferSz = 0;
 volatile static int _ExternalTransmitBufferSz = 0;
 
@@ -53,7 +54,7 @@ void InitReceiveSemaphore(void)
         /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG, "InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 
         _xExternalReceiveBuffer_Semaphore =  xSemaphoreCreateMutex();
@@ -70,7 +71,7 @@ void InitTransmitSemaphore(void)
         /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG, "InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG, "InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
         _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
     }
@@ -82,11 +83,12 @@ void InitTransmitSemaphore(void)
  */
 bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue)
 {
-    bool ret =false;
-    char thisChar;
+    bool ret = false; /* assume not a match unless proven otherwise */
+    char thisChar; /* typically looking at position 0, e.g. user typing */
 
     InitReceiveSemaphore();
-    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
+                       (TickType_t) 10) == pdTRUE) {
 
         /* the entire thread-safety wrapper is for this code segment */
         {
@@ -99,30 +101,50 @@ bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue
         xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this? */
         ret = false;
     }
 
     return ret;
 }
 
-
+/*
+ * return the pointer to the receive buffer.
+ *
+ * reminder that the CONTENTS of the raw buffer are NOT THREAD SAFE here.
+ *
+ * see Get_ExternalReceiveBuffer
+ */
 volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer(void)
 {
     return _ExternalReceiveBuffer;
 }
 
+/*
+ * return the pointer to the transmit buffer.
+ *
+ * reminder that the CONTENTS of the raw buffer are NOT THREAD SAFE here.
+ *
+ * see Get_ExternalTransmitBuffer
+ */
 volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer(void)
 {
     return _ExternalTransmitBuffer;
 }
 
+/*
+ * RTOS-safe positional value of current receive buffer position.
+ *
+ * care should be take when using the number as more chars may have arrived!
+ */
 int ExternalReceiveBufferSz()
 {
     int ret = 0;
 
     InitReceiveSemaphore();
-    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
+                       (TickType_t) 10) == pdTRUE) {
 
         /* the entire thread-safety wrapper is for this code statement */
         {
@@ -131,7 +153,8 @@ int ExternalReceiveBufferSz()
         xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this?  */
         ret = 0;
     }
 
@@ -143,6 +166,9 @@ int ExternalReceiveBufferSz()
     return ret;
 }
 
+/* RTOS-safe positional value of current transmit buffer position.
+ * care should be take when using the number as more chars may have been sent!
+ */
 int ExternalTransmitBufferSz()
 {
     int ret;
@@ -159,7 +185,8 @@ int ExternalTransmitBufferSz()
         xSemaphoreGive(_xExternalTransmitBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this? */
         ret = 0;
     }
 
@@ -189,7 +216,8 @@ int Set_ExternalReceiveBufferSz(int n)
             {
                 _ExternalReceiveBufferSz = n;
 
-                /* ensure the next char is zero, in case the stuffer of data does not do it */
+                /* ensure the next char is zero, in case the stuffer of data
+                 * does not do it */
                 _ExternalReceiveBuffer[n + 1] = 0;
             }
 
@@ -232,7 +260,8 @@ int Set_ExternalTransmitBufferSz(int n)
             {
                 _ExternalTransmitBufferSz = n;
 
-                /* ensure the next char is zero, in case the stuffer of data does not do it */
+                /* ensure the next char is zero,
+                 * in case the stuffer of data does not do it */
                 _ExternalTransmitBuffer[n + 1] = 0;
             }
 
@@ -268,8 +297,9 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz)
              */
             {
                 memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
-                    FromData,
-                    sz);
+                       FromData,
+                       sz
+                      );
 
                 _ExternalReceiveBufferSz = sz;
             }
@@ -277,7 +307,8 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz)
             xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
         }
         else {
-            /* we could not get the semaphore to update the value! TODO how to handle this? */
+            /* we could not get the semaphore to update the value!
+             * TODO how to handle this? */
             ret = 1;
         }
     }
@@ -311,8 +342,9 @@ int Get_ExternalTransmitBuffer(byte **ToData)
             }
             else {
                 memcpy(*ToData,
-                    (byte*)_ExternalTransmitBuffer,
-                    thisSize);
+                       (byte*)_ExternalTransmitBuffer,
+                       thisSize
+                      );
 
                 _ExternalTransmitBufferSz = 0;
                 ret = thisSize;
@@ -390,7 +422,7 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin)
     int ret = 0;
     char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
 
-    /* these inits need to be called only once,
+    /* these initializations need to be called only once,
      * but can be repeatedly called as needed */
     InitReceiveSemaphore();
     InitTransmitSemaphore();
@@ -416,7 +448,11 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin)
                                sizeof(SSH_GPIO_MESSAGE_TX)
                               );
 
-    /* the number of the Tx pin, converted to a string */
+    /* the number of the Tx pin, converted to a string.
+     *
+     * note despite Clang IntelliSense detecting duplicate code,
+     * it is NOT a duplicate. This one compares TxPin,
+     * the next one below compares RxPin */
     if (TxPin <= 0x40) {
         int_to_dec(numStr, TxPin);
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
@@ -449,3 +485,4 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin)
 
     return ret;
 }
+

@@ -1,4 +1,4 @@
-/* uart_hlper.c
+/* uart_helper.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -38,7 +38,8 @@
  * see examples: https://github.com/espressif/esp-idf/blob/master/examples/peripherals/uart/uart_echo/main/uart_echo_example_main.c
  */
 
-static char * TAG = "uart_helper";
+static char* TAG = "uart_helper";
+
 /* we are going to use a real backspace instead of 0x7f observed */
 static const char backspace[1] = { (char)0x08 };
 static SemaphoreHandle_t xUART_Semaphore = NULL;
@@ -102,15 +103,7 @@ void uart_tx_task(void *arg)
 
             /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
-            // taskENTER_CRITICAL(NULL);
-            //char thisChar = (byte)ExternalReceiveBuffer()[0];
-            //int thisLength  = ExternalReceiveBufferSz();
-            //bool isSingleBackspace = (thisChar == 0x7f) && (thisLength == 1);
-            // taskEXIT_CRITICAL(NULL);
-
             if (ExternalReceiveBuffer_IsChar(0x7f)) {
-
-            // if ((byte)ExternalReceiveBuffer() == 0x7f && ExternalReceiveBufferSz()  == 1) {
                 sendData(TX_TASK_TAG, backspace);
             }
             else

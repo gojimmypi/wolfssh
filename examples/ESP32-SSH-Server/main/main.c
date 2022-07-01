@@ -116,7 +116,10 @@
 #include "ssh_server.h"
 
 /* logging
- * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+ *
+ * see
+ *   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+ *   https://github.com/wolfSSL/wolfssl/blob/master/wolfssl/wolfcrypt/logging.h
  */
 #ifdef LOG_LOCAL_LEVEL
     #undef LOG_LOCAL_LEVEL
@@ -131,7 +134,8 @@
 
 static const char *TAG = "SSH Server main";
 
-static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
+/* 10 seconds, used for heartbeat message in thread */
+static TickType_t DelayTicks = (10000 / portTICK_PERIOD_MS);
 
 
 int set_time(void)
@@ -139,20 +143,23 @@ int set_time(void)
     /* we'll also return a result code of zero */
     int res = 0;
     int i = 0; /* counter for time servers */
-    time_t t;
+    time_t interim_time;
 
-    /* ideally, we'd like to set time from network, but let's set a default time, just in case */
+    /* ideally, we'd like to set time from network,
+     * but let's set a default time, just in case */
     struct tm timeinfo = {
         .tm_year = 2022 - 1900,
-        .tm_mon = 4,
-        .tm_mday = 17,
+        .tm_mon = 6,
+        .tm_mday = 29,
         .tm_hour = 10,
         .tm_min = 46,
         .tm_sec = 10
     };
-    t = mktime(&timeinfo);
+    struct timeval now;
 
-    struct timeval now = { .tv_sec = t };
+    /* set interim static time */
+    interim_time = mktime(&timeinfo);
+    now = (struct timeval){ .tv_sec = interim_time };
     settimeofday(&now, NULL);
 
     /* set timezone */
@@ -162,7 +169,7 @@ int set_time(void)
     /* next, let's setup NTP time servers
      *
      * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html#sntp-time-synchronization
-    */
+     */
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
     ESP_LOGI(TAG, "sntp_setservername:");
@@ -186,11 +193,14 @@ int set_time(void)
 
 void server_session(void* args)
 {
-    while (1)
-    {
+    while (1) {
         server_test(args);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
-        /* esp_task_wdt_reset(); */
+
+#ifdef DEBUG_WDT
+        /* if we get panic faults, perhaps the watchdog needs attention? */
+        esp_task_wdt_reset();
+#endif
     }
 }
 
@@ -239,7 +249,7 @@ void init_nvsflash(void)
  */
 void init(void)
 {
-    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
+    TickType_t EthernetWaitDelayTicks = (1000 / portTICK_PERIOD_MS);
 
     ESP_LOGI(TAG, "Begin main init.");
 
@@ -268,10 +278,12 @@ void init(void)
      * WiFi Station: WOLFSSH_SERVER_IS_STA
      **/
 #if defined(USE_ENC28J60)
+    /* wired ethernet */
     ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
     init_ENC28J60(MY_MAC_ADDRESS);
 
 #elif defined( WOLFSSH_SERVER_IS_AP)
+    /* acting as an access point */
     init_nvsflash();
 
     ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
@@ -279,12 +291,14 @@ void init(void)
     ESP_LOGI(TAG, "End setup WiFi Soft AP.");
 
 #elif defined(WOLFSSH_SERVER_IS_STA)
+    /* acting as a WiFi Station (client) */
     init_nvsflash();
 
     ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
     ESP_LOGI(TAG, "End setup WiFi STA.");
 #else
+    /* we should never get here */
     while (1)
     {
         ESP_LOGE(TAG, "ERROR: No network is defined... choose USE_ENC28J60, \
@@ -306,6 +320,7 @@ void init(void)
 #ifdef WOLFSSL_TRACK_MEMORY
     InitMemoryTracker();
 #endif
+
 
     wolfSSH_Init();
 
@@ -344,6 +359,7 @@ void app_main(void)
         tskIDLE_PRIORITY,
         NULL);
 #endif
+
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
         ESP_LOGI(TAG, "wolfSSH Server main loop heartbeat!");

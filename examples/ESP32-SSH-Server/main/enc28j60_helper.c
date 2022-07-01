@@ -17,9 +17,12 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "enc28j60_helper.h"
 
 #define USE_ENC28J60
 #define JTAG_DEBUG
+
+
 
 #include "esp_netif.h"
 #include "esp_eth.h"
@@ -40,6 +43,7 @@
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
+static const char *TAG = "enc28j60_helper";
 
 #define JTAG_SAFE_MISO 25
 #if defined (JTAG_DEBUG)
@@ -54,9 +58,6 @@
    02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
    see enc28j60_helper
 */
-
-static const char *TAG = "enc28j60_helper";
-
 
 /*
  * initialize the ENC28J60 wired Ethernet SPI device.

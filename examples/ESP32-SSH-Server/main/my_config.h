@@ -1,8 +1,5 @@
 #pragma once
-
-#define  USE_MY_PRIVATE_CONFIG
-
-/* int_to_string.h
+/* my_config.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -20,8 +17,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
-
+#define  USE_MY_PRIVATE_CONFIG
 
 /*
  * we code .gitignore to also exclude my_private_config.h with WiFi
@@ -81,9 +79,11 @@ endif()
  * ../../../main/my_config.h:59:32: warning: unknown option after '#pragma GCC diagnostic' kind [-Wpragmas]
  *  #pragma GCC diagnostic ignored "-W#pragma-messages" *
  */
+
+/*
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-
+*/
 
 #if defined(NO_PRIVATE_CONFIG)
     /* reminder that if you put a password here,
@@ -136,4 +136,7 @@ endif()
 
 /* turn off GCC diagnostic ignored "-W#pragma-messages" from above
 */
+
+/*
 #pragma GCC diagnostic pop
+*/

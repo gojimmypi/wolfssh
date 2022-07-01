@@ -19,9 +19,10 @@
  */
 #include "ssh_server_config.h"
 
+/* our NTP server list is global info */
 char* ntpServerList[NTP_SERVER_COUNT] = NTP_SERVER_LIST;
 
-void ssh_server_config_init(void)
+void ssh_server_config_init()
 {
     ESP_LOGI("init", "ssh_server_config_init");
 }

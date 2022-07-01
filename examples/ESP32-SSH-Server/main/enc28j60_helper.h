@@ -1,5 +1,3 @@
-#pragma once
-
 /* enc28j60_helper.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -19,6 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
 #include "stdbool.h"
 #include "esp_netif.h"

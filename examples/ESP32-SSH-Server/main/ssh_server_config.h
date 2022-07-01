@@ -1,5 +1,3 @@
-#pragma once
-
 /* ssh_server_config.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -19,7 +17,12 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
+/* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
+ * see CMakeLists.txt
+#define WOLFSSL_USER_SETTINGS
+ */
 
 #include <driver/gpio.h>
 
@@ -50,15 +53,16 @@
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-// #define USE_ENC28J60
+/* #define USE_ENC28J60 */
 
-/* WiFi can be either STA or AP
+/* WiFi can be either STA or AP:
+ *
  *  #define WOLFSSH_SERVER_IS_AP
  *  #define WOLFSSH_SERVER_IS_STA
- **/
+ *
+ */
 
-/* #define WOLFSSH_SERVER_IS_AP */
-#define WOLFSSH_SERVER_IS_AP
+ #define WOLFSSH_SERVER_IS_AP
 
 /* set GPIO pins for UART_NUM_1 */
 
@@ -81,7 +85,6 @@
 
 
 #define SSH_SERVER_BANNER "wolfSSH Example Server\n"
-// static const char serverBanner[] = "wolfSSH Example Server\n";
 
 #undef  SO_REUSEPORT
 
@@ -164,6 +167,7 @@
  */
 #define NTP_SERVER_COUNT NELEMS(NTP_SERVER_LIST)
 
+/* our NTP server list is global info */
 extern char* ntpServerList[NTP_SERVER_COUNT];
 
 
