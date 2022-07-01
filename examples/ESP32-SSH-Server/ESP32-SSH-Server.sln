@@ -34,6 +34,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "main", "main", "{D743A727-3
 	ProjectSection(SolutionItems) = preProject
 		main\CMakeLists.txt = main\CMakeLists.txt
 		main\component.mk = main\component.mk
+		main\my_config.h = main\my_config.h
+		main\ssh_server.h = main\ssh_server.h
+		main\ssh_server_config.h = main\ssh_server_config.h
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "openocd", "openocd", "{68AE1391-9701-4920-BEE8-D2163474C23D}"
