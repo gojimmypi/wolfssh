@@ -1,6 +1,6 @@
 /* ssh.c
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2021 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -136,11 +136,6 @@ WOLFSSH* wolfSSH_new(WOLFSSH_CTX* ctx)
         WLOG(WS_LOG_ERROR, "Trying to init a wolfSSH w/o wolfSSH_CTX");
         return NULL;
     }
-    static const char *TAG = "SSH init";
-#ifdef DEBUG_WOLFSSH
-    //ESP_LOGI(TAG, "wolfSSH debugging on.");
-    wolfSSH_Debugging_ON();
-#endif
 
     ssh = (WOLFSSH*)WMALLOC(sizeof(WOLFSSH), heap, DYNTYPE_SSH);
     ssh = SshInit(ssh, ctx);
