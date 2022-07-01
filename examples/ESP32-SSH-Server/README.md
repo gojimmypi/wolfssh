@@ -703,6 +703,51 @@ If after exhausting all other options, try erasing the ESP32 before reprogrammin
 idf.py -p /dev/ttyS20 erase_flash -b 115200
 ```
 
+#### CMake Error: directory in wrong place
+
+This error will typically occur when changing environments but using the same directory. For instance when building
+in Windows using a path like `C:\yourdir...` then building in WSL with `/mnt/c/yourdir...`.
+
+```
+CMake Error: The current CMakeCache.txt directory /mnt/c/[...]/CMakeCache.txt is different than the 
+directory c:/[..]/build where CMakeCache.txt was created. This may result in binaries being created 
+in the wrong place. If you are not sure, reedit the CMakeCache.txt
+```
+
+To resolve, do a full build clean in Windows and try again. If the problem persists, try `cmake .` and 
+`idf.py fullclean` from the WSL prompt. When returning to Windows build with VisualGDB, right-click on project
+and select `clean and reconfigure cmake project`. The brute-force `rm CMakeCache.txt` can also be effective.
+
+#### Flash programming errors
+
+Make sure the serial port is not in use (e.g. a putty session).
+
+Try slowing the baud rate:
+
+```
+ idf.py -p /dev/ttyS8 flash -b 115200
+```
+
+Try changing USB cables to one that is known good. A "charge only" cable will not work.
+
+#### Connection to UART successful, but typing is very sluggish.
+
+Check the serial port that the code was uploaded to: there may be an excess of diagnostic messages.
+
+##### Connection refused
+
+Make sure you are connecting to the correct IP address and using port 22222. For example:
+
+```
+ssh jill@192.168.4.1 -p 22222
+```
+
+Note that the number of concurrent connections may be limited.
+
+#### Connection refused when trying to connect a second time.
+
+Try again. Cleanup and shutdown may take a few seconds, even longer if there are verbose diagnostics.
+
 <br />
 
 For any technical queries specific to the ESP 32, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
