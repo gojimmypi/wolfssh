@@ -25,7 +25,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSL", "wolfSSL", "{B49C
 		components\wolfssl\CMakeLists.txt = components\wolfssl\CMakeLists.txt
 		components\wolfssl\component.mk = components\wolfssl\component.mk
 		components\wolfssl\include\config.h = components\wolfssl\include\config.h
+		components\wolfssl\install_wolfssl.cmd = components\wolfssl\install_wolfssl.cmd
 		components\wolfssl\wolfssl\options.h = components\wolfssl\wolfssl\options.h
+		components\wolfssl\README.md = components\wolfssl\README.md
 		components\wolfssl\wolfssl\wolfcrypt\settings.h = components\wolfssl\wolfssl\wolfcrypt\settings.h
 		components\wolfssl\include\user_settings.h = components\wolfssl\include\user_settings.h
 	EndProjectSection
