@@ -93,7 +93,10 @@ For more details on the UARTs and the ESP32 in general, refer to the
 It is usually best to not publish private SSID names and passwords to GitHub. 
 As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these files, in this order:
 
+```c
+..\..\..\my_private_config.h
 ```
+
 # VisualGDB default
 /c/workspace/my_private_config.h
 
@@ -165,7 +168,6 @@ Linux
 export IDF_PATH=~/esp-idf
 export WORKSPACE=~/workspace
 ```
-
 
 ## Configuration
 
@@ -571,6 +573,22 @@ Now you can ping your ESP32 in the terminal by entering `ping 192.168.2.34` (it 
 3. Ensure that your wiring between ESP32 board and the ENC28J60 board is realized by short wires with the same length and no wire crossings.
 4. CS Hold Time needs to be configured to be at least 210 ns to properly read MAC and MII registers as defined by ENC28J60 Data Sheet. This is automatically configured in the example based on selected SPI clock frequency by computing amount of SPI bit-cycles the CS should stay active after the transmission. However, if your PCB design/wiring requires different value, please update `cs_ena_posttrans` member of `devcfg` structure per your actual needs.
 
+## Switching Architecture
+
+When switching between ESP32 (Xtensa) and ESP32-C3 (RISC-V):
+
+Rename the respective `sdkconfig.ESP32` or `sdkconfig.ESP32C3` to `sdkconfig`
+
+- Exit from Visual Studio; Delete `.visualgdb` and `.vs` and `build` directories.
+ 
+- Device and Bootloader COM Port:  Right-click on project, VisualGDB Properties,  ESP-IDF Project.
+
+- Right-click on project, VisualGDB Properties. Debug Settings. JTAG/SWD Programmer = ESP32 DevKit; Debugged Device = ESP32
+
+- Confirm desired COM port for Raw Terminal. Right-click on project, VisualGDB Properties.
+
+
+- 
 
 <br />
 
