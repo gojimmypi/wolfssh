@@ -19,7 +19,7 @@
  */
 #include "enc28j60_helper.h"
 
-#define USE_ENC28J60
+/* #define USE_ENC28J60 */
 #define JTAG_DEBUG
 
 
@@ -46,7 +46,7 @@
 static const char *TAG = "enc28j60_helper";
 
 #define JTAG_SAFE_MISO 25
-#if defined (JTAG_DEBUG)
+#if defined (JTAG_DEBUG) && defined(USE_ENC28J60)
     #if CONFIG_EXAMPLE_ENC28J60_MISO_GPIO == JTAG_SAFE_MISO
         /* this is a safe GPIO to use with JTAG */
     #else
