@@ -78,37 +78,72 @@ static int pk_bn_field_print_fp(XFILE fp, int indent, const char* field,
     if (ret == 1) {
         /* Print leading spaces, name and spaces before data. */
         if (indent > 0) {
-            XFPRINTF(fp, "%*s", indent, "");
+            if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                ret = 0;
         }
-        XFPRINTF(fp, "%s:\n", field);
+    }
+    if (ret == 1) {
+        if (XFPRINTF(fp, "%s:\n", field) < 0)
+            ret = 0;
+    }
+    if (ret == 1) {
         if (indent > 0) {
-            XFPRINTF(fp, "%*s", indent, "");
+            if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                ret = 0;
         }
-        XFPRINTF(fp, "%*s", HEX_INDENT, "");
-
+    }
+    if (ret == 1) {
+        if (XFPRINTF(fp, "%*s", HEX_INDENT, "") < 0)
+            ret = 0;
+    }
+    if (ret == 1) {
         /* Print first byte - should always exist. */
         if ((buf[i] != '\0') && (buf[i+1] != '\0')) {
-            XFPRINTF(fp, "%c", buf[i++]);
-            XFPRINTF(fp, "%c", buf[i++]);
+            if (XFPRINTF(fp, "%c", buf[i++]) < 0)
+                ret = 0;
+            else if (XFPRINTF(fp, "%c", buf[i++]) < 0)
+                    ret = 0;
         }
+    }
+    if (ret == 1) {
         /* Print each hexadecimal character with byte separator. */
         while ((buf[i] != '\0') && (buf[i+1] != '\0')) {
             /* Byte separator every two nibbles - one byte. */
-            XFPRINTF(fp, ":");
+            if (XFPRINTF(fp, ":") < 0) {
+                ret = 0;
+                break;
+            }
             /* New line after every 15 bytes - 30 nibbles. */
             if (i % MAX_DIGITS_PER_LINE == 0) {
-                XFPRINTF(fp, "\n");
-                if (indent > 0) {
-                    XFPRINTF(fp, "%*s", indent, "");
+                if (XFPRINTF(fp, "\n") < 0) {
+                    ret = 0;
+                    break;
                 }
-                XFPRINTF(fp, "%*s", HEX_INDENT, "");
+                if (indent > 0) {
+                    if (XFPRINTF(fp, "%*s", indent, "") < 0) {
+                        ret = 0;
+                        break;
+                    }
+                }
+                if (XFPRINTF(fp, "%*s", HEX_INDENT, "") < 0) {
+                    ret = 0;
+                    break;
+                }
             }
             /* Print two nibbles - one byte. */
-            XFPRINTF(fp, "%c", buf[i++]);
-            XFPRINTF(fp, "%c", buf[i++]);
+            if (XFPRINTF(fp, "%c", buf[i++]) < 0) {
+                ret = 0;
+                break;
+            }
+            if (XFPRINTF(fp, "%c", buf[i++]) < 0) {
+                ret = 0;
+                break;
+            }
         }
         /* Ensure on new line after data. */
-        XFPRINTF(fp, "\n");
+        if (XFPRINTF(fp, "\n") < 0) {
+            ret = 0;
+        }
     }
 
     /* Dispose of any allocated character array. */
@@ -151,10 +186,16 @@ static int wolfssl_print_indent(WOLFSSL_BIO* bio, char* line, int lineLen,
 
     if (indent > 0) {
         /* Print indent spaces. */
-        lineLen = (int)XSNPRINTF(line, lineLen - 1, "%*s", indent, " ");
-        /* Write indents string to BIO */
-        if (wolfSSL_BIO_write(bio, line, lineLen) <= 0) {
+        int len_wanted = XSNPRINTF(line, lineLen, "%*s", indent, " ");
+        if (len_wanted >= lineLen) {
+            WOLFSSL_MSG("Buffer overflow formatting indentation");
             ret = 0;
+        }
+        else {
+            /* Write indents string to BIO */
+            if (wolfSSL_BIO_write(bio, line, len_wanted) <= 0) {
+                ret = 0;
+            }
         }
     }
 
@@ -193,11 +234,16 @@ static int wolfssl_print_value(WOLFSSL_BIO* bio, mp_int* value,
         /* Get 32-bits of value. */
         v = (word32)value->dp[0];
         /* Print the line to the string. */
-        len = (int)XSNPRINTF(line, sizeof(line) - 1, "%s %u (0x%x)\n", name, v,
+        len = (int)XSNPRINTF(line, sizeof(line), "%s %u (0x%x)\n", name, v,
             v);
-        /* Write string to BIO */
-        if (wolfSSL_BIO_write(bio, line, len) <= 0) {
+        if (len >= (int)sizeof(line)) {
+            WOLFSSL_MSG("Buffer overflow while formatting value");
             ret = 0;
+        } else {
+            /* Write string to BIO */
+            if (wolfSSL_BIO_write(bio, line, len) <= 0) {
+                ret = 0;
+            }
         }
     }
 
@@ -247,9 +293,15 @@ static int wolfssl_print_number(WOLFSSL_BIO* bio, mp_int* num, const char* name,
     }
     if (ret == 1) {
         /* Print header string line to string. */
-        li = XSNPRINTF(line, sizeof(line) - 1, "%s\n", name);
-        if (wolfSSL_BIO_write(bio, line, li) <= 0) {
+        li = XSNPRINTF(line, sizeof(line), "%s\n", name);
+        if (li >= (int)sizeof(line)) {
+            WOLFSSL_MSG("Buffer overflow formatting name");
             ret = 0;
+        }
+        else {
+            if (wolfSSL_BIO_write(bio, line, li) <= 0) {
+                ret = 0;
+            }
         }
     }
     if (ret == 1) {
@@ -259,15 +311,26 @@ static int wolfssl_print_number(WOLFSSL_BIO* bio, mp_int* num, const char* name,
     if (ret == 1) {
         /* Start first digit line with spaces.
          * Writing out zeros ensures number is a positive value. */
-        li = XSNPRINTF(line, sizeof(line) - 1, PRINT_NUM_INDENT "%s",
+        li = XSNPRINTF(line, sizeof(line), PRINT_NUM_INDENT "%s",
             mp_leading_bit(num) ?  "00:" : "");
+        if (li >= (int)sizeof(line)) {
+            WOLFSSL_MSG("Buffer overflow formatting spaces");
+            ret = 0;
+        }
     }
 
     /* Put out each line of numbers. */
     for (i = 0; (ret == 1) && (i < rawLen); i++) {
-        /* Check for a complete line. */
-        if (li >= PRINT_NUM_MAX_DIGIT_LINE) {
-            /* More bytes coming so append carriage return. */
+        /* Encode another byte as 2 hex digits and append colon. */
+        int len_wanted = XSNPRINTF(line + li, sizeof(line) - li, "%02x:",
+                                   rawKey[i]);
+        /* Check if there was room -- if not, print the current line, not
+         * including the newest octet.
+         */
+        if (len_wanted >= (int)sizeof(line) - li) {
+            /* bump current octet to the next line. */
+            --i;
+            /* More bytes coming so add a line break. */
             line[li++] = '\n';
             /* Write out the line. */
             if (wolfSSL_BIO_write(bio, line, li) <= 0) {
@@ -281,8 +344,9 @@ static int wolfssl_print_number(WOLFSSL_BIO* bio, mp_int* num, const char* name,
             XSTRNCPY(line, PRINT_NUM_INDENT, PRINT_NUM_INDENT_CNT + 1);
             li = PRINT_NUM_INDENT_CNT;
         }
-        /* Encode another byte as 2 hex digits and append colon. */
-        li += XSNPRINTF(line + li, sizeof(line) - 1 - li, "%02x:", rawKey[i]);
+        else {
+            li += len_wanted;
+        }
     }
 
     if (ret == 1) {
@@ -712,7 +776,7 @@ WOLFSSL_RSA* wolfSSL_RSAPublicKey_dup(WOLFSSL_RSA *rsa)
     }
 
     /* Dispose of any allocated DER buffer. */
-    XFREE(derBuf, rsa->heap, DYNAMIC_TYPE_ASN1);
+    XFREE(derBuf, rsa ? rsa->heap : NULL, DYNAMIC_TYPE_ASN1);
     if (err) {
         /* Disposes of any created RSA key - on error. */
         wolfSSL_RSA_free(ret);
@@ -1023,7 +1087,7 @@ WOLFSSL_RSA* wolfSSL_d2i_RSAPrivateKey_bio(WOLFSSL_BIO *bio, WOLFSSL_RSA **out)
         key = NULL;
     }
     /* Dispose of allocated data. */
-    XFREE(der, bio->heap, DYNAMIC_TYPE_TMP_BUFFER);
+    XFREE(der, bio ? bio->heap : NULL, DYNAMIC_TYPE_TMP_BUFFER);
     return key;
 }
 #endif /* defined(WOLFSSL_KEY_GEN) && !defined(HAVE_USER_RSA) &&
@@ -1352,7 +1416,7 @@ int wolfSSL_PEM_write_bio_RSAPrivateKey(WOLFSSL_BIO* bio, WOLFSSL_RSA* rsa,
 
 #if defined(WOLFSSL_KEY_GEN) && !defined(HAVE_USER_RSA)
     /* Dispose of DER buffer. */
-    XFREE(derBuf, bio->heap, DYNAMIC_TYPE_TMP_BUFFER);
+    XFREE(derBuf, bio ? bio->heap : NULL, DYNAMIC_TYPE_TMP_BUFFER);
     if (pkey != NULL) {
         pkey->pkey.ptr = NULL;
         pkey->pkey_sz = 0;
@@ -1616,7 +1680,7 @@ int wolfSSL_PEM_write_mem_RSAPrivateKey(RSA* rsa, const EVP_CIPHER* cipher,
 
     XFREE(tmp, NULL, DYNAMIC_TYPE_KEY);
     XFREE(cipherInfo, NULL, DYNAMIC_TYPE_STRING);
-    XFREE(derBuf, rsa->heap, DYNAMIC_TYPE_TMP_BUFFER);
+    XFREE(derBuf, rsa ? rsa->heap : NULL, DYNAMIC_TYPE_TMP_BUFFER);
     return ret;
 }
 
@@ -1807,8 +1871,11 @@ int wolfSSL_RSA_print_fp(XFILE fp, WOLFSSL_RSA* rsa, int indent)
             ret = 0;
         }
         else {
-            XFPRINTF(fp, "%*s", indent, "");
-            XFPRINTF(fp, "RSA Private-Key: (%d bit, 2 primes)\n", keySize);
+            if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                ret = 0;
+            else if (XFPRINTF(fp, "RSA Private-Key: (%d bit, 2 primes)\n",
+                              keySize) < 0)
+                ret = 0;
         }
     }
     /* Print out any components available. */
@@ -1892,10 +1959,16 @@ int wolfSSL_RSA_print(WOLFSSL_BIO* bio, WOLFSSL_RSA* rsa, int indent)
     }
     if (ret == 1) {
         /* Print header line. */
-        len = XSNPRINTF(line, sizeof(line) - 1, "\nRSA %s: (%d bit)\n",
+        len = XSNPRINTF(line, sizeof(line), "\nRSA %s: (%d bit)\n",
             (!mp_iszero(&key->d)) ? "Private-Key" : "Public-Key", sz);
-        if (wolfSSL_BIO_write(bio, line, len) <= 0) {
+        if (len >= (int)sizeof(line)) {
+            WOLFSSL_MSG("Buffer overflow while formatting key preamble");
             ret = 0;
+        }
+        else {
+            if (wolfSSL_BIO_write(bio, line, len) <= 0) {
+                ret = 0;
+            }
         }
     }
 
@@ -4149,8 +4222,10 @@ int wolfSSL_DSA_print_fp(XFILE fp, WOLFSSL_DSA* dsa, int indent)
             ret = 0;
         }
         else {
-            XFPRINTF(fp, "%*s", indent, "");
-            XFPRINTF(fp, "Private-Key: (%d bit)\n", pBits);
+            if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                ret = 0;
+            else if (XFPRINTF(fp, "Private-Key: (%d bit)\n", pBits) < 0)
+                ret = 0;
         }
     }
     if (ret == 1 && dsa->priv_key != NULL) {
@@ -5042,7 +5117,7 @@ WOLFSSL_API int wolfSSL_i2d_DSAparams(const WOLFSSL_DSA* dsa,
     }
 
     if (ret < 0 && preAllocated == 0) {
-        XFREE(*out, key->heap, DYNAMIC_TYPE_OPENSSL);
+        XFREE(*out, key ? key->heap : NULL, DYNAMIC_TYPE_OPENSSL);
     }
 
     WOLFSSL_LEAVE("wolfSSL_i2d_DSAparams", ret);
@@ -6128,6 +6203,10 @@ void wolfSSL_DH_free(WOLFSSL_DH* dh)
         if (doFree == 0) {
             return;
         }
+
+    #ifndef SINGLE_THREADED
+        wc_FreeMutex(&dh->refMutex);
+    #endif
 
         if (dh->internal) {
             wc_FreeDhKey((DhKey*)dh->internal);
@@ -7634,13 +7713,18 @@ int wolfSSL_EC_KEY_print_fp(XFILE fp, WOLFSSL_EC_KEY* key, int indent)
         }
     }
     if (ret == 1) {
-        XFPRINTF(fp, "%*s", indent, "");
+        if (XFPRINTF(fp, "%*s", indent, "") < 0)
+            ret = 0;
+    }
+    if (ret == 1) {
         if (key->priv_key != NULL && !wolfSSL_BN_is_zero(key->priv_key)) {
-            XFPRINTF(fp, "Private-Key: (%d bit)\n", bits);
+            if (XFPRINTF(fp, "Private-Key: (%d bit)\n", bits) < 0)
+                ret = 0;
             priv = 1;
         }
         else {
-            XFPRINTF(fp, "Public-Key: (%d bit)\n", bits);
+            if (XFPRINTF(fp, "Public-Key: (%d bit)\n", bits) < 0)
+                ret = 0;
         }
 
         if (priv) {
@@ -7664,13 +7748,17 @@ int wolfSSL_EC_KEY_print_fp(XFILE fp, WOLFSSL_EC_KEY* key, int indent)
         if (nid > 0) {
             curve = wolfSSL_OBJ_nid2ln(nid);
             if (curve != NULL) {
-                XFPRINTF(fp, "%*s", indent, "");
-                XFPRINTF(fp, "ASN1 OID: %s\n", curve);
+                if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                    ret = 0;
+                else if (XFPRINTF(fp, "ASN1 OID: %s\n", curve) < 0)
+                    ret = 0;
             }
             nistName = wolfSSL_EC_curve_nid2nist(nid);
             if (nistName != NULL) {
-                XFPRINTF(fp, "%*s", indent, "");
-                XFPRINTF(fp, "NIST CURVE: %s\n", nistName);
+                if (XFPRINTF(fp, "%*s", indent, "") < 0)
+                    ret = 0;
+                else if (XFPRINTF(fp, "NIST CURVE: %s\n", nistName) < 0)
+                    ret = 0;
             }
         }
     }
@@ -8294,6 +8382,10 @@ void wolfSSL_EC_KEY_free(WOLFSSL_EC_KEY *key)
         if (doFree == 0) {
             return;
         }
+
+    #ifndef SINGLE_THREADED
+        wc_FreeMutex(&key->refMutex);
+    #endif
 
         if (key->internal != NULL) {
             wc_ecc_free((ecc_key*)key->internal);
@@ -10332,7 +10424,7 @@ WOLFSSL_ECDSA_SIG *wolfSSL_ECDSA_do_sign(const unsigned char *d, int dlen,
             }
         }
         else {
-            WOLFSSL_MSG("wc_ecc_sign_hash_ex failed");
+            WOLFSSL_MSG("wc_ecc_sign_hash failed");
         }
     }
 

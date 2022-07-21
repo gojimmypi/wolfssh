@@ -1,6 +1,6 @@
 /* kdf.c
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -463,6 +463,7 @@ int wc_PRF_TLS(byte* digest, word32 digLen, const byte* secret, word32 secLen,
         WOLFSSL_BUFFER(prk, prkLen);
         WOLFSSL_MSG("  Info");
         WOLFSSL_BUFFER(data, idx);
+        WOLFSSL_MSG_EX("  Digest %d", digest);
 #endif
 
         ret = wc_HKDF_Expand(digest, prk, prkLen, data, idx, okm, okmLen);

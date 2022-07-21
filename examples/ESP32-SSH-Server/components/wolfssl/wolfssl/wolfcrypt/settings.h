@@ -1,6 +1,6 @@
 /* settings.h
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -43,8 +43,6 @@
 
 /* Place OS specific preprocessor flags, defines, includes here, will be
    included into every file because types.h includes it */
-
-#warning "This is a stale copy of wolfSSL for demonstration purposes only! Download recent code from wolfssl.com"
 
 
 #ifndef WOLF_CRYPT_SETTINGS_H
@@ -325,7 +323,6 @@
 #endif
 
 #if defined(WOLFSSL_ESPIDF)
-    /*   #pragma message ( "ALERT Using WOLFSSL_ESPIDF settings.h !" ) */
     #define FREERTOS
     #define WOLFSSL_LWIP
     #define NO_WRITEV
@@ -339,7 +336,6 @@
 
 #if defined(WOLFSSL_ESPWROOM32) || defined(WOLFSSL_ESPWROOM32SE)
    #ifndef NO_ESP32WROOM32_CRYPT
-        /* #pragma message ( "ALERT turning on WOLFSSL_ESP32WROOM32_CRYPT in settings.h !" ) */
         #define WOLFSSL_ESP32WROOM32_CRYPT
         #if defined(ESP32_USE_RSA_PRIMITIVE) && \
             !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI)
@@ -569,8 +565,6 @@
     /* #define WOLFSSL_PTHREADS */
     #define WOLFSSL_HAVE_MIN
     #define WOLFSSL_HAVE_MAX
-    #define USE_FAST_MATH
-    #define TFM_TIMING_RESISTANT
     #define NO_MAIN_DRIVER
     #define NO_DEV_RANDOM
     #define NO_WRITEV
@@ -801,7 +795,7 @@ extern void uITRON4_free(void *p) ;
     #include "FreeRTOS.h"
 
     #if !defined(XMALLOC_USER) && !defined(NO_WOLFSSL_MEMORY) && \
-        !defined(WOLFSSL_STATIC_MEMORY)
+        !defined(WOLFSSL_STATIC_MEMORY) && !defined(WOLFSSL_TRACK_MEMORY)
         #define XMALLOC(s, h, type)  pvPortMalloc((s))
         #define XFREE(p, h, type)    vPortFree((p))
         /* FreeRTOS pvPortRealloc() implementation can be found here:
@@ -1507,7 +1501,9 @@ extern void uITRON4_free(void *p) ;
     #define HAVE_HASHDRBG
 
     #define HAVE_ECC
-    #define ALT_ECC_SIZE
+    #if !defined(WOLFSSL_STATIC_MEMORY) && !defined(WOLFSSL_NO_MALLOC)
+        #define ALT_ECC_SIZE
+    #endif
     #define TFM_ECC192
     #define TFM_ECC224
     #define TFM_ECC256
@@ -1893,34 +1889,34 @@ extern void uITRON4_free(void *p) ;
 
 /* ---------------------------------------------------------------------------
  * Math Library Selection (in order of preference)
- * ---------------------------------------------------------------------------*/
-/* Only evaluate this if:
- *  A) Not fips
- *  B) FIPS 140-3 (v5 or greater) */
+ * ---------------------------------------------------------------------------
+ */
 #if !defined(HAVE_FIPS_VERSION) || \
     (defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 5))
-    /*  1) SP Math: wolfSSL proprietary math implementation (sp_int.c).
-     *      Constant time: Always
-     *      Enable:        WOLFSSL_SP_MATH_ALL
-     *
-     *  2) Fast Math: Stack based (tfm.c)
-     *      Constant time: Only with TFM_TIMING_RESISTANT
-     *      Enable:        USE_FAST_MATH
-     *
-     *  3) Integer Heap Math:  Heap based (integer.c)
-     *      Constant time: Not supported
-     *      Enable:        USE_INTEGER_HEAP_MATH
-     */
-    #if defined(WOLFSSL_SP_MATH_ALL) || \
-        (!defined(USE_FAST_MATH) && !defined(USE_INTEGER_HEAP_MATH))
-        /* 1) Using wolfSSL SP Math (sp_int.c) */
-        #ifndef WOLFSSL_SP_MATH_ALL
-            #define WOLFSSL_SP_MATH_ALL
-        #endif
+    #if defined(WOLFSSL_SP_MATH_ALL)
+        /*  1) SP Math: wolfSSL proprietary math implementation (sp_int.c).
+         *      Constant time: Always
+         *      Enable:        WOLFSSL_SP_MATH_ALL
+         */
+    #elif defined(WOLFSSL_SP_MATH)
+        /*  2) SP Math with restricted key sizes: wolfSSL proprietary math
+         *         implementation (sp_*.c).
+         *      Constant time: Always
+         *      Enable:        WOLFSSL_SP_MATH
+         */
     #elif defined(USE_FAST_MATH)
-        /* 2) Using fast math (tfm.c) - USE_FAST_MATH */
+        /*  3) Tom's Fast Math: Stack based (tfm.c)
+         *      Constant time: Only with TFM_TIMING_RESISTANT
+         *      Enable:        USE_FAST_MATH
+         */
+    #elif defined(USE_INTEGER_HEAP_MATH)
+        /*  4) Integer Heap Math:  Heap based (integer.c)
+         *      Constant time: Not supported
+         *      Enable:        USE_INTEGER_HEAP_MATH
+         */
     #else
-        /* 3) Using heap math (integer.c) - USE_INTEGER_HEAP_MATH */
+        /* default is SP Math. */
+        #define WOLFSSL_SP_MATH_ALL
     #endif
 #else
     /* FIPS 140-2 or older */
@@ -2400,8 +2396,8 @@ extern void uITRON4_free(void *p) ;
     #undef HAVE_GMTIME_R /* don't trust macro with windows */
 #endif /* WOLFSSL_MYSQL_COMPATIBLE */
 
-#if defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX) || defined(WOLFSSL_HAPROXY) \
- || defined(HAVE_LIGHTY)
+#if (defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX) || defined(WOLFSSL_HAPROXY) \
+ || defined(HAVE_LIGHTY)) && !defined(NO_TLS)
     #define OPENSSL_NO_ENGINE
     #ifndef OPENSSL_EXTRA
         #define OPENSSL_EXTRA

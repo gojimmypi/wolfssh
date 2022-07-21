@@ -1,6 +1,6 @@
 /* wolfcrypt/benchmark/benchmark.h
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -27,6 +27,8 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
+
+#include <wolfssl/wolfcrypt/types.h> /* Needed for 'byte' typedef */
 
 /* run all benchmark entry */
 #ifdef HAVE_STACK_SIZE

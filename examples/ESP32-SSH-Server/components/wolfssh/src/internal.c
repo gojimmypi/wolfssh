@@ -577,7 +577,7 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
     }
 
     /* if we don't have even the basics, give up and return NULL object */
-    if (handshake == NULL || rng == NULL || _ret != 0 != 0) {
+    if (handshake == NULL || rng == NULL || _ret != 0) {
 
         WLOG(WS_LOG_DEBUG, "SshInit: Cannot allocate memory.\n");
         WFREE(handshake, heap, DYNTYPE_HS);

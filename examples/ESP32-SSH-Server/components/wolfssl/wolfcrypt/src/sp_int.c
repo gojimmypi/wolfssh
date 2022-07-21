@@ -1,6 +1,6 @@
 /* sp_int.c
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -1022,13 +1022,31 @@ static WC_INLINE sp_int_digit sp_div_word(sp_int_digit hi, sp_int_digit lo,
                                           sp_int_digit d)
 {
     sp_int_digit r = 0;
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+    static const char debruijn32[32] = {
+        0, 31, 9, 30, 3, 8, 13, 29, 2, 5, 7, 21, 12, 24, 28, 19,
+        1, 10, 4, 14, 6, 22, 25, 20, 11, 15, 23, 26, 16, 27, 17, 18
+    };
+    static const sp_uint32 debruijn32_mul = 0x076be629;
+#endif
 
     __asm__ __volatile__ (
-        "lsrs	r5, %[d], #24\n\t"
-	"it	eq\n\t"
-        "moveq	r5, #8\n\t"
-	"it	ne\n\t"
-        "movne	r5, #0\n\t"
+        /* Shift d so that top bit is set. */
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        "ldr	r4, %[m]\n\t"
+        "mov	r5, %[d]\n\t"
+        "orr	r5, r5, r5, lsr #1\n\t"
+        "orr	r5, r5, r5, lsr #2\n\t"
+        "orr	r5, r5, r5, lsr #4\n\t"
+        "orr	r5, r5, r5, lsr #8\n\t"
+        "orr	r5, r5, r5, lsr #16\n\t"
+        "add	r5, r5, #1\n\t"
+        "mul	r5, r5, r4\n\t"
+        "lsr	r5, r5, #27\n\t"
+        "ldrb	r5, [%[t], r5]\n\t"
+#else
+        "clz	r5, %[d]\n\t"
+#endif
         "rsb	r6, r5, #31\n\t"
         "lsl	%[d], %[d], r5\n\t"
         "lsl	%[hi], %[hi], r5\n\t"
@@ -1060,8 +1078,11 @@ static WC_INLINE sp_int_digit sp_div_word(sp_int_digit hi, sp_int_digit lo,
         "subs	r9, r9, r8\n\t"
         "subs	r4, r4, #1\n\t"
         "bpl	1b\n\t"
+
         "add	%[r], %[r], %[r]\n\t"
         "add	%[r], %[r], #1\n\t"
+
+        /* Handle difference has hi word > 0. */
         "umull	r4, r5, %[r], %[d]\n\t"
         "subs	r4, %[lo], r4\n\t"
         "sbc	r5, %[hi], r5\n\t"
@@ -1070,15 +1091,22 @@ static WC_INLINE sp_int_digit sp_div_word(sp_int_digit hi, sp_int_digit lo,
         "subs	r4, %[lo], r4\n\t"
         "sbc	r5, %[hi], r5\n\t"
         "add	%[r], %[r], r5\n\t"
-        "umull	r4, r5, %[r], %[d]\n\t"
+
+        /* Add 1 to result if bottom half of difference is >= d. */
+        "mul	r4, %[r], %[d]\n\t"
         "subs	r4, %[lo], r4\n\t"
-        "sbc	r5, %[hi], r5\n\t"
-        "add	%[r], %[r], r5\n\t"
-        "subs	r8, %[d], r4\n\t"
+        "subs	r9, %[d], r4\n\t"
+        "sbc	r8, r8, r8\n\t"
+        "sub	%[r], %[r], r8\n\t"
+        "subs	r9, r9, #1\n\t"
         "sbc	r8, r8, r8\n\t"
         "sub	%[r], %[r], r8\n\t"
         : [r] "+r" (r), [hi] "+r" (hi), [lo] "+r" (lo), [d] "+r" (d)
+#if defined(WOLFSSL_SP_ARM_ARCH) && (WOLFSSL_SP_ARM_ARCH < 7)
+        : [t] "r" (debruijn32), [m] "m" (debruijn32_mul)
+#else
         :
+#endif
         : "r4", "r5", "r6", "r8", "r9"
     );
 
@@ -6602,11 +6630,11 @@ int sp_addmod_ct(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
     }
 
     if (err == MP_OKAY) {
-        if (0) {
-            sp_print(a, "a");
-            sp_print(b, "b");
-            sp_print(m, "m");
-        }
+#if 0
+        sp_print(a, "a");
+        sp_print(b, "b");
+        sp_print(m, "m");
+#endif
 
         /* Add a to b into r. Do the subtract of modulus but don't store result.
          * When subtract result is negative, the overflow will be negative.
@@ -6691,9 +6719,9 @@ int sp_addmod_ct(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
     #endif /* WOLFSSL_SP_INT_NEGATIVE */
         sp_clamp(r);
 
-        if (0) {
-            sp_print(r, "rma");
-        }
+#if 0
+        sp_print(r, "rma");
+#endif
     }
 
     return err;
@@ -6737,11 +6765,11 @@ int sp_submod_ct(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
     }
 
     if (err == MP_OKAY) {
-        if (0) {
-            sp_print(a, "a");
-            sp_print(b, "b");
-            sp_print(m, "m");
-        }
+#if 0
+        sp_print(a, "a");
+        sp_print(b, "b");
+        sp_print(m, "m");
+#endif
 
         /* In constant time, subtract b from a putting result in r. */
     #ifndef SQR_MUL_ASM
@@ -6806,9 +6834,9 @@ int sp_submod_ct(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
     #endif /* WOLFSSL_SP_INT_NEGATIVE */
         sp_clamp(r);
 
-        if (0) {
-            sp_print(r, "rms");
-        }
+#if 0
+        sp_print(r, "rms");
+#endif
     }
 
     return err;
@@ -7094,20 +7122,49 @@ int sp_div(sp_int* a, sp_int* d, sp_int* r, sp_int* rem)
     }
 
     if (!done) {
+#if (defined(WOLFSSL_SMALL_STACK) || defined(SP_ALLOC)) && \
+    !defined(WOLFSSL_SP_NO_MALLOC)
+        int cnt = 4;
+        if ((rem != NULL) && (rem != d)) {
+            cnt--;
+        }
+        if ((r != NULL) && (r != d)) {
+            cnt--;
+        }
         /* Macro always has code associated with it and checks err first. */
+        ALLOC_SP_INT_ARRAY(td, a->used + 1, cnt, err, NULL);
+#else
         ALLOC_SP_INT_ARRAY(td, a->used + 1, 4, err, NULL);
+#endif
     }
 
     if ((!done) && (err == MP_OKAY)) {
-        sa    = td[0];
-        sd    = td[1];
-        tr    = td[2];
-        trial = td[3];
+        sd    = td[0];
+        trial = td[1];
+#if (defined(WOLFSSL_SMALL_STACK) || defined(SP_ALLOC)) && \
+    !defined(WOLFSSL_SP_NO_MALLOC)
+        i = 2;
+        sa    = ((rem != NULL) && (rem != d)) ? rem : td[i++];
+        tr    = ((r != NULL) && (r != d))     ? r   : td[i];
+#else
+        sa    = td[2];
+        tr    = td[3];
+#endif
 
-        sp_init_size(sa, a->used + 1);
         sp_init_size(sd, d->used + 1);
-        sp_init_size(tr, a->used - d->used + 2);
         sp_init_size(trial, a->used + 1);
+#if (defined(WOLFSSL_SMALL_STACK) || defined(SP_ALLOC)) && \
+    !defined(WOLFSSL_SP_NO_MALLOC)
+        if ((rem == NULL) || (rem == d)) {
+            sp_init_size(sa, a->used + 1);
+        }
+        if ((r == NULL) || (r == d)) {
+            sp_init_size(tr, a->used - d->used + 2);
+        }
+#else
+        sp_init_size(sa, a->used + 1);
+        sp_init_size(tr, a->used - d->used + 2);
+#endif
 
         s = sp_count_bits(d);
         s = SP_WORD_SIZE - (s & SP_WORD_MASK);
@@ -10360,7 +10417,6 @@ int sp_mul(sp_int* a, sp_int* b, sp_int* r)
 int sp_mulmod(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
 {
     int err = MP_OKAY;
-    DECL_SP_INT(t, ((a == NULL) || (b == NULL)) ? 1 : a->used + b->used);
 
     if ((a == NULL) || (b == NULL) || (m == NULL) || (r == NULL)) {
         err = MP_VAL;
@@ -10369,18 +10425,30 @@ int sp_mulmod(sp_int* a, sp_int* b, sp_int* m, sp_int* r)
         err = MP_VAL;
     }
 
-    ALLOC_SP_INT(t, a->used + b->used, err, NULL);
     if (err == MP_OKAY) {
-        err = sp_init_size(t, a->used + b->used);
-    }
-    if (err == MP_OKAY) {
-        err = sp_mul(a, b, t);
-    }
-    if (err == MP_OKAY) {
-        err = sp_mod(t, m, r);
-    }
+        if ((r == m) || (r->size < a->used + b->used)) {
+            DECL_SP_INT(t, ((a == NULL) || (b == NULL)) ? 1 :
+                a->used + b->used);
+            ALLOC_SP_INT(t, a->used + b->used, err, NULL);
+            if (err == MP_OKAY) {
+                err = sp_init_size(t, a->used + b->used);
+            }
+            if (err == MP_OKAY) {
+                err = sp_mul(a, b, t);
+            }
+            if (err == MP_OKAY) {
+                err = sp_mod(t, m, r);
+            }
 
-    FREE_SP_INT(t, NULL);
+            FREE_SP_INT(t, NULL);
+        }
+        else {
+            err = sp_mul(a, b, r);
+            if (err == MP_OKAY) {
+                err = sp_mod(r, m, r);
+            }
+        }
+    }
     return err;
 }
 #endif
@@ -11074,11 +11142,11 @@ static int _sp_exptmod_base_2(sp_int* e, int digits, sp_int* m, sp_int* r)
     sp_int_digit mp = 0, n = 0;
     DECL_SP_INT_ARRAY(d, m->used * 2 + 1, 2);
 
-    if (0) {
-        sp_print_int(2, "a");
-        sp_print(e, "b");
-        sp_print(m, "m");
-    }
+#if 0
+    sp_print_int(2, "a");
+    sp_print(e, "b");
+    sp_print(m, "m");
+#endif
 
     ALLOC_SP_INT_ARRAY(d, m->used * 2 + 1, 2, err, NULL);
     if (err == MP_OKAY) {
@@ -11197,9 +11265,9 @@ static int _sp_exptmod_base_2(sp_int* e, int digits, sp_int* m, sp_int* r)
         err = sp_copy(tr, r);
     }
 
-    if (0) {
-        sp_print(r, "rme");
-    }
+#if 0
+    sp_print(r, "rme");
+#endif
 
     FREE_SP_INT_ARRAY(d, NULL);
     return err;
@@ -11952,14 +12020,14 @@ int sp_mul_2d(sp_int* a, int e, sp_int* r)
     }
 
     if (err == MP_OKAY) {
-        if (0) {
-            sp_print(a, "a");
-            sp_print_int(e, "n");
-        }
+#if 0
+        sp_print(a, "a");
+        sp_print_int(e, "n");
+#endif
         err = sp_lshb(r, e);
-        if (0) {
-            sp_print(r, "rsl");
-        }
+#if 0
+        sp_print(r, "rsl");
+#endif
     }
 
     return err;
@@ -14452,10 +14520,10 @@ static int _sp_mont_red(sp_int* a, sp_int* m, sp_int_digit mp)
     sp_int_word w;
     sp_int_digit mu;
 
-    if (0) {
-        sp_print(a, "a");
-        sp_print(m, "m");
-    }
+#if 0
+    sp_print(a, "a");
+    sp_print(m, "m");
+#endif
 
     bits = sp_count_bits(m);
 
@@ -14520,9 +14588,9 @@ static int _sp_mont_red(sp_int* a, sp_int* m, sp_int_digit mp)
         _sp_sub_off(a, m, a, 0);
     }
 
-    if (0) {
-        sp_print(a, "rr");
-    }
+#if 0
+    sp_print(a, "rr");
+#endif
 
     return MP_OKAY;
 #else /* !SQR_MUL_ASM */
@@ -16056,20 +16124,22 @@ int sp_prime_is_prime_ex(sp_int* a, int t, int* result, WC_RNG* rng)
     if ((err == MP_OKAY) && (!haveRes)) {
         int bits = sp_count_bits(a);
         word32 baseSz = (bits + 7) / 8;
-        DECL_SP_INT_ARRAY(d, a->used * 2 + 1, 5);
+        DECL_SP_INT_ARRAY(ds, a->used + 1, 3);
+        DECL_SP_INT_ARRAY(d, a->used * 2 + 1, 2);
 
-        ALLOC_SP_INT_ARRAY(d, a->used * 2 + 1, 5, err, NULL);
+        ALLOC_SP_INT_ARRAY(ds, a->used + 1, 3, err, NULL);
+        ALLOC_SP_INT_ARRAY(d, a->used * 2 + 1, 2, err, NULL);
         if (err == MP_OKAY) {
-            b  = d[0];
-            c  = d[1];
-            n1 = d[2];
-            y  = d[3];
-            r  = d[4];
+            b  = ds[0];
+            c  = ds[1];
+            n1 = ds[2];
+            y  = d[0];
+            r  = d[1];
 
             /* Only 'y' needs to be twice as big. */
-            sp_init_size(b , a->used * 2 + 1);
-            sp_init_size(c , a->used * 2 + 1);
-            sp_init_size(n1, a->used * 2 + 1);
+            sp_init_size(b , a->used + 1);
+            sp_init_size(c , a->used + 1);
+            sp_init_size(n1, a->used + 1);
             sp_init_size(y , a->used * 2 + 1);
             sp_init_size(r , a->used * 2 + 1);
 
@@ -16117,6 +16187,7 @@ int sp_prime_is_prime_ex(sp_int* a, int t, int* result, WC_RNG* rng)
         }
 
         FREE_SP_INT_ARRAY(d, NULL);
+        FREE_SP_INT_ARRAY(ds, NULL);
     }
 #else
     (void)t;

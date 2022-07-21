@@ -1,6 +1,6 @@
 /* mem_track.h
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -158,7 +158,11 @@
         if (sz == 0)
             return NULL;
 
+    #ifdef FREERTOS
+        mt = (memoryTrack*)pvPortMalloc(sizeof(memoryTrack) + sz);
+    #else
         mt = (memoryTrack*)malloc(sizeof(memoryTrack) + sz);
+    #endif
         if (mt == NULL)
             return NULL;
 
@@ -284,7 +288,11 @@
 #endif
         (void)sz;
 
+    #ifdef FREERTOS
+        vPortFree(mt);
+    #else
         free(mt);
+    #endif
     }
 
 

@@ -1,6 +1,6 @@
 /* sha256.c
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -84,16 +84,17 @@ on the specific device platform.
 #endif
 
 /* determine if we are using Espressif SHA hardware acceleration */
+#undef WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH)
     /* define a single keyword for simplicity & readability
      *
-     * by default the HW accleration is on for ESP32-WROOM32
-     * but individual compoents can be turned off.
+     * by default the HW acceleration is on for ESP32-WROOM32
+     * but individual components can be turned off.
      */
     #define WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW
 #else
-    #undef USE_ESP32WROOM32_CRYPT_HASH
+    #undef WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW
 #endif
 
 /* fips wrapper calls, user can call direct */
@@ -641,7 +642,6 @@ static int InitSha256(wc_Sha256* sha256)
         int ret = 0;
         ret = se050_hash_final(&sha256->se050Ctx, hash, WC_SHA256_DIGEST_SIZE,
                                kAlgorithm_SSS_SHA256);
-        (void)wc_InitSha256(sha256);
         return ret;
     }
     int wc_Sha256FinalRaw(wc_Sha256* sha256, byte* hash)
@@ -649,7 +649,6 @@ static int InitSha256(wc_Sha256* sha256)
         int ret = 0;
         ret = se050_hash_final(&sha256->se050Ctx, hash, WC_SHA256_DIGEST_SIZE,
                                kAlgorithm_SSS_SHA256);
-        (void)wc_InitSha256(sha256);
         return ret;
     }
 
@@ -1236,7 +1235,7 @@ static int InitSha256(wc_Sha256* sha256)
         }
 
         local = (byte*)sha256->buffer;
-        local[sha256->buffLen++] = 0x80;
+        local[sha256->buffLen++] = 0x80; /* add 1 */
 
         /* pad with zeros */
         if (sha256->buffLen > WC_SHA256_PAD_SIZE) {
@@ -1727,11 +1726,31 @@ void wc_Sha256Free(wc_Sha256* sha256)
         sha256->msg = NULL;
     }
 #endif
+#if defined(WOLFSSL_SE050) && defined(WOLFSSL_SE050_HASH)
+    se050_hash_free(&sha256->se050Ctx);
+#endif
 #if defined(WOLFSSL_KCAPI_HASH)
     KcapiHashFree(&sha256->kcapi);
 #endif
 #ifdef WOLFSSL_IMXRT_DCP
     DCPSha256Free(sha256);
+#endif
+/* Espressif embedded hardware acceleration specific: */
+#if defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
+    if (sha256->ctx.lockDepth > 0) {
+        /* probably due to unclean shutdown, error, or other problem.
+         *
+         * if you find yourself here, code needs to be cleaned up to
+         * properly release hardware. this init is only for handling
+         * the unexpected. by the time free is called, the hardware
+         * should have already been released (lockDepth = 0)
+         */
+        InitSha256(sha256); /* unlock mutex, set mode to ESP32_SHA_INIT */
+        ESP_LOGE("sha256", "ERROR: hardware unlock needed in wc_Sha256Free");
+    }
+    else {
+        ESP_LOGV("sha256", "hardware unlock not needed in wc_Sha256Free");
+    }
 #endif
 }
 
@@ -1901,7 +1920,7 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
 
 #if  defined(WOLFSSL_USE_ESP32WROOM32_CRYPT_HASH_HW)
     {
-        sha256->ctx.mode = ESP32_SHA_SW; /* TODO why assign SW here? */
+        sha256->ctx.mode = ESP32_SHA_SW;
     }
 #endif
 
@@ -1942,7 +1961,7 @@ int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
     dst->ctx.mode         = src->ctx.mode;
     dst->ctx.isfirstblock = src->ctx.isfirstblock;
     dst->ctx.sha_type     = src->ctx.sha_type;
-    dst->ctx.lockDepth    = src->ctx.lockDepth; /* TODO change? */
+    dst->ctx.lockDepth    = src->ctx.lockDepth;
 #endif
 
 #ifdef WOLFSSL_HASH_FLAGS

@@ -1,6 +1,6 @@
 /* sp_int.h
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -267,7 +267,8 @@ extern "C" {
 #elif SP_WORD_SIZE == 64
     typedef  sp_uint64  sp_int_digit;
     typedef   sp_int64 sp_sint_digit;
-#if defined(WOLFSSL_SP_MATH) || defined(WOLFSSL_SP_MATH_ALL)
+#if (defined(WOLFSSL_SP_MATH) || defined(WOLFSSL_SP_MATH_ALL)) && \
+    !defined(_WIN64)
     typedef sp_uint128  sp_int_word;
     typedef  sp_int128  sp_int_sword;
 #endif

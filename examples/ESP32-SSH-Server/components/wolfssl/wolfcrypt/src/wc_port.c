@@ -1,6 +1,6 @@
 /* port.c
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -854,7 +854,8 @@ void wc_ReadDirClose(ReadDirCtx* ctx)
     }
 #else
     if (ctx->dir) {
-        closedir(ctx->dir);
+        if (closedir(ctx->dir) < 0)
+            WOLFSSL_MSG("closedir() failed");
         ctx->dir = NULL;
     }
 #endif
@@ -2270,7 +2271,7 @@ int wolfSSL_CryptHwMutexUnLock(void)
 
     int wc_LockMutex(wolfSSL_Mutex* m)
     {
-        OS_MUTEX_Lock((OS_MUTEX*) m);
+        OS_MUTEX_LockBlocked((OS_MUTEX*) m);
         return 0;
     }
 

@@ -1,6 +1,6 @@
 /* tls.c
  *
- * Copyright (C) 2006-2021 wolfSSL Inc.
+ * Copyright (C) 2006-2022 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -60,9 +60,11 @@
 #endif
 #endif
 
-#if defined(WOLFSSSL_RENESAS_TSIP_TLS)
+#if defined(WOLFSSL_RENESAS_TSIP_TLS)
     #include <wolfssl/wolfcrypt/port/Renesas/renesas-tsip-crypt.h>
 #endif
+
+#ifndef NO_TLS
 
 #if defined(WOLFSSL_TLS13) && defined(HAVE_SUPPORTED_CURVES)
 static int TLSX_KeyShare_IsSupported(int namedGroup);
@@ -72,8 +74,6 @@ static void TLSX_KeyShare_FreeAll(KeyShareEntry* list, void* heap);
 #ifdef HAVE_SUPPORTED_CURVES
 static int TLSX_PopulateSupportedGroups(WOLFSSL* ssl, TLSX** extensions);
 #endif
-
-#ifndef NO_TLS
 
 /* Digest enable checks */
 #ifdef NO_OLD_TLS /* TLS 1.2 only */
@@ -6167,8 +6167,17 @@ static int TLSX_Cookie_Parse(WOLFSSL* ssl, const byte* input, word16 length,
 
     /* client_hello */
     extension = TLSX_Find(ssl->extensions, TLSX_COOKIE);
-    if (extension == NULL)
-        return HRR_COOKIE_ERROR;
+    if (extension == NULL) {
+#ifdef WOLFSSL_DTLS13
+        if (ssl->options.dtls && IsAtLeastTLSv1_3(ssl->version))
+            /* Allow a cookie extension with DTLS 1.3 because it is possible
+             * that a different SSL instance sent the cookie but we are now
+             * receiving it. */
+            return TLSX_Cookie_Use(ssl, input + idx, len, NULL, 0, 0);
+        else
+#endif
+            return HRR_COOKIE_ERROR;
+    }
 
     cookie = (Cookie*)extension->data;
     if (cookie->len != len || XMEMCMP(&cookie->data, input + idx, len) != 0)
