@@ -225,7 +225,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh)
         if (max_wait < 0) {
             error = WS_FATAL_ERROR;
         }
-#if defined(DEBUG_WOLFSSL_VERBOSE)
+#if defined(DEBUG_WOLFSSL_VERBOSE_EXTRA)
         if (error == WS_WANT_READ)
             ESP_LOGE(TAG, "... client would read block\n");
         else if (error == WS_WANT_WRITE)
