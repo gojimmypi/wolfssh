@@ -31,31 +31,11 @@
 #endif
 #include <wolfssl/wolfcrypt/settings.h>
 
-
-#if defined(NO_AES)
-    #pragma message ( "NO_AES is defined !" )
-#else
-    #pragma message ( "NO_AES is NOT defined !" )
-#endif
-
-
-#if defined(WOLFSSL_ESP32WROOM32_CRYPT)
-    #pragma message ( "WOLFSSL_ESP32WROOM32_CRYPT is defined !" )
-#else
-    #pragma message ( "WOLFSSL_ESP32WROOM32_CRYPT is NOT defined !" )
-#endif
-
-#if defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_AES)
-    #pragma message ( "NO_WOLFSSL_ESP32WROOM32_CRYPT_AES is defined !" )
-#else
-    #pragma message ( "NO_WOLFSSL_ESP32WROOM32_CRYPT_AES is NOT defined !" )
-#endif
-
 #ifndef NO_AES
+
 #if defined(WOLFSSL_ESP32WROOM32_CRYPT) && \
     !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_AES)
 
-#pragma message("using esp32_aes hardware encryption")
 #include <wolfssl/wolfcrypt/aes.h>
 #include "wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h"
 
@@ -73,7 +53,8 @@ static int espaes_CryptHwMutexInit = 0;
 *
 * returns 0 if the hw lock was initialized and mutex lock
 */
-static int esp_aes_hw_InUse() {
+static int esp_aes_hw_InUse()
+{
     int ret = 0;
 
     ESP_LOGV(TAG, "enter esp_aes_hw_InUse");
@@ -90,7 +71,7 @@ static int esp_aes_hw_InUse() {
         }
     }
     else {
-        /* esp aes has already been iniitlized */
+        /* esp aes has already been initialized */
     }
 
     /* lock hardware */
@@ -178,7 +159,7 @@ static void esp_aes_bk(const byte* in, byte* out)
     const word32 *inwords = (const word32 *)in;
     word32 *outwords      = (word32 *)out;
 
-    // ESP_LOGV(TAG, "enter esp_aes_bk");
+    ESP_LOGV(TAG, "enter esp_aes_bk");
 
     /* copy text for encrypting/decrypting blocks */
     DPORT_REG_WRITE(AES_TEXT_BASE, inwords[0]);
@@ -187,20 +168,17 @@ static void esp_aes_bk(const byte* in, byte* out)
     DPORT_REG_WRITE(AES_TEXT_BASE + 12, inwords[3]);
 
     /* start engine */
-    /* TODO use HAL https://github.com/espressif/esp-idf/blob/b63ec47238fd6aa6eaa59f7ad3942cbdff5fcc1f/components/hal/esp32/include/hal/aes_ll.h#L125
-     */
     DPORT_REG_WRITE(AES_START_REG, 1);
 
     /* wait until finishing the process */
     while(1) {
-        /* TODO add timeout / failure */
         if(DPORT_REG_READ(AES_IDLE_REG) == 1)
             break;
     }
 
     /* read-out blocks */
     esp_dport_access_read_buffer(outwords, AES_TEXT_BASE, 4);
-    // ESP_LOGV(TAG, "leave esp_aes_bk");
+    ESP_LOGV(TAG, "leave esp_aes_bk");
 }
 
 /*
@@ -224,6 +202,7 @@ int wc_esp32AesEncrypt(Aes *aes, const byte* in, byte* out)
     esp_aes_hw_Leave();
     return 0;
 }
+
 /*
 * wc_esp32AesDecrypt
 * @brief: a one block decrypt of the input block, into the output block
@@ -245,6 +224,7 @@ int wc_esp32AesDecrypt(Aes *aes, const byte* in, byte* out)
     esp_aes_hw_Leave();
     return 0;
 }
+
 /*
 * wc_esp32AesCbcEncrypt
 * @brief: Encrypts a plain text message from the input buffer, and places the

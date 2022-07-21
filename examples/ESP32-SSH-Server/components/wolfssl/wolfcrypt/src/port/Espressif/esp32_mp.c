@@ -102,10 +102,11 @@ static int esp_mp_hw_wait_clean()
 * after being released from reset, and before writing to any RSA Accelerator
 * memory blocks or registers for the first time.
 */
-static int esp_mp_hw_lock() {
+static int esp_mp_hw_lock()
+{
     int ret = 0;
 
-    // ESP_LOGV(TAG, "enter esp_mp_hw_lock");
+    ESP_LOGV(TAG, "enter esp_mp_hw_lock");
 
     if (espmp_CryptHwMutexInit == 0) {
         ret = esp_CryptHwMutexInit(&mp_mutex);
@@ -141,7 +142,7 @@ static int esp_mp_hw_lock() {
      *  see esp_mp_hw_wait_clean()
      */
 
-    // ESP_LOGV(TAG, "leave esp_mp_hw_lock");
+    ESP_LOGV(TAG, "leave esp_mp_hw_lock");
     return ret;
 }
 /*
@@ -162,7 +163,8 @@ static void esp_mp_hw_unlock( void )
 
 /* this is based on an article by Cetin Kaya Koc, A New Algorithm for Inversion*/
 /* mod p^k, June 28 2017.                                                     */
-static int esp_calc_Mdash(mp_int *M, word32 k, mp_digit* md) {
+static int esp_calc_Mdash(mp_int *M, word32 k, mp_digit* md)
+{
     int i;
     int xi;
     int b0 = 1;
@@ -188,7 +190,8 @@ static int esp_calc_Mdash(mp_int *M, word32 k, mp_digit* md) {
 }
 
 /* start hw process */
-static void process_start(word32 reg) {
+static void process_start(word32 reg)
+{
      /* clear interrupt */
     DPORT_REG_WRITE(RSA_INTERRUPT_REG, 1);
     /* start process  */
@@ -219,7 +222,8 @@ static int wait_uitil_done(word32 reg)
 /* read data from memory into mp_init          */
 static void esp_memblock_to_mpint(word32 mem_address,
                                   mp_int* mp,
-                                  word32 numwords) {
+                                  word32 numwords)
+{
     esp_dport_access_read_buffer((uint32_t*)mp->dp, mem_address, numwords);
     mp->used = numwords;
 }
@@ -228,7 +232,8 @@ static void esp_memblock_to_mpint(word32 mem_address,
  */
 static void esp_mpint_to_memblock(word32 mem_address, const mp_int* mp,
                                                       const word32 bits,
-                                                      const word32 hwords) {
+                                                      const word32 hwords)
+{
     /* init */
     word32 i;
     word32 len = (bits / 8 + ((bits & 7) != 0 ? 1 : 0));
@@ -266,7 +271,8 @@ static word32 bits2words(word32 bits)
 }
 
 /* get rinv */
-static int esp_get_rinv(mp_int *rinv, mp_int *M, word32 exp) {
+static int esp_get_rinv(mp_int *rinv, mp_int *M, word32 exp)
+{
     int ret = 0;
 
     /* 2^(exp)*/
@@ -285,7 +291,8 @@ static int esp_get_rinv(mp_int *rinv, mp_int *M, word32 exp) {
 }
 
 /* Z = X * Y;  */
-int esp_mp_mul(fp_int* X, fp_int* Y, fp_int* Z) {
+int esp_mp_mul(fp_int* X, fp_int* Y, fp_int* Z)
+{
     int ret = 0;
     int neg = (X->sign == Y->sign)? MP_ZPOS : MP_NEG;
 
@@ -326,12 +333,10 @@ int esp_mp_mul(fp_int* X, fp_int* Y, fp_int* Z) {
     */
     /* lock hw for use */
     if ((ret = esp_mp_hw_lock()) != MP_OKAY) {
-        /* TODO unlock ? probably not, as the failure likely did not create mutex */
         return ret;
     }
 
     if((ret = esp_mp_hw_wait_clean()) != MP_OKAY) {
-        /* TODO unlock ? probably yes; we completed esp_mp_hw_lock() */
         return ret;
     }
 
@@ -515,7 +520,7 @@ int esp_mp_mulmod(fp_int* X, fp_int* Y, fp_int* M, fp_int* Z)
 .* and r can be any one from the N set, but all numbers in a calculation must
 .* be of the same length. The bit length of M′ is always 32.
 .*
-.* Note some DH refererences may use: Y = (G ^ X) mod P
+.* Note some DH references may use: Y = (G ^ X) mod P
  */
 int esp_mp_exptmod(fp_int* X, fp_int* Y, word32 Ys, fp_int* M, fp_int* Z)
 {

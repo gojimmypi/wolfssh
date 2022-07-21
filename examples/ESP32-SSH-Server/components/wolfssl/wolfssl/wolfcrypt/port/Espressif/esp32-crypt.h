@@ -22,9 +22,12 @@
 
 #define __ESP32_CRYPT_H__
 
-#ifdef WOLFSSL_USER_SETTINGS
-    #include "user_settings.h"
-#endif
+/* including settings.h will also check for WOLFSSL_USER_SETTINGS,
+ * which will then `#include "user_settings.h` as needed.
+ *
+ * See user_settings.h for various Espressif specific settings.
+ */
+#include "wolfssl/wolfcrypt/settings.h"
 
 #include "esp_idf_version.h"
 #include "esp_types.h"
@@ -32,10 +35,10 @@
 
 #ifdef WOLFSSL_ESP32WROOM32_CRYPT_DEBUG
     #undef LOG_LOCAL_LEVEL
-    #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+    #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #else
     #undef LOG_LOCAL_LEVEL
-    #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+    #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #endif
 
 #include <freertos/FreeRTOS.h>
@@ -199,6 +202,8 @@ int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex);
                       struct fp_int* Z);
 
 #endif /* NO_RSA || HAVE_ECC*/
+
+// int wc_esp_fill_random(byte* output, word32 sz)
 
 /* end c++ wrapper */
 #ifdef __cplusplus

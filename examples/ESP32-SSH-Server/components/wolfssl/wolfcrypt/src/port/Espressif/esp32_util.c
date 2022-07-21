@@ -66,16 +66,17 @@ int esp_CryptHwMutexLock(wolfSSL_Mutex* mutex, TickType_t xBlockTime) {
  *
  */
 int esp_CryptHwMutexUnLock(wolfSSL_Mutex* mutex) {
+    int ret = 0;
     if (mutex == NULL) {
-        WOLFSSL_ERROR_MSG("esp_CryptHwMutexLock called sith null mutex");
+        WOLFSSL_ERROR_MSG("esp_CryptHwMutexLock called with null mutex");
         return BAD_MUTEX_E;
     }
 
 #ifdef SINGLE_THREADED
     return wc_UnLockMutex(mutex);
 #else
-    xSemaphoreGive(*mutex);
-    return 0;
+    ret = xSemaphoreGive(*mutex);
+    return ret;
 #endif
 }
 
