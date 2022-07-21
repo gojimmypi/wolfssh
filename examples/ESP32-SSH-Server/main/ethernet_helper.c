@@ -37,6 +37,12 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
+
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+    #undef CONFIG_EXAMPLE_USE_INTERNAL_ETHERNET
+#endif // CONFIG_IDF_TARGET_ESP32C3
+
+
 #if CONFIG_ETH_USE_SPI_ETHERNET
 #include "driver/spi_master.h"
 #endif // CONFIG_ETH_USE_SPI_ETHERNET
@@ -57,7 +63,11 @@ static bool _EthernetReady = false;
 
 
 #define CONFIG_EXAMPLE_SPI_ETHERNETS_NUM 1
-#define CONFIG_EXAMPLE_USE_INTERNAL_ETHERNET true
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+    #define CONFIG_EXAMPLE_USE_INTERNAL_ETHERNET true
+#endif // !CONFIG_IDF_TARGET_ESP32C3
+
 #define CONFIG_EXAMPLE_ETH_PHY_IP101 true
 
 #define CONFIG_EXAMPLE_ETH_PHY_ADDR     1
@@ -168,7 +178,10 @@ void init_ethernet(void)
     phy_config.reset_gpio_num = CONFIG_EXAMPLE_ETH_PHY_RST_GPIO;
     mac_config.smi_mdc_gpio_num = CONFIG_EXAMPLE_ETH_MDC_GPIO;
     mac_config.smi_mdio_gpio_num = CONFIG_EXAMPLE_ETH_MDIO_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif // CONFIG_IDF_TARGET_ESP32C3
+
 #if CONFIG_EXAMPLE_ETH_PHY_IP101
     esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
 #elif CONFIG_EXAMPLE_ETH_PHY_RTL8201
@@ -182,11 +195,16 @@ void init_ethernet(void)
 #elif CONFIG_EXAMPLE_ETH_PHY_KSZ8081
     esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
 #endif
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
     esp_eth_handle_t eth_handle = NULL;
     ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
     /* attach Ethernet driver to TCP/IP stack */
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+
+#endif // !CONFIG_IDF_TARGET_ESP32C3
+
 #endif //CONFIG_EXAMPLE_USE_INTERNAL_ETHERNET
 
 #if defined(CONFIG_EXAMPLE_USE_SPI_ETHERNET)
