@@ -53,7 +53,7 @@
 
 /* default is wireless unless USE_ENC28J60 is defined */
 #undef USE_ENC28J60
-// #define USE_ENC28J60
+/* #define USE_ENC28J60 */
 
 /* WiFi can be either STA or AP:
  *
@@ -61,7 +61,6 @@
  *  #define WOLFSSH_SERVER_IS_STA
  *
  */
-
 #define WOLFSSH_SERVER_IS_AP
 
 /* set GPIO pins for UART_NUM_1 */
