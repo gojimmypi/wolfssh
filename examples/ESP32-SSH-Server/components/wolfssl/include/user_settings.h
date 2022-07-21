@@ -107,11 +107,13 @@
 /* #define NO_ASN_TIME */
 /* #define XTIME time */
 
-/* when you want not to use HW acceleration */
-/* #define NO_ESP32WROOM32_CRYPT */
-/* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH*/
-/* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_AES */
-/* #define NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI */
+/* when you want not to use HW acceleration, such as ESP32-C3 */
+#if defined(CONFIG_IDF_TARGET_ESP32C3 )
+    #define NO_ESP32WROOM32_CRYPT
+    #define NO_WOLFSSL_ESP32WROOM32_CRYPT_HASH
+    #define NO_WOLFSSL_ESP32WROOM32_CRYPT_AES
+    #define NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI
+#endif
 
 /* adjust wait-timeout count if you see timeout in rsa hw acceleration */
 #define ESP_RSA_TIMEOUT_CNT    0x249F00
