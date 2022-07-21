@@ -309,8 +309,9 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
     if (ret == WS_SUCCESS) {
         byte* this_rx_buf = NULL;
 
-        int backlogSz = 0, rxSz, txSz, stop = 0, txSum;
-
+        int backlogSz = 0, rxSz, txSz, txSum;
+        /* TODO do we have a stack problem? remove static and confirm */
+        static int stop;
 
         init_tx_rx_buffer(TXD_PIN, RXD_PIN);
 
@@ -318,6 +319,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
          * we'll stay in this loop then entire time this worker thread has
          * a valid SSH connection open
          */
+        stop = 0;
         do {
             /* int show_msg = 0; TODO optionally disable echo of text to USB port */
             int has_err = 0;
@@ -458,17 +460,20 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
 
                             case 0x03:
                                 stop = 1;
+                                ESP_LOGI(TAG, "Ctrl-C Exit");
                                 break;
 
                             case 0x06:
                                 if (wolfSSH_TriggerKeyExchange(threadCtx->ssh)
                                         != WS_SUCCESS) {
                                     stop = 1;
+                                    ESP_LOGI(TAG, "wolfSSH_TriggerKeyExchange Exit");
                                 }
                                 break;
 
                             case 0x05:
                                 if (dump_stats(threadCtx) <= 0) {
+                                    ESP_LOGI(TAG, "dump_stats Exit");
                                     stop = 1;
                                 }
                                 break;
@@ -477,6 +482,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                             txSum += txSz;
                         }
                         else if (txSz != WS_REKEYING) {
+                            ESP_LOGI(TAG, "txSz != WS_REKEYING Exit");
+
                             stop = 1;
                         }
 
@@ -495,6 +502,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                     if (has_err == 1)
                     {
                         stop = 1;
+                        ESP_LOGI(TAG, "has_err Exit");
                     }
                 }
             }
