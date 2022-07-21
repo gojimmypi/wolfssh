@@ -19,6 +19,8 @@
  */
 #pragma once
 
+#include "my_config.h"
+
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
