@@ -31,9 +31,14 @@
     /* we don't yet know exactly how to detect ESP32 flavor */
     #include  <soc/esp32c3/dport_reg.h>
 #else
-    #include "soc/dport_reg.h"
+    #if defined(CONFIG_IDF_TARGET_ESP32C3)
+        /* no HW at this time */
+    #else
+        #include "soc/dport_reg.h"
+        #include "soc/hwcrypto_reg.h"
+    #endif
 #endif
-#include "soc/hwcrypto_reg.h"
+
 
 #if ESP_IDF_VERSION_MAJOR < 5
     #include "soc/cpu.h"
