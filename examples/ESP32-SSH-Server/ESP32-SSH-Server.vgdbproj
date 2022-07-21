@@ -79,7 +79,7 @@
           <Subdirectory>esp-idf/v4.4.1</Subdirectory>
           <Type>ESPIDF</Type>
         </IDFCheckout>
-        <COMPort>COM20</COMPort>
+        <COMPort>COM10</COMPort>
         <BaudRate>460800</BaudRate>
         <SuppressTestPrerequisiteChecks>false</SuppressTestPrerequisiteChecks>
         <UseCCache>false</UseCCache>
@@ -338,7 +338,7 @@
     <DebugMethod>
       <ID>openocd</ID>
       <Configuration xsi:type="com.visualgdb.edp.openocd.settings.esp32">
-        <CommandLine>-f interface/ftdi/esp32_devkitj_v1.cfg -c "adapter_khz 29500" -f target/esp32.cfg</CommandLine>
+        <CommandLine>-f interface/ftdi/esp32_devkitj_v1.cfg -c "adapter_khz 20000" -f target/esp32.cfg</CommandLine>
         <ExtraParameters>
           <Frequency xsi:nil="true" />
           <BoostedFrequency xsi:nil="true" />
