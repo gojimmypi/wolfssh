@@ -70,6 +70,13 @@
     #warning "This project is configured using local, stale wolfSSL code. See Makefile."
 #endif
 
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+    #define SERVER_SESSION_STACK_SIZE (50196 * 2)
+#else
+    #define SERVER_SESSION_STACK_SIZE (6024 * 2)
+#endif // CONFIG_IDF_TARGET_ESP32C3
+
+
 #define DEBUG_WOLFSSL
 #define DEBUG_WOLFSSH
 
@@ -149,10 +156,10 @@ int set_time(void)
      * but let's set a default time, just in case */
     struct tm timeinfo = {
         .tm_year = 2022 - 1900,
-        .tm_mon = 6,
-        .tm_mday = 29,
-        .tm_hour = 10,
-        .tm_min = 46,
+        .tm_mon = 7,
+        .tm_mday = 21,
+        .tm_hour = 16,
+        .tm_min = 05,
         .tm_sec = 10
     };
     struct timeval now;
@@ -330,9 +337,26 @@ void init(void)
 
 }
 
+#include "ctype.h"
 
 void app_main(void)
 {
+    const char* data = "Hello world";
+    Sha256 sha256[1];
+    byte * hash[100];
+
+    /*
+     *int ret;
+    if ((ret = wc_InitSha256(sha256)) != 0) {
+        ESP_LOGE("wc_InitSha256 failed");
+    }
+
+    wc_Sha256Update(sha256, (byte*)data, sizeof(&data));
+    wc_Sha256GetHash(sha256, hash);
+
+    wc_Sha256Update(sha256, (byte*)data, sizeof(&data));
+    wc_Sha256GetHash(sha256, hash);
+*/
     init();
 
     /* note that by the time we get here, the scheduler is already running!
@@ -342,14 +366,18 @@ void app_main(void)
      * all of the tasks are at the same, highest idle priority, so they will all get equal attention
      * when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
      */
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL,
+    xTaskCreate(uart_rx_task, "uart_rx_task",
+                1024 * 2, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL,
+    xTaskCreate(uart_tx_task, "uart_tx_task",
+                1024 * 2, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL,
+    xTaskCreate(server_session, "server_session",
+                SERVER_SESSION_STACK_SIZE, NULL,
                 tskIDLE_PRIORITY, NULL);
+
 
 #ifdef ENABLE_TEST_TASK
     xTaskCreate(test_task,
