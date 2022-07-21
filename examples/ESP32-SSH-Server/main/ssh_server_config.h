@@ -67,7 +67,8 @@
 
 #undef ULX3S
 #undef M5STICKC
-/* #define ICEV_WIRELESS */
+#define ICEV_WIRELESS
+
 #ifdef M5STICKC
     /* reminder GPIO 34 to 39 are input only */
     #define TXD_PIN (GPIO_NUM_26) /* orange */
@@ -77,8 +78,10 @@
     #define TXD_PIN (GPIO_NUM_32) /* orange */
     #define RXD_PIN (GPIO_NUM_33) /* yellow */
 #elif defined ICEV_WIRELESS
-    #define TXD_PIN (GPIO_NUM_21) /* orange */
-    #define RXD_PIN (GPIO_NUM_20) /* yellow */
+    //#define TXD_PIN (GPIO_NUM_21) /* orange */
+    //#define RXD_PIN (GPIO_NUM_20) /* yellow */
+    #define TXD_PIN (GPIO_NUM_3) /* orange */
+    #define RXD_PIN (GPIO_NUM_10) /* yellow */
 #else
     #define TXD_PIN (GPIO_NUM_17) /* orange */
     #define RXD_PIN (GPIO_NUM_16) /* yellow */
