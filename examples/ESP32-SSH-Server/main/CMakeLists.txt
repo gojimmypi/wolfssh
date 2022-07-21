@@ -26,3 +26,7 @@ idf_component_register(
                        PRIV_INCLUDE_DIRS
                        # ../components/wolfssl/wolfcrypt/src
                        )
+#target_compile_definitions(${COMPONENT_TARGET} INTERFACE WOLFSSL_USER_SETTINGS)
+#target_compile_definitions(${COMPONENT_TARGET} PUBLIC WOLFSSL_USER_SETTINGS)
+#target_compile_options(${COMPONENT_TARGET} PUBLIC)
+#component_compile_definitions(WOLFSSL_USER_SETTINGS)
