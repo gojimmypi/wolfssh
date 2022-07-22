@@ -587,8 +587,7 @@ Rename the respective `sdkconfig.ESP32` or `sdkconfig.ESP32C3` to `sdkconfig`
 
 - Confirm desired COM port for Raw Terminal. Right-click on project, VisualGDB Properties.
 
-
-- 
+See also [sdkconfig.README.md](./sdkconfig.README.md)
 
 <br />
 
@@ -598,21 +597,36 @@ If improper GPIO lines are selected, say when using the defaults but an M5Stick-
 
 When plugged into a PC that goes to sleep and powers down the USB power, the ESP32 device seems to sometimes crash and does not always recover when PC power resumes.
 
-Only one connection is allowed at the time. There may be a delay when an existing connected is unexpecteedly terminated before a new connection can be made.
+Only one SSH connection is allowed at the time. There may be a delay when an existing connected is unexpectedly terminated before a new connection can be made.
 
 
 <br />
 
 ## Troubleshooting
 
+### General suggestions
+
+- Ensure a known-good USB cable is being used.
+
+- If using an external USB hub, try connecting directly without the hub.
+
+- Try a different USB port.
+
+- Perform a manual, full clean (delete file system directories)
+
+- Power cycle the ESP32 device.
+
+- Ensure the proper USB drivers are being used for the respective USB devices.
 
 ### fatal error: wolfssl/options.h: No such file or directory
 
 Many problems can originate in the configuration file.
 
-The `options.h` typically is not used. This error typically means there's an incorrection user_setting.h, or the `#DEFINE WOLFSSL_USER_SETTINGS` is missing.
+The `options.h` typically is not used. This error typically means there's an incorrect 
+`user_setting.h`, or the `#DEFINE WOLFSSL_USER_SETTINGS` is missing.
 
-This may be a helpful line to add to the beginning of the [CMakeLists.txt](./CMakeLists.txt):
+This may be a helpful line to add to the beginning of the 
+[CMakeLists.txt](./CMakeLists.txt):
 
 ```
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
@@ -622,7 +636,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 #### FreeRTOS-Kernel/include/freertos is not a directory
 
 The error `FreeRTOS-Kernel/include/freertos is not a directory` typically means there's an ESP-IDF component directory for wolfssl and/or woldssh
-as well as a local project wolfssl and/or woldssh directory.
+as well as a local project wolfssl and/or wolfssh directory.
 
 ```
 Make Error at /home/gojimmypi/esp/esp-idf/tools/cmake/component.cmake:306 (message):
@@ -654,7 +668,7 @@ git checkout release/v4.4
 cd ~/workspace/wolfssh/examples/ESP32-SSH-Server
 ```
 
-A more redical approach is to completely replace the ESP-IDF 
+A more radical approach is to completely replace the ESP-IDF 
 with [version 4.4.1](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/index.html#step-2-get-esp-idf).
 ```
 mkdir -p ~/esp4.4.1/

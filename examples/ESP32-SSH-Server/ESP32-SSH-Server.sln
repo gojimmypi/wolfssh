@@ -11,6 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		CMakeLists.txt = CMakeLists.txt
 		..\..\..\my_private_config.h = ..\..\..\my_private_config.h
 		README.md = README.md
+		sdkconfig.README.md = sdkconfig.README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfSSH", "wolfSSH", "{321B8A01-BBCB-4F97-94A7-4895EA1E0C50}"
