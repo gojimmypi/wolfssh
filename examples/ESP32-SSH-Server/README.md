@@ -618,6 +618,25 @@ Only one SSH connection is allowed at the time. There may be a delay when an exi
 
 - Ensure the proper USB drivers are being used for the respective USB devices.
 
+- Try specifying a slower JTAG speed
+
+- Try programming via COM port if JTAG not cooperating
+
+- if COM port programming is not working, try a slower baud rate.
+
+- Erase the flash: `esptool.py  -p COM10 -b 9600 erase_flash`
+
+- Remove or disable all breakpoints.
+
+###  Error: Couldn't find an available hardware trigger
+
+Try disabling all breakpoints:  Visual Studio Menu: Debug - Disable all breakpoints
+
+### Error: Couldn't find the hardware resources used by hardware trigger.
+
+Try disabling all breakpoints:  Visual Studio Menu: Debug - Disable all breakpoints
+
+
 ### fatal error: wolfssl/options.h: No such file or directory
 
 Many problems can originate in the configuration file.
@@ -779,6 +798,10 @@ Note that the number of concurrent connections may be limited.
 #### Connection refused when trying to connect a second time.
 
 Try again. Cleanup and shutdown may take a few seconds, even longer if there are verbose diagnostics.
+
+#### Poor performance or lost characters
+
+Try lower debug verbosity, or completely disable debugging, particularly on slower platforms.
 
 <br />
 
