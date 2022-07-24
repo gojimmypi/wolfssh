@@ -31,6 +31,6 @@ The traditional Xtensa architecture ESP32 `sdkconfig` file can be found in
 ## ESP32-C3
 
 The RISC-V architecture ESP32-C3 `sdkconfig` file can be found in 
-[sdkconfig.ESP32](./sdkconfig.ESP32C3)
+[sdkconfig.ESP32C3](./sdkconfig.ESP32C3)
 
 
