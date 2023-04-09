@@ -1,6 +1,6 @@
 /* internal.h
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -42,6 +42,9 @@
 #ifdef WOLFSSH_AGENT
     #include <wolfssh/agent.h>
 #endif /* WOLFSSH_AGENT */
+#ifdef WOLFSSH_CERTS
+    #include <wolfssh/certman.h>
+#endif /* WOLFSSH_CERTS */
 
 
 #if !defined (ALIGN16)
@@ -83,12 +86,17 @@ extern "C" {
     #define WOLFSSH_NO_DH
 #endif
 
+#ifdef NO_SHA
+    #undef WOLFSSH_NO_SHA1
+    #define WOLFSSH_NO_SHA1
+#endif
 
-#if defined(NO_HMAC) || defined(NO_SHA)
+
+#if defined(NO_HMAC) || defined(WOLFSSH_NO_SHA1)
     #undef WOLFSSH_NO_HMAC_SHA1
     #define WOLFSSH_NO_HMAC_SHA1
 #endif
-#if defined(NO_HMAC) || defined(NO_SHA)
+#if defined(NO_HMAC) || defined(WOLFSSH_NO_SHA1)
     #undef WOLFSSH_NO_HMAC_SHA1_96
     #define WOLFSSH_NO_HMAC_SHA1_96
 #endif
@@ -103,11 +111,11 @@ extern "C" {
 #endif
 
 
-#if defined(WOLFSSH_NO_DH) || defined(NO_SHA)
+#if defined(WOLFSSH_NO_DH) || defined(WOLFSSH_NO_SHA1)
     #undef WOLFSSH_NO_DH_GROUP1_SHA1
     #define WOLFSSH_NO_DH_GROUP1_SHA1
 #endif
-#if defined(WOLFSSH_NO_DH) || defined(NO_SHA)
+#if defined(WOLFSSH_NO_DH) || defined(WOLFSSH_NO_SHA1)
     #undef WOLFSSH_NO_DH_GROUP14_SHA1
     #define WOLFSSH_NO_DH_GROUP14_SHA1
 #endif
@@ -133,8 +141,8 @@ extern "C" {
     #define WOLFSSH_NO_ECDH_SHA2_ED25519
 #endif
 #if !defined(WOLFSSH_HAVE_LIBOQS) || defined(NO_SHA256)
-    #undef WOLFSSH_NO_SABER_LEVEL1_SHA256
-    #define WOLFSSH_NO_SABER_LEVEL1_SHA256
+    #undef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+    #define WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
 #endif
 
 #if defined(WOLFSSH_NO_DH_GROUP1_SHA1) && \
@@ -144,7 +152,7 @@ extern "C" {
     defined(WOLFSSH_NO_ECDH_SHA2_NISTP384) && \
     defined(WOLFSSH_NO_ECDH_SHA2_NISTP521) && \
     defined(WOLFSSH_NO_ECDH_SHA2_ED25519) && \
-    defined(WOLFSSH_NO_SABER_LEVEL1_SHA256)
+    defined(WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256)
     #error "You need at least one key agreement algorithm."
 #endif
 
@@ -161,7 +169,7 @@ extern "C" {
     #define WOLFSSH_NO_ECDH
 #endif
 
-#if defined(WOLFSSH_NO_RSA) || defined(NO_SHA)
+#if defined(WOLFSSH_NO_RSA) || defined(WOLFSSH_NO_SHA1)
     #undef WOLFSSH_NO_SSH_RSA_SHA1
     #define WOLFSSH_NO_SSH_RSA_SHA1
 #endif
@@ -189,14 +197,14 @@ extern "C" {
     #undef WOLFSSH_NO_ECDSA_SHA2_NISTP521
     #define WOLFSSH_NO_ECDSA_SHA2_NISTP521
 #endif
-#if defined(WOLFSSH_NO_SHA_RSA_SHA1) && \
+#if defined(WOLFSSH_NO_SSH_RSA_SHA1) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP256) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP384) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP521)
     #error "You need at least one signing algorithm."
 #endif
 
-#ifdef WOLFSSH_NO_SHA_RSA_SHA1
+#ifdef WOLFSSH_NO_SSH_RSA_SHA1
     #undef WOLFSSH_NO_RSA
     #define WOLFSSH_NO_RSA
 #endif
@@ -237,6 +245,12 @@ extern "C" {
     #define WOLFSSH_NO_AEAD
 #endif
 
+/* FPKI support turned off if wolfSSL linking to is not compiled with FPKI */
+#if !defined(WOLFSSL_FPKI)
+    #undef  WOLFSSH_NO_FPKI
+    #define WOLFSSH_NO_FPKI
+#endif
+
 
 WOLFSSH_LOCAL const char* GetErrorString(int);
 
@@ -271,8 +285,8 @@ enum {
     ID_ECDH_SHA2_ED25519,
     ID_ECDH_SHA2_ED25519_LIBSSH,
     ID_DH_GROUP14_SHA256,
-#ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
-    ID_SABER_LEVEL1_SHA256,
+#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+    ID_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256,
 #endif
 
     /* Public Key IDs */
@@ -280,6 +294,10 @@ enum {
     ID_ECDSA_SHA2_NISTP256,
     ID_ECDSA_SHA2_NISTP384,
     ID_ECDSA_SHA2_NISTP521,
+    ID_X509V3_SSH_RSA,
+    ID_X509V3_ECDSA_SHA2_NISTP256,
+    ID_X509V3_ECDSA_SHA2_NISTP384,
+    ID_X509V3_ECDSA_SHA2_NISTP521,
 
     /* Service IDs */
     ID_SERVICE_USERAUTH,
@@ -328,10 +346,11 @@ enum {
     #define DEFAULT_HIGHWATER_MARK ((1024 * 1024 * 1024) - (32 * 1024))
 #endif
 #ifndef DEFAULT_WINDOW_SZ
-    #define DEFAULT_WINDOW_SZ 16384
+    #define DEFAULT_WINDOW_SZ (128 * 1024)
 #endif
 #ifndef DEFAULT_MAX_PACKET_SZ
-    #define DEFAULT_MAX_PACKET_SZ (16 * 1024)
+    /* This is from RFC 4253 section 6.1. */
+    #define DEFAULT_MAX_PACKET_SZ 32768
 #endif
 #ifndef DEFAULT_NEXT_CHANNEL
     #define DEFAULT_NEXT_CHANNEL 0
@@ -350,9 +369,9 @@ enum {
     #define WOLFSSH_DEFAULT_GEXDH_MAX 8192
 #endif
 #ifndef MAX_KEX_KEY_SZ
-    #ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
-        /* Private key size of SABER Level1. Biggest artifact. */
-        #define MAX_KEX_KEY_SZ 1568
+    #ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+        /* Private key size of Kyber Level1. Biggest artifact. */
+        #define MAX_KEX_KEY_SZ 1632
     #else
         /* This is based on the 8192-bit DH key that is the max size. */
         #define MAX_KEX_KEY_SZ (WOLFSSH_DEFAULT_GEXDH_MAX / 8)
@@ -360,6 +379,9 @@ enum {
 #endif
 #ifndef WOLFSSH_MAX_FILE_SIZE
     #define WOLFSSH_MAX_FILE_SIZE (1024ul * 1024ul * 4)
+#endif
+#ifndef WOLFSSH_MAX_PVT_KEYS
+    #define WOLFSSH_MAX_PVT_KEYS 2
 #endif
 
 WOLFSSH_LOCAL byte NameToId(const char*, word32);
@@ -372,7 +394,7 @@ WOLFSSH_LOCAL const char* IdToName(byte);
  * the rest of the data. */
 
 
-typedef struct Buffer {
+typedef struct WOLFSSH_BUFFER {
     void* heap;       /* Heap for allocations */
     int   plainSz;    /* amount of plain text bytes to send with WANT_WRITE */
     word32 length;    /* total buffer length used */
@@ -381,12 +403,11 @@ typedef struct Buffer {
     word32 bufferSz;  /* current buffer size */
     ALIGN16 byte staticBuffer[STATIC_BUFFER_LEN];
     byte dynamicFlag; /* dynamic memory currently in use */
-} Buffer;
+} WOLFSSH_BUFFER;
 
-
-WOLFSSH_LOCAL int BufferInit(Buffer*, word32, void*);
-WOLFSSH_LOCAL int GrowBuffer(Buffer*, word32, word32);
-WOLFSSH_LOCAL void ShrinkBuffer(Buffer* buf, int);
+WOLFSSH_LOCAL int BufferInit(WOLFSSH_BUFFER* buffer, word32 size, void* heap);
+WOLFSSH_LOCAL int GrowBuffer(WOLFSSH_BUFFER* buf, word32 sz, word32 usedSz);
+WOLFSSH_LOCAL void ShrinkBuffer(WOLFSSH_BUFFER* buf, int forcedFree);
 
 
 /* our wolfSSH Context */
@@ -395,6 +416,8 @@ struct WOLFSSH_CTX {
     WS_CallbackIORecv ioRecvCb;       /* I/O Receive Callback */
     WS_CallbackIOSend ioSendCb;       /* I/O Send Callback */
     WS_CallbackUserAuth userAuthCb;   /* User Authentication Callback */
+    WS_CallbackUserAuthTypes userAuthTypesCb; /* Authentication Types Allowed */
+    WS_CallbackUserAuthResult userAuthResultCb; /* User Authentication Result */
     WS_CallbackHighwater highwaterCb; /* Data Highwater Mark Callback */
     WS_CallbackGlobalReq globalReqCb; /* Global Request Callback */
     WS_CallbackReqSuccess reqSuccessCb; /* Global Request Success Callback */
@@ -411,15 +434,21 @@ struct WOLFSSH_CTX {
     WS_CallbackFwd fwdCb;             /* WOLFSSH-FWD callback */
     WS_CallbackFwdIO fwdIoCb;         /* WOLFSSH-FWD IO callback */
 #endif /* WOLFSSH_FWD */
+#ifdef WOLFSSH_CERTS
+    WOLFSSH_CERTMAN* certMan;
+#endif /* WOLFSSH_CERTS */
     WS_CallbackPublicKeyCheck publicKeyCheckCb;
                                       /* Check server's public key callback */
-
-    byte* privateKey;                 /* Owned by CTX */
-    word32 privateKeySz;
-    byte useEcc;                      /* Depends on the private key */
-#ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
-    byte useSaber:1;                  /* Depends on the private key */
+    byte* privateKey[WOLFSSH_MAX_PVT_KEYS];
+                                      /* Owned by CTX */
+    word32 privateKeySz[WOLFSSH_MAX_PVT_KEYS];
+#ifdef WOLFSSH_CERTS
+    /* public certificate matching the private key */
+    byte* cert[WOLFSSH_MAX_PVT_KEYS];
+    word32 certSz[WOLFSSH_MAX_PVT_KEYS];
 #endif
+    byte privateKeyId[WOLFSSH_MAX_PVT_KEYS];
+    word32 privateKeyCount;
     word32 highwaterMark;
     const char* banner;
     word32 bannerSz;
@@ -452,6 +481,7 @@ typedef struct HandshakeInfo {
     byte kexId;
     byte kexIdGuess;
     byte pubKeyId;
+    byte sigId;
     byte encryptId;
     byte macId;
     byte hashId;
@@ -483,8 +513,8 @@ typedef struct HandshakeInfo {
 #endif
 
     byte useEcc;
-#ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
-    byte useSaber:1;
+#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+    byte useEccKyber;
 #endif
 
     union {
@@ -518,7 +548,11 @@ struct WS_SFTP_GET_HANDLE_STATE;
 struct WS_SFTP_PUT_STATE;
 struct WS_SFTP_RENAME_STATE;
 
+#ifdef USE_WINDOWS_API
+    #define MAX_DRIVE_LETTER 26
+#endif /* USE_WINDOWS_API */
 #endif /* WOLFSSH_SFTP */
+
 #ifdef USE_WINDOWS_API
 #ifndef WOLFSSL_MAX_ESCBUF
 #define WOLFSSL_MAX_ESCBUF 19
@@ -627,9 +661,9 @@ struct WOLFSSH {
     byte channelNameSz;
     word32 lastRxId;
 
-    Buffer inputBuffer;
-    Buffer outputBuffer;
-    Buffer extDataBuffer; /* extended data ready to be read */
+    WOLFSSH_BUFFER inputBuffer;
+    WOLFSSH_BUFFER outputBuffer;
+    WOLFSSH_BUFFER extDataBuffer; /* extended data ready to be read */
     WC_RNG* rng;
 
     byte h[WC_MAX_DIGEST_SIZE];
@@ -644,6 +678,7 @@ struct WOLFSSH {
     HandshakeInfo* handshake;
 
     void* userAuthCtx;
+    void* userAuthResultCtx;
     char* userName;
     word32 userNameSz;
     char* password;
@@ -669,7 +704,7 @@ struct WOLFSSH {
     byte   sftpState;
     byte   realState;
     byte   sftpInt;
-    byte   sftpExtSz; /* size of extension buffer (buffer not currently used) */
+    word32 sftpExtSz; /* size of extension buffer (buffer not currently used) */
     SFTP_OFST sftpOfst[WOLFSSH_MAX_SFTPOFST];
     char* sftpDefaultPath;
 #ifdef WOLFSSH_STOREHANDLE
@@ -694,6 +729,11 @@ struct WOLFSSH {
     struct WS_SFTP_SEND_WRITE_STATE* sendWriteState;
     struct WS_SFTP_GET_HANDLE_STATE* getHandleState;
     struct WS_SFTP_RENAME_STATE* renameState;
+#ifdef USE_WINDOWS_API
+    char driveList[MAX_DRIVE_LETTER];
+    word16 driveListCount;
+    word16 driveIdx;
+#endif
 #endif
 
 #ifdef WOLFSSH_AGENT
@@ -730,7 +770,7 @@ struct WOLFSSH_CHANNEL {
     int fwdFd;
     int isDirect;
 #endif /* WOLFSSH_FWD */
-    Buffer inputBuffer;
+    WOLFSSH_BUFFER inputBuffer;
     char* command;
     struct WOLFSSH* ssh;
     struct WOLFSSH_CHANNEL* next;
@@ -751,19 +791,28 @@ WOLFSSH_LOCAL void ChannelDelete(WOLFSSH_CHANNEL*, void*);
 WOLFSSH_LOCAL WOLFSSH_CHANNEL* ChannelFind(WOLFSSH*, word32, byte);
 WOLFSSH_LOCAL int ChannelRemove(WOLFSSH*, word32, byte);
 WOLFSSH_LOCAL int ChannelPutData(WOLFSSH_CHANNEL*, byte*, word32);
+WOLFSSH_LOCAL int IdentifyKey(const byte* in, word32 inSz,
+        int isPrivate, void* heap);
 WOLFSSH_LOCAL int wolfSSH_ProcessBuffer(WOLFSSH_CTX*,
                                         const byte*, word32,
                                         int, int);
 WOLFSSH_LOCAL int wolfSSH_FwdWorker(WOLFSSH*);
 
 /* Parsing functions */
-WOLFSSH_LOCAL int GetBoolean(byte*, byte*, word32, word32*);
-WOLFSSH_LOCAL int GetUint32(word32*, const byte*, word32, word32*);
-WOLFSSH_LOCAL int GetSize(word32*, const byte*, word32, word32*);
-WOLFSSH_LOCAL int GetMpint(word32*, byte**, byte*, word32, word32*);
-WOLFSSH_LOCAL int GetString(char*, word32*, byte*, word32, word32*);
-WOLFSSH_LOCAL int GetStringAlloc(void*, char**, byte*, word32, word32*);
-WOLFSSH_LOCAL int GetStringRef(word32*, byte**, byte*, word32, word32*);
+WOLFSSH_LOCAL int GetBoolean(byte* v,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetUint32(word32* v,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetSize(word32* v,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetMpint(word32* mpintSz, const byte** mpint,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetString(char* s, word32* sSz,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetStringAlloc(void* heap, char** s,
+        const byte* buf, word32 len, word32* idx);
+WOLFSSH_LOCAL int GetStringRef(word32* strSz, const byte **str,
+        const byte* buf, word32 len, word32* idx);
 
 
 #ifndef WOLFSSH_USER_IO
@@ -909,13 +958,13 @@ enum WS_MessageIds {
 
     MSGID_KEXDH_INIT = 30,
     MSGID_KEXECDH_INIT = 30,
-#ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
+#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
     MSGID_KEXKEM_INIT = 30,
 #endif
 
     MSGID_KEXDH_REPLY = 31,
     MSGID_KEXECDH_REPLY = 31,
-#ifndef WOLFSSH_NO_SABER_LEVEL1_SHA256
+#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
     MSGID_KEXKEM_REPLY = 31,
 #endif
 
@@ -976,9 +1025,11 @@ enum WS_DynamicTypes {
     DYNTYPE_AGENT_ID,
     DYNTYPE_AGENT_KEY,
     DYNTYPE_AGENT_BUFFER,
+    DYNTYPE_CERTMAN,
     DYNTYPE_FILE,
     DYNTYPE_TEMP,
-    DYNTYPE_PATH
+    DYNTYPE_PATH,
+    DYNTYPE_SSHD
 };
 
 

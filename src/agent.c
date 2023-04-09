@@ -1,6 +1,6 @@
 /* agent.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -775,7 +775,7 @@ static int SignHashEcc(WOLFSSH_AGENT_KEY_ECDSA* rawKey, int curveId,
 
 
 static int PostSignRequest(WOLFSSH_AGENT_CTX* agent,
-        byte* keyBlob, word32 keyBlobSz, byte* data, word32 dataSz,
+        const byte* keyBlob, word32 keyBlobSz, const byte* data, word32 dataSz,
         word32 flags)
 {
     WOLFSSH_AGENT_ID* id = NULL;
@@ -789,8 +789,8 @@ static int PostSignRequest(WOLFSSH_AGENT_CTX* agent,
 
     WLOG_ENTER();
 
-    (void)flags;
-    (void)curveId;
+    WOLFSSH_UNUSED(flags);
+    WOLFSSH_UNUSED(curveId);
 
     if (agent == NULL || keyBlob == NULL || keyBlobSz == 0)
         ret = WS_BAD_ARGUMENT;
@@ -860,7 +860,7 @@ static int PostSignRequest(WOLFSSH_AGENT_CTX* agent,
             ret = SignHashRsa(&id->key.rsa, hashType,
                     digest, digestSz, sig, &sigSz, &agent->rng, agent->heap);
 #else
-    (void)signRsa;
+    WOLFSSH_UNUSED(signRsa);
 #endif
 #if !defined(WOLFSSH_NO_ECDSA_SHA2_NISTP256) || \
     !defined(WOLFSSH_NO_ECDSA_SHA2_NISTP384) || \
@@ -869,7 +869,7 @@ static int PostSignRequest(WOLFSSH_AGENT_CTX* agent,
             ret = SignHashEcc(&id->key.ecdsa, curveId, digest, digestSz,
                     sig, &sigSz, &agent->rng);
 #else
-    (void)signEcc;
+    WOLFSSH_UNUSED(signEcc);
 #endif
 
         if (ret == WS_SUCCESS)
@@ -887,8 +887,8 @@ static int DoFailure(WOLFSSH_AGENT_CTX* agent,
     int ret = WS_SUCCESS;
     WLOG(WS_LOG_AGENT, "Entering DoFailure()");
 
-    (void)buf;
-    (void)idx;
+    WOLFSSH_UNUSED(buf);
+    WOLFSSH_UNUSED(idx);
 
     if (len != 0)
         ret = WS_PARSE_E;
@@ -907,8 +907,8 @@ static int DoSuccess(WOLFSSH_AGENT_CTX* agent,
     int ret = WS_SUCCESS;
     WLOG_ENTER();
 
-    (void)buf;
-    (void)idx;
+    WOLFSSH_UNUSED(buf);
+    WOLFSSH_UNUSED(idx);
 
     if (len != 0)
         ret = WS_PARSE_E;
@@ -927,8 +927,8 @@ static int DoRequestIdentities(WOLFSSH_AGENT_CTX* agent,
     int ret = WS_SUCCESS;
     WLOG_ENTER();
 
-    (void)buf;
-    (void)idx;
+    WOLFSSH_UNUSED(buf);
+    WOLFSSH_UNUSED(idx);
 
     if (len != 0)
         ret = WS_PARSE_E;
@@ -946,10 +946,10 @@ static int DoIdentitiesAnswer(WOLFSSH_AGENT_CTX* agent,
 {
     int ret = WS_SUCCESS;
     WLOG(WS_LOG_AGENT, "Entering DoIdentitiesAnswer()");
-    (void)agent;
-    (void)buf;
-    (void)len;
-    (void)idx;
+    WOLFSSH_UNUSED(agent);
+    WOLFSSH_UNUSED(buf);
+    WOLFSSH_UNUSED(len);
+    WOLFSSH_UNUSED(idx);
     DUMP(buf + *idx, len);
     WLOG(WS_LOG_AGENT, "Leaving DoIdentitiesAnswer(), ret = %d", ret);
     return ret;
@@ -959,8 +959,8 @@ static int DoIdentitiesAnswer(WOLFSSH_AGENT_CTX* agent,
 static int DoSignRequest(WOLFSSH_AGENT_CTX* agent,
         byte* buf, word32 len, word32* idx)
 {
-    byte* keyBlob;
-    byte* data;
+    const byte* keyBlob;
+    const byte* data;
     word32 begin, keyBlobSz, dataSz, flags;
     int ret = WS_SUCCESS;
     WLOG_ENTER();
@@ -1004,7 +1004,7 @@ static int DoSignResponse(WOLFSSH_AGENT_CTX* agent,
         ret = WS_BAD_ARGUMENT;
 
     if ( ret == WS_SUCCESS)
-        ret = GetStringRef(&sigSz, &sig, buf, len, idx);
+        ret = GetStringRef(&sigSz, (const byte**)&sig, buf, len, idx);
 
     if (ret == WS_SUCCESS) {
         agent->msg = sig;
@@ -1052,7 +1052,7 @@ static int DoAddIdentity(WOLFSSH_AGENT_CTX* agent,
         if (keyType == ID_SSH_RSA) {
 #ifndef WOLFSSH_NO_RSA
             byte* key;
-            byte* scratch;
+            const byte* scratch;
             word32 keySz, nSz, eSz, dSz, iqmpSz, pSz, qSz, commentSz;
 
             key = buf + begin;
@@ -1085,7 +1085,7 @@ static int DoAddIdentity(WOLFSSH_AGENT_CTX* agent,
                 ret = GetStringRef(&commentSz, &scratch, buf, len, &begin);
 
             if (ret == WS_SUCCESS) {
-                (void)scratch;
+                WOLFSSH_UNUSED(scratch);
 
                 keySz = nSz + eSz + dSz + iqmpSz + pSz + qSz + commentSz +
                         (LENGTH_SZ * 7);
@@ -1099,7 +1099,7 @@ static int DoAddIdentity(WOLFSSH_AGENT_CTX* agent,
                 keyType == ID_ECDSA_SHA2_NISTP521) {
 #ifndef WOLFSSH_NO_ECDSA
             byte* key;
-            byte* scratch;
+            const byte* scratch;
             word32 keySz, curveNameSz, qSz, dSz, commentSz;
 
             key = buf + begin;
@@ -1145,7 +1145,7 @@ static int DoRemoveIdentity(WOLFSSH_AGENT_CTX* agent,
         byte* buf, word32 len, word32* idx)
 {
     int ret = WS_SUCCESS;
-    byte* keyBlob = NULL;
+    const byte* keyBlob = NULL;
     word32 keyBlobSz = 0;
     word32 begin;
 
@@ -1298,7 +1298,7 @@ static int DoUnimplemented(WOLFSSH_AGENT_CTX* agent,
     if (agent == NULL || idx == NULL)
         ret = WS_BAD_ARGUMENT;
 
-    (void)buf;
+    WOLFSSH_UNUSED(buf);
     DUMP(buf + *idx, len);
 
     /* Just skip the message. */
@@ -1545,7 +1545,7 @@ WOLFSSH_AGENT_ID* wolfSSH_AGENT_ID_new(byte keyType, word32 keySz, void* heap)
 void wolfSSH_AGENT_ID_free(WOLFSSH_AGENT_ID* id, void* heap)
 {
     WLOG(WS_LOG_AGENT, "Entering wolfSSH_AGENT_ID_free()");
-    (void)heap;
+    WOLFSSH_UNUSED(heap);
 
     if (id != NULL) {
         if (id->keyBuffer != NULL) {

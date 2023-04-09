@@ -1,6 +1,6 @@
 /* port.h
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -41,6 +41,18 @@ extern "C" {
 /* This value needs to stay in sync with the actual value of DYNTYPE_STRING
  * from internal.h. */
 
+#ifdef WOLFSSH_SSHD
+    /* uses isspace (not always available from wolfSSL) */
+    #ifdef XISSPACE
+        #define WISSPACE XISSPACE
+    #else
+        #define WISSPACE isspace
+    #endif
+    #define WUID_T uid_t
+    #define WGID_T gid_t
+    #define WPASSWD struct passwd
+#endif
+
 /* setup memory handling */
 #ifndef WMALLOC_USER
     #ifdef WOLFSSL_USER_SETTINGS
@@ -63,7 +75,11 @@ extern "C" {
 #endif
 
 
-#define WEXIT(n)      exit((n))
+#if defined(INTEGRITY) || defined(__INTEGRITY)
+    #define WEXIT(n)      return (0)
+#else
+    #define WEXIT(n)      exit((n))
+#endif
 
 
 #ifndef WOLFSSH_HANDLE
@@ -331,7 +347,8 @@ extern "C" {
         #define WCHMOD(fs,f,m)   _chmod((f),(m))
     #endif
 
-    #if (defined(WOLFSSH_SCP) || defined(WOLFSSH_SFTP)) && \
+    #if (defined(WOLFSSH_SCP) || \
+            defined(WOLFSSH_SFTP) || defined(WOLFSSH_SSHD)) && \
         !defined(WOLFSSH_SCP_USER_CALLBACKS)
 
         #ifdef USE_WINDOWS_API
@@ -465,8 +482,9 @@ extern "C" {
     #define WLOCALTIME(c,r) (localtime_r((c),(r))!=NULL)
 #endif
 
-#if (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP)) && \
-        !defined(NO_WOLFSSH_SERVER) && !defined(NO_FILESYSTEM)
+#if (defined(WOLFSSH_SFTP) || \
+        defined(WOLFSSH_SCP) || defined(WOLFSSH_SSHD)) && \
+    !defined(NO_WOLFSSH_SERVER) && !defined(NO_FILESYSTEM)
 
     #ifndef SIZEOF_OFF_T
         /* if not using autoconf then make a guess on off_t size based on sizeof
@@ -1166,7 +1184,7 @@ extern "C" {
     /* User-defined I/O support */
     #include "myFilesystem.h"
 #else
-   
+
     #include <unistd.h>   /* used for rmdir */
     #include <sys/stat.h> /* used for mkdir, stat, and lstat */
     #include <stdio.h>    /* used for remove and rename */
@@ -1208,8 +1226,9 @@ extern "C" {
 
     /* returns 0 on success */
     #define WOPENDIR(fs,h,c,d)  ((*(c) = opendir((d))) == NULL)
-    #define WCLOSEDIR(d) closedir(*(d))
-    #define WREADDIR(d)  readdir(*(d))
+    #define WCLOSEDIR(d)  closedir(*(d))
+    #define WREADDIR(d)   readdir(*(d))
+    #define WREWINDDIR(d) rewinddir(*(d))
 #endif /* NO_WOLFSSH_DIR */
 #endif
 #endif /* WOLFSSH_SFTP or WOLFSSH_SCP */
@@ -1242,6 +1261,11 @@ extern "C" {
 #endif
 #ifndef NO_BREAK
     #define NO_BREAK
+#endif
+
+
+#ifndef WOLFSSH_UNUSED
+    #define WOLFSSH_UNUSED(arg) (void)(arg);
 #endif
 
 

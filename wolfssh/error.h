@@ -1,6 +1,6 @@
 /* error.h
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -119,8 +119,16 @@ enum WS_ErrorCodes {
     WS_AGENT_NO_KEY_E       = -1078, /* AGENT doesn't have requested key */
     WS_AGENT_CXN_FAIL       = -1079, /* Couldn't connect to agent. */
     WS_SFTP_BAD_HEADER      = -1080, /* SFTP bad header */
+    WS_CERT_NO_SIGNER_E     = -1081, /* No signer cert available */
+    WS_CERT_EXPIRED_E       = -1082, /* Certificate expired */
+    WS_CERT_REVOKED_E       = -1083, /* User certificate reported revoked */
+    WS_CERT_SIG_CONFIRM_E   = -1084, /* Root cert sig verify fail */
+    WS_CERT_OTHER_E         = -1085, /* Other certificate issue */
+    WS_CERT_PROFILE_E       = -1086, /* Cert doesn't meet profile reqs */
+    WS_CERT_KEY_SIZE_E      = -1087, /* Key size error */
+    WS_CTX_KEY_COUNT_E      = -1088, /* Adding too many private keys */
     
-    WS_LAST_E               = -1080  /* Update this to indicate last error */
+    WS_LAST_E               = -1088  /* Update this to indicate last error */
 };
 
 

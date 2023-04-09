@@ -1,6 +1,6 @@
 /* misc.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -51,7 +51,8 @@
 
 
 /* Check for if compiling misc.c when not needed. */
-#if !defined(WOLFSSH_MISC_INCLUDED) && !defined(NO_INLINE)
+#if !defined(WOLFSSH_MISC_INCLUDED) && !defined(NO_INLINE) && \
+    !defined(WOLFSSH_IGNORE_FILE_WARN)
     #define MISC_WARNING "misc.c does not need to be compiled when using inline (NO_INLINE not defined))"
 
     #ifndef _MSC_VER
@@ -60,7 +61,7 @@
         #pragma message("warning: " MISC_WARNING)
     #endif
 
-#else /* !WOLFSSL_MISC_INCLUDED && !NO_INLINE */
+#else /* !WOLFSSL_MISC_INCLUDED && !NO_INLINE && !WOLFSSH_IGNORE_FILE_WARN */
 
 
 #ifndef min

@@ -1,6 +1,6 @@
 /* sftpclient.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -32,8 +32,13 @@
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/coding.h>
 #include "examples/sftpclient/sftpclient.h"
+#include "examples/client/common.h"
 #ifndef USE_WINDOWS_API
     #include <termios.h>
+#endif
+
+#ifdef WOLFSSH_CERTS
+    #include <wolfssl/wolfcrypt/asn.h>
 #endif
 
 #if defined(WOLFSSH_SFTP) && !defined(NO_WOLFSSH_CLIENT)
@@ -58,13 +63,37 @@ static void err_msg(const char* s)
 
 
 #ifndef WOLFSSH_NO_TIMESTAMP
-    #include <sys/time.h>
 
-    static char   currentFile[WOLFSSH_MAX_FILENAME+1] = "";
+    static char   currentFile[WOLFSSH_MAX_FILENAME + 1] = "";
     static word32 startTime;
     #define TIMEOUT_VALUE 120
 
     word32 current_time(int);
+#ifdef USE_WINDOWS_API
+    #include <time.h>
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+
+    word32 current_time(int reset)
+    {
+        static int init = 0;
+        static LARGE_INTEGER freq;
+
+        LARGE_INTEGER count;
+
+        (void)reset;
+
+        if (!init) {
+            QueryPerformanceFrequency(&freq);
+            init = 1;
+        }
+
+        QueryPerformanceCounter(&count);
+
+        return (word32)(count.QuadPart / freq.QuadPart);
+    }
+#else
+    #include <sys/time.h>
 
     /* return number of seconds*/
     word32 current_time(int reset)
@@ -76,7 +105,8 @@ static void err_msg(const char* s)
         gettimeofday(&tv, 0);
         return (word32)tv.tv_sec;
     }
-#endif
+#endif /* USE_WINDOWS_API */
+#endif /* !WOLFSSH_NO_TIMESTAMP */
 
 
 static void myStatusCb(WOLFSSH* sshIn, word32* bytes, char* name)
@@ -94,12 +124,14 @@ static void myStatusCb(WOLFSSH* sshIn, word32* bytes, char* name)
     currentTime = current_time(0) - startTime;
     WSNPRINTF(buf, sizeof(buf), "Processed %8llu\t bytes in %d seconds\r",
             (unsigned long long)longBytes, currentTime);
+#ifndef WOLFSSH_NO_SFTP_TIMEOUT
     if (currentTime > TIMEOUT_VALUE) {
         WSNPRINTF(buf, sizeof(buf), "\nProcess timed out at %d seconds, "
                 "stopping\r", currentTime);
         WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
         wolfSSH_SFTP_Interrupt(ssh);
     }
+#endif
 #else
     WSNPRINTF(buf, sizeof(buf), "Processed %8llu\t bytes \r",
             (unsigned long long)longBytes);
@@ -239,68 +271,6 @@ static void clean_path(char* path)
 
 #define WS_MAX_EXAMPLE_RW 1024
 
-static int SetEcho(int on)
-{
-#ifndef USE_WINDOWS_API
-    static int echoInit = 0;
-    static struct termios originalTerm;
-    if (!echoInit) {
-        if (tcgetattr(STDIN_FILENO, &originalTerm) != 0) {
-            printf("Couldn't get the original terminal settings.\n");
-            return -1;
-        }
-        echoInit = 1;
-    }
-    if (on) {
-        if (tcsetattr(STDIN_FILENO, TCSANOW, &originalTerm) != 0) {
-            printf("Couldn't restore the terminal settings.\n");
-            return -1;
-        }
-    }
-    else {
-        struct termios newTerm;
-        memcpy(&newTerm, &originalTerm, sizeof(struct termios));
-
-        newTerm.c_lflag &= ~ECHO;
-        newTerm.c_lflag |= (ICANON | ECHONL);
-
-        if (tcsetattr(STDIN_FILENO, TCSANOW, &newTerm) != 0) {
-            printf("Couldn't turn off echo.\n");
-            return -1;
-        }
-    }
-#else
-    static int echoInit = 0;
-    static DWORD originalTerm;
-    HANDLE stdinHandle = GetStdHandle(STD_INPUT_HANDLE);
-    if (!echoInit) {
-        if (GetConsoleMode(stdinHandle, &originalTerm) == 0) {
-            printf("Couldn't get the original terminal settings.\n");
-            return -1;
-        }
-        echoInit = 1;
-    }
-    if (on) {
-        if (SetConsoleMode(stdinHandle, originalTerm) == 0) {
-            printf("Couldn't restore the terminal settings.\n");
-            return -1;
-        }
-    }
-    else {
-        DWORD newTerm = originalTerm;
-
-        newTerm &= ~ENABLE_ECHO_INPUT;
-
-        if (SetConsoleMode(stdinHandle, newTerm) == 0) {
-            printf("Couldn't turn off echo.\n");
-            return -1;
-        }
-    }
-#endif
-
-    return 0;
-}
-
 static void ShowCommands(void)
 {
     printf("\n\nCommands :\n");
@@ -321,7 +291,7 @@ static void ShowCommands(void)
 
 static void ShowUsage(void)
 {
-    printf("client %s\n", LIBWOLFSSH_VERSION_STRING);
+    printf("wolfsftp %s\n", LIBWOLFSSH_VERSION_STRING);
     printf(" -?            display this help and exit\n");
     printf(" -h <host>     host to connect to, default %s\n", wolfSshIp);
     printf(" -p <num>      port to connect on, default %d\n", wolfSshPort);
@@ -335,252 +305,16 @@ static void ShowUsage(void)
     printf(" -r <filename> remote filename\n");
     printf(" -g            put local filename as remote filename\n");
     printf(" -G            get remote filename as local filename\n");
-
-    ShowCommands();
-}
-
-
-static byte userPassword[256];
-static byte userPublicKeyType[32];
-static byte userPublicKey[512];
-static word32 userPublicKeySz;
-static const byte* userPrivateKey;
-static word32 userPrivateKeySz;
-
-static const char hanselPublicRsa[] =
-    "AAAAB3NzaC1yc2EAAAADAQABAAABAQC9P3ZFowOsONXHD5MwWiCciXytBRZGho"
-    "MNiisWSgUs5HdHcACuHYPi2W6Z1PBFmBWT9odOrGRjoZXJfDDoPi+j8SSfDGsc/hsCmc3G"
-    "p2yEhUZUEkDhtOXyqjns1ickC9Gh4u80aSVtwHRnJZh9xPhSq5tLOhId4eP61s+a5pwjTj"
-    "nEhBaIPUJO2C/M0pFnnbZxKgJlX7t1Doy7h5eXxviymOIvaCZKU+x5OopfzM/wFkey0EPW"
-    "NmzI5y/+pzU5afsdeEWdiQDIQc80H6Pz8fsoFPvYSG+s4/wz0duu7yeeV1Ypoho65Zr+pE"
-    "nIf7dO0B8EblgWt+ud+JI8wrAhfE4x";
-
-static const byte hanselPrivateRsa[] = {
-  0x30, 0x82, 0x04, 0xa3, 0x02, 0x01, 0x00, 0x02, 0x82, 0x01, 0x01, 0x00,
-  0xbd, 0x3f, 0x76, 0x45, 0xa3, 0x03, 0xac, 0x38, 0xd5, 0xc7, 0x0f, 0x93,
-  0x30, 0x5a, 0x20, 0x9c, 0x89, 0x7c, 0xad, 0x05, 0x16, 0x46, 0x86, 0x83,
-  0x0d, 0x8a, 0x2b, 0x16, 0x4a, 0x05, 0x2c, 0xe4, 0x77, 0x47, 0x70, 0x00,
-  0xae, 0x1d, 0x83, 0xe2, 0xd9, 0x6e, 0x99, 0xd4, 0xf0, 0x45, 0x98, 0x15,
-  0x93, 0xf6, 0x87, 0x4e, 0xac, 0x64, 0x63, 0xa1, 0x95, 0xc9, 0x7c, 0x30,
-  0xe8, 0x3e, 0x2f, 0xa3, 0xf1, 0x24, 0x9f, 0x0c, 0x6b, 0x1c, 0xfe, 0x1b,
-  0x02, 0x99, 0xcd, 0xc6, 0xa7, 0x6c, 0x84, 0x85, 0x46, 0x54, 0x12, 0x40,
-  0xe1, 0xb4, 0xe5, 0xf2, 0xaa, 0x39, 0xec, 0xd6, 0x27, 0x24, 0x0b, 0xd1,
-  0xa1, 0xe2, 0xef, 0x34, 0x69, 0x25, 0x6d, 0xc0, 0x74, 0x67, 0x25, 0x98,
-  0x7d, 0xc4, 0xf8, 0x52, 0xab, 0x9b, 0x4b, 0x3a, 0x12, 0x1d, 0xe1, 0xe3,
-  0xfa, 0xd6, 0xcf, 0x9a, 0xe6, 0x9c, 0x23, 0x4e, 0x39, 0xc4, 0x84, 0x16,
-  0x88, 0x3d, 0x42, 0x4e, 0xd8, 0x2f, 0xcc, 0xd2, 0x91, 0x67, 0x9d, 0xb6,
-  0x71, 0x2a, 0x02, 0x65, 0x5f, 0xbb, 0x75, 0x0e, 0x8c, 0xbb, 0x87, 0x97,
-  0x97, 0xc6, 0xf8, 0xb2, 0x98, 0xe2, 0x2f, 0x68, 0x26, 0x4a, 0x53, 0xec,
-  0x79, 0x3a, 0x8a, 0x5f, 0xcc, 0xcf, 0xf0, 0x16, 0x47, 0xb2, 0xd0, 0x43,
-  0xd6, 0x36, 0x6c, 0xc8, 0xe7, 0x2f, 0xfe, 0xa7, 0x35, 0x39, 0x69, 0xfb,
-  0x1d, 0x78, 0x45, 0x9d, 0x89, 0x00, 0xc8, 0x41, 0xcf, 0x34, 0x1f, 0xa3,
-  0xf3, 0xf1, 0xfb, 0x28, 0x14, 0xfb, 0xd8, 0x48, 0x6f, 0xac, 0xe3, 0xfc,
-  0x33, 0xd1, 0xdb, 0xae, 0xef, 0x27, 0x9e, 0x57, 0x56, 0x29, 0xa2, 0x1a,
-  0x3a, 0xe5, 0x9a, 0xfe, 0xa4, 0x49, 0xc8, 0x7f, 0xb7, 0x4e, 0xd0, 0x1f,
-  0x04, 0x6e, 0x58, 0x16, 0xb7, 0xeb, 0x9d, 0xf8, 0x92, 0x3c, 0xc2, 0xb0,
-  0x21, 0x7c, 0x4e, 0x31, 0x02, 0x03, 0x01, 0x00, 0x01, 0x02, 0x82, 0x01,
-  0x01, 0x00, 0x8d, 0xa4, 0x61, 0x06, 0x2f, 0xc3, 0x40, 0xf4, 0x6c, 0xf4,
-  0x87, 0x30, 0xb8, 0x00, 0xcc, 0xe5, 0xbc, 0x75, 0x87, 0x1e, 0x06, 0x95,
-  0x14, 0x7a, 0x23, 0xf9, 0x24, 0xd4, 0x92, 0xe4, 0x1a, 0xbc, 0x88, 0x95,
-  0xfc, 0x3b, 0x56, 0x16, 0x1b, 0x2e, 0xff, 0x64, 0x2b, 0x58, 0xd7, 0xd8,
-  0x8e, 0xc2, 0x9f, 0xb2, 0xe5, 0x84, 0xb9, 0xbc, 0x8d, 0x61, 0x54, 0x35,
-  0xb0, 0x70, 0xfe, 0x72, 0x04, 0xc0, 0x24, 0x6d, 0x2f, 0x69, 0x61, 0x06,
-  0x1b, 0x1d, 0xe6, 0x2d, 0x6d, 0x79, 0x60, 0xb7, 0xf4, 0xdb, 0xb7, 0x4e,
-  0x97, 0x36, 0xde, 0x77, 0xc1, 0x9f, 0x85, 0x4e, 0xc3, 0x77, 0x69, 0x66,
-  0x2e, 0x3e, 0x61, 0x76, 0xf3, 0x67, 0xfb, 0xc6, 0x9a, 0xc5, 0x6f, 0x99,
-  0xff, 0xe6, 0x89, 0x43, 0x92, 0x44, 0x75, 0xd2, 0x4e, 0x54, 0x91, 0x58,
-  0xb2, 0x48, 0x2a, 0xe6, 0xfa, 0x0d, 0x4a, 0xca, 0xd4, 0x14, 0x9e, 0xf6,
-  0x27, 0x67, 0xb7, 0x25, 0x7a, 0x43, 0xbb, 0x2b, 0x67, 0xd1, 0xfe, 0xd1,
-  0x68, 0x23, 0x06, 0x30, 0x7c, 0xbf, 0x60, 0x49, 0xde, 0xcc, 0x7e, 0x26,
-  0x5a, 0x3b, 0xfe, 0xa6, 0xa6, 0xe7, 0xa8, 0xdd, 0xac, 0xb9, 0xaf, 0x82,
-  0x9a, 0x3a, 0x41, 0x7e, 0x61, 0x21, 0x37, 0xa3, 0x08, 0xe4, 0xc4, 0xbc,
-  0x11, 0xf5, 0x3b, 0x8e, 0x4d, 0x51, 0xf3, 0xbd, 0xda, 0xba, 0xb2, 0xc5,
-  0xee, 0xfb, 0xcf, 0xdf, 0x83, 0xa1, 0x82, 0x01, 0xe1, 0x51, 0x9d, 0x07,
-  0x5a, 0x5d, 0xd8, 0xc7, 0x5b, 0x3f, 0x97, 0x13, 0x6a, 0x4d, 0x1e, 0x8d,
-  0x39, 0xac, 0x40, 0x95, 0x82, 0x6c, 0xa2, 0xa1, 0xcc, 0x8a, 0x9b, 0x21,
-  0x32, 0x3a, 0x58, 0xcc, 0xe7, 0x2d, 0x1a, 0x79, 0xa4, 0x31, 0x50, 0xb1,
-  0x4b, 0x76, 0x23, 0x1b, 0xb3, 0x40, 0x3d, 0x3d, 0x72, 0x72, 0x32, 0xec,
-  0x5f, 0x38, 0xb5, 0x8d, 0xb2, 0x8d, 0x02, 0x81, 0x81, 0x00, 0xed, 0x5a,
-  0x7e, 0x8e, 0xa1, 0x62, 0x7d, 0x26, 0x5c, 0x78, 0xc4, 0x87, 0x71, 0xc9,
-  0x41, 0x57, 0x77, 0x94, 0x93, 0x93, 0x26, 0x78, 0xc8, 0xa3, 0x15, 0xbd,
-  0x59, 0xcb, 0x1b, 0xb4, 0xb2, 0x6b, 0x0f, 0xe7, 0x80, 0xf2, 0xfa, 0xfc,
-  0x8e, 0x32, 0xa9, 0x1b, 0x1e, 0x7f, 0xe1, 0x26, 0xef, 0x00, 0x25, 0xd8,
-  0xdd, 0xc9, 0x1a, 0x23, 0x00, 0x26, 0x3b, 0x46, 0x23, 0xc0, 0x50, 0xe7,
-  0xce, 0x62, 0xb2, 0x36, 0xb2, 0x98, 0x09, 0x16, 0x34, 0x18, 0x9e, 0x46,
-  0xbc, 0xaf, 0x2c, 0x28, 0x94, 0x2f, 0xe0, 0x5d, 0xc9, 0xb2, 0xc8, 0xfb,
-  0x5d, 0x13, 0xd5, 0x36, 0xaa, 0x15, 0x0f, 0x89, 0xa5, 0x16, 0x59, 0x5d,
-  0x22, 0x74, 0xa4, 0x47, 0x5d, 0xfa, 0xfb, 0x0c, 0x5e, 0x80, 0xbf, 0x0f,
-  0xc2, 0x9c, 0x95, 0x0f, 0xe7, 0xaa, 0x7f, 0x16, 0x1b, 0xd4, 0xdb, 0x38,
-  0x7d, 0x58, 0x2e, 0x57, 0x78, 0x2f, 0x02, 0x81, 0x81, 0x00, 0xcc, 0x1d,
-  0x7f, 0x74, 0x36, 0x6d, 0xb4, 0x92, 0x25, 0x62, 0xc5, 0x50, 0xb0, 0x5c,
-  0xa1, 0xda, 0xf3, 0xb2, 0xfd, 0x1e, 0x98, 0x0d, 0x8b, 0x05, 0x69, 0x60,
-  0x8e, 0x5e, 0xd2, 0x89, 0x90, 0x4a, 0x0d, 0x46, 0x7e, 0xe2, 0x54, 0x69,
-  0xae, 0x16, 0xe6, 0xcb, 0xd5, 0xbd, 0x7b, 0x30, 0x2b, 0x7b, 0x5c, 0xee,
-  0x93, 0x12, 0xcf, 0x63, 0x89, 0x9c, 0x3d, 0xc8, 0x2d, 0xe4, 0x7a, 0x61,
-  0x09, 0x5e, 0x80, 0xfb, 0x3c, 0x03, 0xb3, 0x73, 0xd6, 0x98, 0xd0, 0x84,
-  0x0c, 0x59, 0x9f, 0x4e, 0x80, 0xf3, 0x46, 0xed, 0x03, 0x9d, 0xd5, 0xdc,
-  0x8b, 0xe7, 0xb1, 0xe8, 0xaa, 0x57, 0xdc, 0xd1, 0x41, 0x55, 0x07, 0xc7,
-  0xdf, 0x67, 0x3c, 0x72, 0x78, 0xb0, 0x60, 0x8f, 0x85, 0xa1, 0x90, 0x99,
-  0x0c, 0xa5, 0x67, 0xab, 0xf0, 0xb6, 0x74, 0x90, 0x03, 0x55, 0x7b, 0x5e,
-  0xcc, 0xc5, 0xbf, 0xde, 0xa7, 0x9f, 0x02, 0x81, 0x80, 0x40, 0x81, 0x6e,
-  0x91, 0xae, 0xd4, 0x88, 0x74, 0xab, 0x7e, 0xfa, 0xd2, 0x60, 0x9f, 0x34,
-  0x8d, 0xe3, 0xe6, 0xd2, 0x30, 0x94, 0xad, 0x10, 0xc2, 0x19, 0xbf, 0x6b,
-  0x2e, 0xe2, 0xe9, 0xb9, 0xef, 0x94, 0xd3, 0xf2, 0xdc, 0x96, 0x4f, 0x9b,
-  0x09, 0xb3, 0xa1, 0xb6, 0x29, 0x44, 0xf4, 0x82, 0xd1, 0xc4, 0x77, 0x6a,
-  0xd7, 0x23, 0xae, 0x4d, 0x75, 0x16, 0x78, 0xda, 0x70, 0x82, 0xcc, 0x6c,
-  0xef, 0xaf, 0xc5, 0x63, 0xc6, 0x23, 0xfa, 0x0f, 0xd0, 0x7c, 0xfb, 0x76,
-  0x7e, 0x18, 0xff, 0x32, 0x3e, 0xcc, 0xb8, 0x50, 0x7f, 0xb1, 0x55, 0x77,
-  0x17, 0x53, 0xc3, 0xd6, 0x77, 0x80, 0xd0, 0x84, 0xb8, 0x4d, 0x33, 0x1d,
-  0x91, 0x1b, 0xb0, 0x75, 0x9f, 0x27, 0x29, 0x56, 0x69, 0xa1, 0x03, 0x54,
-  0x7d, 0x9f, 0x99, 0x41, 0xf9, 0xb9, 0x2e, 0x36, 0x04, 0x24, 0x4b, 0xf6,
-  0xec, 0xc7, 0x33, 0x68, 0x6b, 0x02, 0x81, 0x80, 0x60, 0x35, 0xcb, 0x3c,
-  0xd0, 0xe6, 0xf7, 0x05, 0x28, 0x20, 0x1d, 0x57, 0x82, 0x39, 0xb7, 0x85,
-  0x07, 0xf7, 0xa7, 0x3d, 0xc3, 0x78, 0x26, 0xbe, 0x3f, 0x44, 0x66, 0xf7,
-  0x25, 0x0f, 0xf8, 0x76, 0x1f, 0x39, 0xca, 0x57, 0x0e, 0x68, 0xdd, 0xc9,
-  0x27, 0xb2, 0x8e, 0xa6, 0x08, 0xa9, 0xd4, 0xe5, 0x0a, 0x11, 0xde, 0x3b,
-  0x30, 0x8b, 0xff, 0x72, 0x28, 0xe0, 0xf1, 0x58, 0xcf, 0xa2, 0x6b, 0x93,
-  0x23, 0x02, 0xc8, 0xf0, 0x09, 0xa7, 0x21, 0x50, 0xd8, 0x80, 0x55, 0x7d,
-  0xed, 0x0c, 0x48, 0xd5, 0xe2, 0xe9, 0x97, 0x19, 0xcf, 0x93, 0x6c, 0x52,
-  0xa2, 0xd6, 0x43, 0x6c, 0xb4, 0xc5, 0xe1, 0xa0, 0x9d, 0xd1, 0x45, 0x69,
-  0x58, 0xe1, 0xb0, 0x27, 0x9a, 0xec, 0x2b, 0x95, 0xd3, 0x1d, 0x81, 0x0b,
-  0x7a, 0x09, 0x5e, 0xa5, 0xf1, 0xdd, 0x6b, 0xe4, 0xe0, 0x08, 0xf8, 0x46,
-  0x81, 0xc1, 0x06, 0x8b, 0x02, 0x81, 0x80, 0x00, 0xf6, 0xf2, 0xeb, 0x25,
-  0xba, 0x78, 0x04, 0xad, 0x0e, 0x0d, 0x2e, 0xa7, 0x69, 0xd6, 0x57, 0xe6,
-  0x36, 0x32, 0x50, 0xd2, 0xf2, 0xeb, 0xad, 0x31, 0x46, 0x65, 0xc0, 0x07,
-  0x97, 0x83, 0x6c, 0x66, 0x27, 0x3e, 0x94, 0x2c, 0x05, 0x01, 0x5f, 0x5c,
-  0xe0, 0x31, 0x30, 0xec, 0x61, 0xd2, 0x74, 0x35, 0xb7, 0x9f, 0x38, 0xe7,
-  0x8e, 0x67, 0xb1, 0x50, 0x08, 0x68, 0xce, 0xcf, 0xd8, 0xee, 0x88, 0xfd,
-  0x5d, 0xc4, 0xcd, 0xe2, 0x86, 0x3d, 0x4a, 0x0e, 0x04, 0x7f, 0xee, 0x8a,
-  0xe8, 0x9b, 0x16, 0xa1, 0xfc, 0x09, 0x82, 0xe2, 0x62, 0x03, 0x3c, 0xe8,
-  0x25, 0x7f, 0x3c, 0x9a, 0xaa, 0x83, 0xf8, 0xd8, 0x93, 0xd1, 0x54, 0xf9,
-  0xce, 0xb4, 0xfa, 0x35, 0x36, 0xcc, 0x18, 0x54, 0xaa, 0xf2, 0x90, 0xb7,
-  0x7c, 0x97, 0x0b, 0x27, 0x2f, 0xae, 0xfc, 0xc3, 0x93, 0xaf, 0x1a, 0x75,
-  0xec, 0x18, 0xdb
-};
-
-static const unsigned int hanselPrivateRsaSz = 1191;
-
-
-static const char hanselPublicEcc[] =
-    "AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNkI5JTP6D0lF42tbx"
-    "X19cE87hztUS6FSDoGvPfiU0CgeNSbI+aFdKIzTP5CQEJSvm25qUzgDtH7oyaQROUnNvk=";
-
-static const byte hanselPrivateEcc[] = {
-  0x30, 0x77, 0x02, 0x01, 0x01, 0x04, 0x20, 0x03, 0x6e, 0x17, 0xd3, 0xb9,
-  0xb8, 0xab, 0xc8, 0xf9, 0x1f, 0xf1, 0x2d, 0x44, 0x4c, 0x3b, 0x12, 0xb1,
-  0xa4, 0x77, 0xd8, 0xed, 0x0e, 0x6a, 0xbe, 0x60, 0xc2, 0xf6, 0x8b, 0xe7,
-  0xd3, 0x87, 0x83, 0xa0, 0x0a, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d,
-  0x03, 0x01, 0x07, 0xa1, 0x44, 0x03, 0x42, 0x00, 0x04, 0xd9, 0x08, 0xe4,
-  0x94, 0xcf, 0xe8, 0x3d, 0x25, 0x17, 0x8d, 0xad, 0x6f, 0x15, 0xf5, 0xf5,
-  0xc1, 0x3c, 0xee, 0x1c, 0xed, 0x51, 0x2e, 0x85, 0x48, 0x3a, 0x06, 0xbc,
-  0xf7, 0xe2, 0x53, 0x40, 0xa0, 0x78, 0xd4, 0x9b, 0x23, 0xe6, 0x85, 0x74,
-  0xa2, 0x33, 0x4c, 0xfe, 0x42, 0x40, 0x42, 0x52, 0xbe, 0x6d, 0xb9, 0xa9,
-  0x4c, 0xe0, 0x0e, 0xd1, 0xfb, 0xa3, 0x26, 0x90, 0x44, 0xe5, 0x27, 0x36,
-  0xf9
-};
-
-static const unsigned int hanselPrivateEccSz = 121;
-
-
-static int wsUserAuth(byte authType,
-                      WS_UserAuthData* authData,
-                      void* ctx)
-{
-    int ret = WOLFSSH_USERAUTH_INVALID_AUTHTYPE;
-
-#ifdef DEBUG_WOLFSSH
-    /* inspect supported types from server */
-    printf("Server supports authentication:\n");
-    if (authData->type & WOLFSSH_USERAUTH_PASSWORD) {
-        printf(" - password");
-    }
-    if (authData->type & WOLFSSH_USERAUTH_PUBLICKEY) {
-        printf(" - publickey");
-    }
-    printf("wolfSSH requesting to use type %d\n", authType);
+    printf(" -i <filename> filename for the user's private key\n");
+#ifdef WOLFSSH_CERTS
+    printf(" -J <filename> filename for DER certificate to use\n");
+    printf("               Certificate example : client -u orange \\\n");
+    printf("               -J orange-cert.der -i orange-key.der\n");
+    printf(" -A <filename> filename for DER CA certificate to verify host\n");
+    printf(" -X            Ignore IP checks on peer vs peer certificate\n");
 #endif
 
-    /* We know hansel has a key, wait for request of public key */
-    if (authData->type & WOLFSSH_USERAUTH_PUBLICKEY &&
-            authData->username != NULL &&
-            authData->usernameSz > 0 &&
-            XSTRNCMP((char*)authData->username, "hansel",
-                authData->usernameSz) == 0) {
-        if (authType == WOLFSSH_USERAUTH_PASSWORD) {
-            printf("rejecting password type with hansel in favor of pub key\n");
-            return WOLFSSH_USERAUTH_FAILURE;
-        }
-    }
-
-    if (authType == WOLFSSH_USERAUTH_PASSWORD) {
-        const char* defaultPassword = (const char*)ctx;
-        word32 passwordSz;
-
-        ret = WOLFSSH_USERAUTH_SUCCESS;
-        if (defaultPassword != NULL) {
-            passwordSz = (word32)strlen(defaultPassword);
-            memcpy(userPassword, defaultPassword, passwordSz);
-        }
-        else {
-            printf("Password: ");
-            fflush(stdout);
-            SetEcho(0);
-            if (WFGETS((char*)userPassword, sizeof(userPassword),
-                        stdin) == NULL) {
-                printf("Getting password failed.\n");
-                ret = WOLFSSH_USERAUTH_FAILURE;
-            }
-            else {
-                char* c = strpbrk((char*)userPassword, "\r\n");
-                if (c != NULL)
-                    *c = '\0';
-            }
-            passwordSz = (word32)strlen((const char*)userPassword);
-            SetEcho(1);
-            #ifdef USE_WINDOWS_API
-                printf("\r\n");
-            #endif
-        }
-
-        if (ret == WOLFSSH_USERAUTH_SUCCESS) {
-            authData->sf.password.password = userPassword;
-            authData->sf.password.passwordSz = passwordSz;
-        }
-    }
-    else if (authType == WOLFSSH_USERAUTH_PUBLICKEY) {
-        WS_UserAuthData_PublicKey* pk = &authData->sf.publicKey;
-
-        /* we only have hansel's key loaded */
-        if (authData->username != NULL && authData->usernameSz > 0 &&
-                XSTRNCMP((char*)authData->username, "hansel",
-                    authData->usernameSz) == 0) {
-            pk->publicKeyType = userPublicKeyType;
-            pk->publicKeyTypeSz = (word32)WSTRLEN((char*)userPublicKeyType);
-            pk->publicKey = userPublicKey;
-            pk->publicKeySz = userPublicKeySz;
-            pk->privateKey = userPrivateKey;
-            pk->privateKeySz = userPrivateKeySz;
-            ret = WOLFSSH_USERAUTH_SUCCESS;
-        }
-    }
-
-    return ret;
-}
-
-
-static int wsPublicKeyCheck(const byte* pubKey, word32 pubKeySz, void* ctx)
-{
-    #ifdef DEBUG_WOLFSSH
-        printf("Sample public key check callback\n"
-               "  public key = %p\n"
-               "  public key size = %u\n"
-               "  ctx = %s\n", pubKey, pubKeySz, (const char*)ctx);
-    #else
-        (void)pubKey;
-        (void)pubKeySz;
-        (void)ctx;
-    #endif
-    return 0;
+    ShowCommands();
 }
 
 
@@ -764,10 +498,11 @@ static int doCmds(func_args* args)
 
             do {
                 ret = wolfSSH_SFTP_Get(ssh, pt, to, resume, &myStatusCb);
-                if (ret != WS_SUCCESS) {
+                if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
                     ret = wolfSSH_get_error(ssh);
                 }
-            } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE);
+            } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
+                    ret == WS_CHAN_RXD || ret == WS_REKEYING);
 
 #ifndef WOLFSSH_NO_TIMESTAMP
             WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
@@ -862,8 +597,9 @@ static int doCmds(func_args* args)
             do {
                 ret = wolfSSH_SFTP_Put(ssh, pt, to, resume, &myStatusCb);
                 err = wolfSSH_get_error(ssh);
-            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE)
-                        && ret != WS_SUCCESS);
+            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE ||
+                        err == WS_CHAN_RXD || err == WS_REKEYING) &&
+                    ret == WS_FATAL_ERROR);
 
 #ifndef WOLFSSH_NO_TIMESTAMP
             WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
@@ -1198,8 +934,29 @@ static int doCmds(func_args* args)
                 err = wolfSSH_get_error(ssh);
             } while ((err == WS_WANT_READ || err == WS_WANT_WRITE)
                         && current == NULL && err != WS_SUCCESS);
+
+            if (WSTRNSTR(msg, "-s", MAX_CMD_SZ) != NULL) {
+                char tmpStr[WOLFSSH_MAX_FILENAME];
+                XMEMSET(tmpStr, 0, WOLFSSH_MAX_FILENAME);
+                XSNPRINTF(tmpStr, WOLFSSH_MAX_FILENAME, "size in bytes, file name\n");
+                if (SFTP_FPUTS(args, tmpStr) < 0) {
+                    err_msg("fputs error");
+                    return -1;
+                }
+            }
+
             tmp = current;
             while (tmp != NULL) {
+                if (WSTRNSTR(msg, "-s", MAX_CMD_SZ) != NULL) {
+                    char tmpStr[WOLFSSH_MAX_FILENAME];
+                    XSNPRINTF(tmpStr, WOLFSSH_MAX_FILENAME, "%lld, ",
+                       (long long)(((long long)tmp->atrb.sz[1] << 32) | tmp->atrb.sz[0]));
+                    if (SFTP_FPUTS(args, tmpStr) < 0) {
+                        err_msg("fputs error");
+                        return -1;
+                    }
+                }
+
                 if (SFTP_FPUTS(args, tmp->fName) < 0) {
                     err_msg("fputs error");
                     return -1;
@@ -1252,17 +1009,24 @@ static int doAutopilot(int cmd, char* local, char* remote)
     int err;
     int ret = WS_SUCCESS;
     char fullpath[128] = ".";
-    WS_SFTPNAME* name;
+    WS_SFTPNAME* name  = NULL;
 
-    do {
-        name = wolfSSH_SFTP_RealPath(ssh, fullpath);
-        err = wolfSSH_get_error(ssh);
-    } while ((err == WS_WANT_READ || err == WS_WANT_WRITE) &&
+    if (remote != NULL && remote[0] == '/') {
+        /* use remote absolute path if provided */
+        WMEMSET(fullpath, 0, sizeof(fullpath));
+        WSTRNCPY(fullpath, remote, sizeof(fullpath) - 1);
+    }
+    else {
+        do {
+            name = wolfSSH_SFTP_RealPath(ssh, fullpath);
+            err = wolfSSH_get_error(ssh);
+        } while ((err == WS_WANT_READ || err == WS_WANT_WRITE) &&
             ret != WS_SUCCESS);
 
-    snprintf(fullpath, sizeof(fullpath), "%s/%s",
+        snprintf(fullpath, sizeof(fullpath), "%s/%s",
             name == NULL ? "." : name->fName,
             remote);
+    }
 
     do {
         if (cmd == AUTOPILOT_PUT) {
@@ -1272,8 +1036,8 @@ static int doAutopilot(int cmd, char* local, char* remote)
             ret = wolfSSH_SFTP_Get(ssh, fullpath, local, 0, NULL);
         }
         err = wolfSSH_get_error(ssh);
-    } while ((err == WS_WANT_READ || err == WS_WANT_WRITE) &&
-            ret != WS_SUCCESS);
+    } while ((err == WS_WANT_READ || err == WS_WANT_WRITE ||
+                err == WS_CHAN_RXD) && ret == WS_FATAL_ERROR);
 
     if (ret != WS_SUCCESS) {
         if (cmd == AUTOPILOT_PUT) {
@@ -1299,30 +1063,30 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     socklen_t clientAddrSz = sizeof(clientAddr);
     int ret;
     int ch;
-    int userEcc = 0;
     /* int peerEcc = 0; */
     word16 port = wolfSshPort;
     char* host = (char*)wolfSshIp;
     const char* username = NULL;
     const char* password = NULL;
     const char* defaultSftpPath = NULL;
+    const char* privKeyName = NULL;
     byte nonBlock = 0;
     int autopilot = AUTOPILOT_OFF;
     char* apLocal = NULL;
     char* apRemote = NULL;
+    char* pubKeyName = NULL;
+    char* certName = NULL;
+    char* caCert   = NULL;
+
 
     int     argc = ((func_args*)args)->argc;
     char**  argv = ((func_args*)args)->argv;
     ((func_args*)args)->return_code = 0;
 
-    while ((ch = mygetopt(argc, argv, "?d:egh:l:p:r:u:AEGNP:")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?d:gh:i:j:l:p:r:u:EGNP:J:A:X")) != -1) {
         switch (ch) {
             case 'd':
                 defaultSftpPath = myoptarg;
-                break;
-
-            case 'e':
-                userEcc = 1;
                 break;
 
             case 'E':
@@ -1336,6 +1100,8 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
                 break;
 
             case 'p':
+                if (myoptarg == NULL)
+                    err_sys("null argument found");
                 port = (word16)atoi(myoptarg);
                 #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
                     if (port == 0)
@@ -1371,6 +1137,30 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
                 nonBlock = 1;
                 break;
 
+            case 'i':
+                privKeyName = myoptarg;
+                break;
+
+            case 'j':
+                pubKeyName = myoptarg;
+                break;
+
+        #ifdef WOLFSSH_CERTS
+            case 'J':
+                certName = myoptarg;
+                break;
+
+            case 'A':
+                caCert = myoptarg;
+                break;
+
+            #if defined(OPENSSL_ALL) || defined(WOLFSSL_IP_ALT_NAME)
+            case 'X':
+                ClientIPOverride(1);
+                break;
+            #endif
+        #endif
+
             case '?':
                 ShowUsage();
                 exit(EXIT_SUCCESS);
@@ -1384,6 +1174,11 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
 
     if (username == NULL)
         err_sys("client requires a username parameter.");
+
+    if ((pubKeyName == NULL && certName == NULL) && privKeyName != NULL) {
+        err_sys("If setting priv key, need pub key.");
+    }
+
 
 #ifdef WOLFSSH_NO_RSA
     userEcc = 1;
@@ -1402,27 +1197,23 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     }
 #endif
 
-    if (userEcc) {
-        userPublicKeySz = (word32)sizeof(userPublicKey);
-        Base64_Decode((byte*)hanselPublicEcc,
-                (word32)WSTRLEN(hanselPublicEcc),
-                (byte*)userPublicKey, &userPublicKeySz);
-
-        WSTRNCPY((char*)userPublicKeyType, "ecdsa-sha2-nistp256",
-                sizeof(userPublicKeyType));
-        userPrivateKey = hanselPrivateEcc;
-        userPrivateKeySz = hanselPrivateEccSz;
+    ret = ClientSetPrivateKey(privKeyName, 0);
+    if (ret != 0) {
+        err_sys("Error setting private key");
     }
-    else {
-        userPublicKeySz = (word32)sizeof(userPublicKey);
-        Base64_Decode((byte*)hanselPublicRsa,
-                (word32)WSTRLEN(hanselPublicRsa),
-                (byte*)userPublicKey, &userPublicKeySz);
 
-        WSTRNCPY((char*)userPublicKeyType, "ssh-rsa",
-                sizeof(userPublicKeyType));
-        userPrivateKey = hanselPrivateRsa;
-        userPrivateKeySz = hanselPrivateRsaSz;
+#ifdef WOLFSSH_CERTS
+    /* passed in certificate to use */
+    if (certName) {
+        ret = ClientUseCert(certName);
+    }
+    else
+#endif
+    {
+        ret = ClientUsePubKey(pubKeyName, 0);
+    }
+    if (ret != 0) {
+        err_sys("Error setting public key");
     }
 
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_CLIENT, NULL);
@@ -1430,7 +1221,7 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
         err_sys("Couldn't create wolfSSH client context.");
 
     if (((func_args*)args)->user_auth == NULL)
-        wolfSSH_SetUserAuth(ctx, wsUserAuth);
+        wolfSSH_SetUserAuth(ctx, ClientUserAuth);
     else
         wolfSSH_SetUserAuth(ctx, ((func_args*)args)->user_auth);
 
@@ -1438,6 +1229,14 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     /* handle interrupt with get and put */
     signal(SIGINT, sig_handler);
 #endif
+
+#ifdef WOLFSSH_CERTS
+    ClientLoadCA(ctx, caCert);
+#else
+    (void)caCert;
+#endif /* WOLFSSH_CERTS */
+
+    wolfSSH_CTX_SetPublicKeyCheck(ctx, ClientPublicKeyCheck);
 
     ssh = wolfSSH_new(ctx);
     if (ssh == NULL)
@@ -1454,8 +1253,7 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     if (password != NULL)
         wolfSSH_SetUserAuthCtx(ssh, (void*)password);
 
-    wolfSSH_CTX_SetPublicKeyCheck(ctx, wsPublicKeyCheck);
-    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)"You've been sampled!");
+    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)host);
 
     ret = wolfSSH_SetUsername(ssh, username);
     if (ret != WS_SUCCESS)
@@ -1525,6 +1323,8 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
         printf("error %d encountered\n", ret);
         ((func_args*)args)->return_code = ret;
     }
+
+    ClientFreeBuffers(pubKeyName, privKeyName);
 #if !defined(WOLFSSH_NO_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free();  /* free per thread cache */
 #endif

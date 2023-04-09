@@ -1,6 +1,6 @@
 /* portfwd.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -25,6 +25,11 @@
 #define WOLFSSH_TEST_CLIENT
 #define WOLFSSH_TEST_SERVER
 
+#ifdef WOLFSSL_USER_SETTINGS
+    #include <wolfssl/wolfcrypt/settings.h>
+#else
+    #include <wolfssl/options.h>
+#endif
 
 #include <stdio.h>
 #ifdef HAVE_TERMIOS_H
@@ -160,7 +165,7 @@ static int wsUserAuth(byte authType,
                       void* ctx)
 {
     const char* defaultPassword = (const char*)ctx;
-    word32 passwordSz;
+    word32 passwordSz = 0;
     int ret = WOLFSSH_USERAUTH_SUCCESS;
 
     (void)authType;
@@ -267,10 +272,14 @@ THREAD_RETURN WOLFSSH_THREAD portfwd_worker(void* args)
                 break;
 
             case 'f':
+                if (myoptarg == NULL)
+                    err_sys("null argument found");
                 fwdFromPort = (word16)atoi(myoptarg);
                 break;
 
             case 'p':
+                if (myoptarg == NULL)
+                    err_sys("null argument found");
                 port = (word16)atoi(myoptarg);
                 #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
                     if (port == 0)
@@ -279,6 +288,8 @@ THREAD_RETURN WOLFSSH_THREAD portfwd_worker(void* args)
                 break;
 
             case 't':
+                if (myoptarg == NULL)
+                    err_sys("null argument found");
                 fwdToPort = (word16)atoi(myoptarg);
                 break;
 

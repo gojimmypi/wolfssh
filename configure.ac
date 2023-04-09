@@ -1,9 +1,9 @@
 # wolfssh
-# Copyright (C) 2014-2020 wolfSSL Inc.
+# Copyright (C) 2014-2023 wolfSSL Inc.
 # All right reserved.
 
-AC_COPYRIGHT([Copyright (C) 2014-2020 wolfSSL Inc.])
-AC_INIT([wolfssh],[1.4.10],[support@wolfssl.com],[wolfssh],[https://www.wolfssl.com])
+AC_COPYRIGHT([Copyright (C) 2014-2023 wolfSSL Inc.])
+AC_INIT([wolfssh],[1.4.13],[support@wolfssl.com],[wolfssh],[https://www.wolfssl.com])
 AC_PREREQ([2.63])
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -18,7 +18,7 @@ AC_ARG_PROGRAM
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 
-WOLFSSH_LIBRARY_VERSION=12:4:4
+WOLFSSH_LIBRARY_VERSION=15:0:7
 #                       | | |
 #                +------+ | +---+
 #                |        |     |
@@ -113,8 +113,8 @@ AC_ARG_WITH(wolfssl,
       if test -d "${withval}/lib" && test -d "${withval}/include"; then
         wcpath=${withval}
 
-        LDFLAGS="$LDFLAGS -L${wcpath}/lib"
-        CPPFLAGS="$CPPFLAGS -I${wcpath}/include"
+        LDFLAGS="-L${wcpath}/lib $LDFLAGS"
+        CPPFLAGS="-I${wcpath}/include $CPPFLAGS"
       else
         AC_MSG_ERROR([wolfSSL path error (${withval}): missing lib and include])
       fi
@@ -138,6 +138,7 @@ AS_IF([test "x$ax_enable_debug" = "xyes"],
        AM_CPPFLAGS="-DNDEBUG $AM_CPPFLAGS"])
 
 AX_PTHREAD([
+    AC_DEFINE([HAVE_PTHREAD], [1], [Define if you have POSIX threads libraries and header files.])
     # If AX_PTHREAD is adding -Qunused-arguments, need to prepend with
     # -Xcompiler libtool will use it. Newer versions of clang don't need
     # the -Q flag when using pthreads.
@@ -171,6 +172,11 @@ AC_ARG_ENABLE([sftp],
     [AS_HELP_STRING([--enable-sftp],[Enable SFTP support (default: disabled)])],
     [ENABLED_SFTP=$enableval],[ENABLED_SFTP=no])
 
+# SSHD
+AC_ARG_ENABLE([sshd],
+    [AS_HELP_STRING([--enable-sshd],[Enable SSHD support (default: disabled)])],
+    [ENABLED_SSHD=$enableval],[ENABLED_SSHD=no])
+
 # TCP/IP Forwarding
 AC_ARG_ENABLE([fwd],
     [AS_HELP_STRING([--enable-fwd],[Enable TCP/IP Forwarding support (default: disabled)])],
@@ -191,10 +197,21 @@ AC_ARG_ENABLE([agent],
     [AS_HELP_STRING([--enable-agent],[Enable ssh-agent support (default: disabled)])],
     [ENABLED_AGENT=$enableval],[ENABLED_AGENT=no])
 
+# X.509 certs
+AC_ARG_ENABLE([certs],
+    [AS_HELP_STRING([--enable-certs],[Enable X.509 cert support (default: disabled)])],
+    [ENABLED_CERTS=$enableval],[ENABLED_CERTS=no])
+
 # smallstack
 AC_ARG_ENABLE([smallstack],
     [AS_HELP_STRING([--enable-smallstack],[Enable small stack (default: disabled)])],
     [ENABLED_SMALLSTACK=$enableval],[ENABLED_SMALLSTACK=no])
+
+# use PAM lib
+AC_ARG_WITH([pam],
+    [AS_HELP_STRING([--with-pam=PATH],[PATH to directory with the PAM library])],
+    [PAM_LIB=$withval],
+    [PAM_LIB=""])
 
 # Enable All
 AC_ARG_ENABLE([all],
@@ -210,7 +227,9 @@ AC_ARG_ENABLE([distro],
 AS_IF([test "x$ENABLED_DISTRO" = "xyes"],
       [ENABLED_ALL=yes; enable_shared=yes; enable_static=yes])
 AS_IF([test "x$ENABLED_ALL" = "xyes"],
-      [ENABLED_KEYGEN=yes; ENABLED_SCP=yes; ENABLED_SFTP=yes; ENABLED_FWD=yes; ENABLED_SHELL=yes; ENABLED_AGENT=yes])
+      [ENABLED_KEYGEN=yes; ENABLED_SCP=yes; ENABLED_SFTP=yes; ENABLED_FWD=yes; ENABLED_SHELL=yes; ENABLED_AGENT=yes; ENABLED_SSHD=yes; ENABLED_CERTS=yes])
+AS_IF([test "x$ENABLED_SSHD" = "xyes"],
+      [ENABLED_SHELL=yes])
 
 # Set the defined flags for the code.
 AS_IF([test "x$ENABLED_INLINE" = "xno"],
@@ -228,8 +247,50 @@ AS_IF([test "x$ENABLED_PTERM" = "xyes"],
 AS_IF([test "x$ENABLED_SHELL" = "xyes"],
       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_SHELL"])
 AS_IF([test "x$ENABLED_AGENT" = "xyes"],[AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_AGENT"])
+AS_IF([test "x$ENABLED_CERTS" = "xyes"],[AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_CERTS"])
 AS_IF([test "x$ENABLED_SMALLSTACK" = "xyes"],
        [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_SMALL_STACK"])
+AS_IF([test "x$ENABLED_SSHD" = "xyes"],
+       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_SSHD"])
+
+if test "$ENABLED_SSHD" = "yes"; then
+    if test -n "$PAM_LIB"
+    then
+        AC_MSG_CHECKING([for directory $PAM_LIB])
+        if ! test -d "$PAM_LIB"
+        then
+            AC_MSG_ERROR([PAM lib dir $PAM_LIB not found.])
+        fi
+        AC_MSG_RESULT([yes])
+        AM_LDFLAGS="-L$PAM_LIB $AM_LDFLAGS"
+
+        LIBS="$LIBS -lpam"
+        AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_USE_PAM"
+        #TODO check on link to lib
+        #AC_CHECK_LIB([pam], [pam],
+        #    [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_USE_PAM"; LIBS="$LIBS -lpam"],
+        #    [AC_MSG_ERROR(libpam not found)])
+    else
+        case $host in
+            *qnx*)
+                # QNX uses liblogin for crypt operation
+                AC_CHECK_LIB([login], [login],
+                    [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_HAVE_LIBLOGIN";
+                        LIBS="$LIBS -llogin"],
+                    [AC_MSG_ERROR(liblogin not found)])
+                ;;
+            *darwin*)
+                AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_HAVE_LIBCRYPT"
+                ;;
+            *)
+                AC_CHECK_LIB([crypt], [crypt],
+                    [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_HAVE_LIBCRYPT";
+                        LIBS="$LIBS -lcrypt"],
+                    [AC_MSG_ERROR(libcrypt not found)])
+        esac
+    fi
+fi
+
 
 # Set the automake conditionals.
 AM_CONDITIONAL([BUILD_EXAMPLE_SERVERS],[test "x$ENABLED_EXAMPLES" = "xyes"])
@@ -242,6 +303,8 @@ AM_CONDITIONAL([BUILD_FWD],[test "x$ENABLED_FWD" = "xyes"])
 AM_CONDITIONAL([BUILD_TERM],[test "x$ENABLED_TERM" = "xyes"])
 AM_CONDITIONAL([BUILD_SHELL],[test "x$ENABLED_SHELL" = "xyes"])
 AM_CONDITIONAL([BUILD_AGENT],[test "x$ENABLED_AGENT" = "xyes"])
+AM_CONDITIONAL([BUILD_SSHD],[test "x$ENABLED_SSHD" = "xyes"])
+AM_CONDITIONAL([BUILD_CERTS],[test "x$ENABLED_CERTS" = "xyes"])
 
 AX_HARDEN_CC_COMPILER_FLAGS
 
@@ -282,7 +345,9 @@ AS_ECHO(["   * psuedo-terminal:           $ENABLED_PTERM"])
 AS_ECHO(["   * echoserver shell support:  $ENABLED_SHELL"])
 AS_ECHO(["   * scp:                       $ENABLED_SCP"])
 AS_ECHO(["   * sftp:                      $ENABLED_SFTP"])
+AS_ECHO(["   * sshd:                      $ENABLED_SSHD"])
 AS_ECHO(["   * agent:                     $ENABLED_AGENT"])
 AS_ECHO(["   * TCP/IP Forwarding:         $ENABLED_FWD"])
+AS_ECHO(["   * X.509 Certs:               $ENABLED_CERTS"])
 AS_ECHO(["   * Examples:                  $ENABLED_EXAMPLES"])
 AS_ECHO(["   * liboqs Integration:        $ENABLED_LIBOQS"])

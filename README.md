@@ -22,6 +22,11 @@ On some systems the optional ldconfig command is needed after installing.
 To use the key generation function in wolfSSH, wolfSSL will need to be
 configured with keygen: `--enable-keygen`.
 
+When using X.509 certificates for user authentication, wolfSSL must be
+built with TLS enabled. wolfSSH uses wolfSSL's certificate manager system
+for X.509, including OCSP lookups. To allow OCSP, add `--enable-ocsp` to the
+wolfSSL configure.
+
 If the bulk of wolfSSL code isn't desired, wolfSSL can be configured with
 the crypto only option: `--enable-cryptonly`.
 
@@ -48,10 +53,13 @@ For building under Windows with Visual Studio, see the file
 
 NOTE: On resource constrained devices the `DEFAULT_WINDOW_SZ` may need
 to be set to a lower size. It can also be increased in desktop use cases
-to help with large file transfers. By default channels are set to handle
-16,384 bytes of data being sent and received. An example of setting a
-window size for new channels would be as follows
-`./configure CPPFLAGS=-DDEFAULT_WINDOW_SZ=16384`
+to help with large file transfers. By default channels are set to receive
+up to 128kB of data before sending a channel window adjust message. An
+example of setting a window size for new channels would be as follows
+`./configure CPPFLAGS="-DDEFAULT_WINDOW_SZ=16384"`
+
+For 32bit Linux platforms you can add support for files > 2GB by compling
+with `CFLAGS=-D_FILE_OFFSET_BITS=64`.
 
 examples
 --------
@@ -399,12 +407,13 @@ behavior, give the echoserver the command line option `-f`.
 
     $ ./examples/echoserver/echoserver -f
 
+
 POST-QUANTUM
 ============
 
-wolfSSH now supports the post-quantum algorithm SABER. It uses the NIST
+wolfSSH now supports the post-quantum algorithm Kyber. It uses the NIST
 submission's Level 1 parameter set implemented by liboqs via an integration
-with wolfSSH.
+with wolfSSH. It is hybridized with ECDHE over the P-256 ECC curve.
 
 In order be able to use liboqs, you must have it built and installed on your
 system. We support the 0.7.0 release of liboqs. You can download it from the
@@ -422,13 +431,13 @@ Once unpacked, this would be sufficient:
     $ sudo make install
 
 
-In order to enable support for SABER Level1 in wolfSSH, use the `--with-liboqs`
-build option during configuration:
+In order to enable support for Kyber Level1 hybridized with ECDHE over the P-256
+ECC curve in wolfSSH, use the `--with-liboqs` build option during configuration:
 
     $ ./configure --with-liboqs
 
-The wolfSSH client and server will automatically negotiate using SABER Level1
-if this feature is enabled.
+The wolfSSH client and server will automatically negotiate using Kyber Level1
+hybridized with ECDHE over the P-256 ECC curve if this feature is enabled.
 
     $ ./examples/echoserver/echoserver -f
 
@@ -450,7 +459,7 @@ The following is sufficient for build and execution:
     $ cd openssh-OQS-OpenSSH-snapshot-2021-08/
     $ ./configure --with-liboqs-dir=/usr/local
     $ make all
-    $ ./ssh -o"KexAlgorithms +saber-lightsaber-sha256" \
+    $ ./ssh -o"KexAlgorithms +ecdh-nistp256-kyber-512-sha256" \
       -o"PubkeyAcceptedAlgorithms +ssh-rsa" \
       -o"HostkeyAlgorithms +ssh-rsa" \
       jill@localhost -p 22222
@@ -459,3 +468,32 @@ NOTE: when prompted, enter the password which is "upthehill".
 
 You can type a line of text and when you press enter, the line will be echoed
 back. Use CTRL-C to terminate the connection.
+
+
+CERTIFICATE SUPPORT
+===================
+
+wolfSSH can accept X.509 certificates in place of just public keys when
+authenticating a user.
+
+To compile wolfSSH with X.509 support, use the `--enable-certs` build option
+or define `WOLFSSH_CERTS`:
+
+    $ ./configure --enable-certs
+    $ make
+
+To provide a CA root certificate to validate a user's certificate, give the
+echoserver the command line option `-a`.
+
+    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem
+
+The echoserver and client have a fake user named "john" whose certificate
+will be used for authentication.
+
+An example echoserver / client connection using the example certificate
+john-cert.der would be:
+
+    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem -K john:./keys/john-cert.der
+
+    $ ./examples/client/client -u john -J ./keys/john-cert.der -i ./keys/john-key.der
+

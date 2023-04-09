@@ -1,6 +1,6 @@
 /* wolfsftp.h
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -149,8 +149,17 @@ struct WS_SFTPNAME {
     WS_SFTPNAME* next;
 };
 
+/*
+ * WOLFSSH_MAX_SFTP_RW: Limit on how much file data the client will request
+ *     or send in a file transfer message. Also a limit on how much file
+ *     data a server will send per request from the client. Most SFTP clients
+ *     will allow the peer to send less than requested, but one in particular
+ *     expects the amount requested to be sent, and that's 32kiB.
+ * WOLFSSH_MAX_SFTP_RECV: Used as a bounds check on a SFTP message's size.
+ *     Is not used to allocate any buffers directly.
+ */
 #ifndef WOLFSSH_MAX_SFTP_RW
-    #define WOLFSSH_MAX_SFTP_RW 1024
+    #define WOLFSSH_MAX_SFTP_RW 32768
 #endif
 #ifndef WOLFSSH_MAX_SFTP_RECV
     #define WOLFSSH_MAX_SFTP_RECV 32768
@@ -215,6 +224,7 @@ WOLFSSH_API int wolfSSH_SFTP_Put(WOLFSSH* ssh, char* from, char* to,
 
 /* SFTP server functions */
 WOLFSSH_API int wolfSSH_SFTP_read(WOLFSSH* ssh);
+WOLFSSH_API int wolfSSH_SFTP_PendingSend(WOLFSSH* ssh);
 
 
 WOLFSSH_LOCAL int wolfSSH_SFTP_CreateStatus(WOLFSSH* ssh, word32 status,

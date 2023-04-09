@@ -1,6 +1,6 @@
 /* sftp.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -30,7 +30,7 @@
 #define WOLFSSH_TEST_THREADING
 #include <wolfssh/test.h>
 
-#include "tests/testsuite.h"
+#include "tests/sftp.h"
 #include "examples/echoserver/echoserver.h"
 #include "examples/sftpclient/sftpclient.h"
 
@@ -52,6 +52,7 @@ static const char* cmds[] = {
     "ls",
     "chmod 600 test-get-2",
     "rm test-get-2",
+    "ls -s",
     "exit"
 };
 static int commandIdx = 0;
@@ -103,6 +104,9 @@ static int Expected(int command)
         case 13:
             return (WSTRNSTR(inBuf, "test-get-2", sizeof(inBuf)) == NULL);
 
+        case 16:
+            return (WSTRNSTR(inBuf, "size in bytes", sizeof(inBuf)) == NULL);
+
         default:
             break;
     }
@@ -141,7 +145,7 @@ static int commandCb(const char* in, char* out, int outSz)
 
 /* test SFTP commands, if flag is set to 1 then use non blocking
  * return 0 on success */
-int test_SFTP(int flag)
+int wolfSSH_SftpTest(int flag)
 {
     func_args ser;
     func_args cli;

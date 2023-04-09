@@ -1,6 +1,6 @@
 /* echoserver.c
  *
- * Copyright (C) 2014-2021 wolfSSL Inc.
+ * Copyright (C) 2014-2023 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -34,6 +34,9 @@
 #include <wolfssl/wolfcrypt/hash.h>
 #include <wolfssl/wolfcrypt/coding.h>
 #include <wolfssl/wolfcrypt/wc_port.h>
+#include <wolfssl/wolfcrypt/asn.h>
+#include <wolfssl/wolfcrypt/asn_public.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssh/ssh.h>
 #include <wolfssh/internal.h>
 #include <wolfssh/wolfsftp.h>
@@ -69,6 +72,12 @@
     #endif
     #include <pwd.h>
     #include <signal.h>
+#if defined(__QNX__) || defined(__QNXNTO__)
+    #include <errno.h>
+    #include <unix.h>
+#else
+    #include <sys/errno.h>
+#endif
 #endif /* WOLFSSH_SHELL */
 
 #ifdef WOLFSSH_AGENT
@@ -443,6 +452,9 @@ static int wolfSSH_FwdDefaultActions(WS_FwdCbAction action, void* vCtx,
         ctx->state = FWD_STATE_INIT;
     }
     else if (action == WOLFSSH_FWD_REMOTE_SETUP) {
+        struct sockaddr_in addr;
+        socklen_t addrSz = 0;
+
         ctx->hostName = WSTRDUP(name, NULL, 0);
         ctx->hostPort = port;
 
@@ -452,8 +464,6 @@ static int wolfSSH_FwdDefaultActions(WS_FwdCbAction action, void* vCtx,
         }
 
         if (ret == 0) {
-            struct sockaddr_in addr;
-            socklen_t addrSz = 0;
 
             WMEMSET(&addr, 0, sizeof addr);
             if (WSTRCMP(name, "") == 0 ||
@@ -468,9 +478,11 @@ static int wolfSSH_FwdDefaultActions(WS_FwdCbAction action, void* vCtx,
             }
             else {
                 printf("Not using IPv6 yet.\n");
-                WEXIT(EXIT_FAILURE);
+                ret = WS_FWD_SETUP_E;
             }
+        }
 
+        if (ret == 0) {
             ret = bind(ctx->listenFd,
                     (const struct sockaddr*)&addr, addrSz);
         }
@@ -741,7 +753,7 @@ static int ssh_worker(thread_ctx_t* threadCtx)
                 if (agentListenFd > maxFd)
                     maxFd = agentListenFd;
             }
-            if (threadCtx->agentCbCtx.state == AGENT_STATE_CONNECTED) {
+            if (agentFd >= 0 && threadCtx->agentCbCtx.state == AGENT_STATE_CONNECTED) {
                 FD_SET(agentFd, &readFds);
                 if (agentFd > maxFd)
                     maxFd = agentFd;
@@ -753,7 +765,7 @@ static int ssh_worker(thread_ctx_t* threadCtx)
                 if (fwdListenFd > maxFd)
                     maxFd = fwdListenFd;
             }
-            if (threadCtx->fwdCbCtx.state == FWD_STATE_CONNECTED) {
+            if (fwdFd >= 0 && threadCtx->fwdCbCtx.state == FWD_STATE_CONNECTED) {
                 FD_SET(fwdFd, &readFds);
                 if (fwdFd > maxFd)
                     maxFd = fwdFd;
@@ -912,7 +924,7 @@ static int ssh_worker(thread_ctx_t* threadCtx)
             }
             #endif
             #ifdef WOLFSSH_AGENT
-            if (threadCtx->agentCbCtx.state == AGENT_STATE_CONNECTED) {
+            if (agentFd >= 0 && threadCtx->agentCbCtx.state == AGENT_STATE_CONNECTED) {
                 if (FD_ISSET(agentFd, &readFds)) {
                     #ifdef SHELL_DEBUG
                         printf("agentFd set in readfd\n");
@@ -973,7 +985,7 @@ static int ssh_worker(thread_ctx_t* threadCtx)
             }
             #endif
             #ifdef WOLFSSH_FWD
-            if (threadCtx->fwdCbCtx.state == FWD_STATE_CONNECTED) {
+            if (fwdFd >= 0 && threadCtx->fwdCbCtx.state == FWD_STATE_CONNECTED) {
                 if (FD_ISSET(fwdFd, &readFds)) {
                     #ifdef SHELL_DEBUG
                         printf("fwdFd set in readfd\n");
@@ -1132,33 +1144,57 @@ static int sftp_worker(thread_ctx_t* threadCtx)
     WS_SOCKET_T sockfd;
     int select_ret = 0;
 
+    error  = wolfSSH_get_error(threadCtx->ssh);
     sockfd = (WS_SOCKET_T)wolfSSH_get_fd(threadCtx->ssh);
     do {
         if (threadCtx->nonBlock) {
-            if (error == WS_WANT_READ)
+            if (error == WS_WANT_READ) {
+                WOLFSSH_CHANNEL* c;
                 printf("... sftp server would read block\n");
-            else if (error == WS_WANT_WRITE)
+
+                /* if all channels are closed then close connection */
+                c = wolfSSH_ChannelNext(threadCtx->ssh, NULL);
+                if (c && wolfSSH_ChannelGetEof(c)) {
+                    ret = 0;
+                    break;
+                }
+            }
+            else if (error == WS_WANT_WRITE) {
+                word32 c;
                 printf("... sftp server would write block\n");
+
+                /* handle backlog of send packets */
+                wolfSSH_worker(threadCtx->ssh, &c);
+                ret = error = wolfSSH_get_error(threadCtx->ssh);
+                continue;
+            }
         }
 
-        if (wolfSSH_stream_peek(threadCtx->ssh, tmp, 1) > 0) {
-            select_ret = WS_SELECT_RECV_READY;
-        }
-        else {
-            select_ret = tcp_select(sockfd, TEST_SFTP_TIMEOUT);
-        }
-
-        if (select_ret == WS_SELECT_RECV_READY ||
-            select_ret == WS_SELECT_ERROR_READY ||
-            error == WS_WANT_WRITE)
-        {
-            ret = wolfSSH_SFTP_read(threadCtx->ssh);
+        /* if there is a current send in progress then continue to process it */
+        if (wolfSSH_SFTP_PendingSend(threadCtx->ssh)) {
+            ret   = wolfSSH_SFTP_read(threadCtx->ssh);
             error = wolfSSH_get_error(threadCtx->ssh);
         }
-        else if (select_ret == WS_SELECT_TIMEOUT)
-            error = WS_WANT_READ;
-        else
-            error = WS_FATAL_ERROR;
+        else {
+            if (wolfSSH_stream_peek(threadCtx->ssh, tmp, 1) > 0) {
+                select_ret = WS_SELECT_RECV_READY;
+            }
+            else {
+                select_ret = tcp_select(sockfd, TEST_SFTP_TIMEOUT);
+            }
+
+            if (select_ret == WS_SELECT_RECV_READY ||
+                select_ret == WS_SELECT_ERROR_READY ||
+                error == WS_WANT_WRITE)
+            {
+                ret = wolfSSH_SFTP_read(threadCtx->ssh);
+                error = wolfSSH_get_error(threadCtx->ssh);
+            }
+            else if (select_ret == WS_SELECT_TIMEOUT)
+                error = WS_WANT_READ;
+            else
+                error = WS_FATAL_ERROR;
+        }
 
         if (error == WS_WANT_READ || error == WS_WANT_WRITE ||
             error == WS_CHAN_RXD || error == WS_REKEYING ||
@@ -1174,7 +1210,7 @@ static int sftp_worker(thread_ctx_t* threadCtx)
             }
         }
 
-    } while (ret != WS_FATAL_ERROR);
+    } while (ret != WS_FATAL_ERROR && ret != WS_SOCKET_ERROR_E);
 
     return ret;
 }
@@ -1236,13 +1272,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
             ret = 0;
             break;
 
-        case WS_SFTP_COMPLETE:
         #ifdef WOLFSSH_SFTP
+        case WS_SFTP_COMPLETE:
             ret = sftp_worker(threadCtx);
-        #else
-            err_sys("SFTP not compiled in. Please use --enable-sftp");
-        #endif
             break;
+        #endif
 
         case WS_SUCCESS:
             ret = ssh_worker(threadCtx);
@@ -1272,8 +1306,43 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
     }
 
     if (error != WS_SOCKET_ERROR_E && error != WS_FATAL_ERROR) {
-        if (wolfSSH_shutdown(threadCtx->ssh) != WS_SUCCESS) {
-            fprintf(stderr, "Error with SSH shutdown.\n");
+        ret = wolfSSH_shutdown(threadCtx->ssh);
+
+        /* peer hung up, stop shutdown */
+        if (ret == WS_SOCKET_ERROR_E) {
+            ret = 0;
+        }
+
+        error = wolfSSH_get_error(threadCtx->ssh);
+        if (error != WS_SOCKET_ERROR_E &&
+                (error == WS_WANT_READ || error == WS_WANT_WRITE)) {
+            int maxAttempt = 10; /* make 10 attempts max before giving up */
+            int attempt;
+
+            for (attempt = 0; attempt < maxAttempt; attempt++) {
+                ret = wolfSSH_worker(threadCtx->ssh, NULL);
+                error = wolfSSH_get_error(threadCtx->ssh);
+
+                /* peer succesfully closed down gracefully */
+                if (ret == WS_CHANNEL_CLOSED) {
+                    ret = 0;
+                    break;
+                }
+
+                /* peer hung up, stop shutdown */
+                if (ret == WS_SOCKET_ERROR_E) {
+                    ret = 0;
+                    break;
+                }
+
+                if (error != WS_WANT_READ && error != WS_WANT_WRITE) {
+                    break;
+                }
+            }
+
+            if (attempt == maxAttempt) {
+                printf("Gave up on gracefull shutdown, closing the socket\n");
+            }
         }
     }
 
@@ -1380,6 +1449,39 @@ static int load_key(byte isEcc, byte* buf, word32 bufSz)
 }
 
 
+typedef struct StrList {
+    const char* str;
+    struct StrList* next;
+} StrList;
+
+
+static StrList* StrListAdd(StrList* list, const char* str)
+{
+    if (str != NULL) {
+        StrList* newStr = (StrList*)WMALLOC(sizeof *newStr, NULL, 0);
+
+        if (newStr != NULL) {
+            newStr->str = str;
+            newStr->next = list;
+            list = newStr;
+        }
+    }
+
+    return list;
+}
+
+static void StrListFree(StrList* list)
+{
+    StrList* curStr;
+
+    while (list != NULL) {
+        curStr = list;
+        list = list->next;
+        WFREE(curStr, NULL, 0);
+    }
+}
+
+
 /* Map user names to passwords */
 /* Use arrays for username and p. The password or public key can
  * be hashed and the hash stored here. Then I won't need the type. */
@@ -1443,6 +1545,7 @@ static const char samplePasswordBuffer[] =
     "jack:fetchapail\n";
 
 
+#ifndef NO_FILESYSTEM
 #ifndef WOLFSSH_NO_ECC
 #ifndef WOLFSSH_NO_ECDSA_SHA2_NISTP256
 static const char samplePublicKeyEccBuffer[] =
@@ -1482,6 +1585,10 @@ static const char samplePublicKeyRsaBuffer[] =
     "biE57dK6BrH5iZwVLTQKux31uCJLPhiktI3iLbdlGZEctJkTasfVSsUizwVIyRjhVKmbdI"
     "RGwkU38D043AR1h0mUoGCPIKuqcFMf gretel\n";
 #endif
+#endif /* NO_FILESYSTEM */
+
+
+#ifdef WOLFSSH_ALLOW_USERAUTH_NONE
 
 static const char sampleNoneBuffer[] =
     "holmes\n"
@@ -1522,6 +1629,7 @@ static int LoadNoneBuffer(byte* buf, word32 bufSz, PwMapList* list)
     return 0;
 }
 
+#endif /* WOLFSSH_ALLOW_USERAUTH_NONE */
 
 static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list)
 {
@@ -1649,6 +1757,116 @@ static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list)
 }
 
 
+static int LoadPasswdList(StrList* strList, PwMapList* mapList)
+{
+    char names[256];
+    char* passwd;
+    int count = 0;
+
+    while (strList) {
+        WSTRNCPY(names, strList->str, sizeof names - 1);
+        passwd = WSTRCHR(names, ':');
+        if (passwd != NULL) {
+            *passwd = 0;
+            passwd++;
+
+            PwMapNew(mapList, WOLFSSH_USERAUTH_PASSWORD,
+                    (byte*)names, (word32)WSTRLEN(names),
+                    (byte*)passwd, (word32)WSTRLEN(passwd));
+        }
+        else {
+            fprintf(stderr, "Ignoring password: %s\n", names);
+        }
+
+        strList = strList->next;
+        count++;
+    }
+
+    return count;
+}
+
+
+static int LoadPubKeyList(StrList* strList, int format, PwMapList* mapList)
+{
+    char names[256];
+    char* fileName;
+    byte* buf;
+    word32 bufSz;
+    int count = 0;
+
+    while (strList) {
+        buf = NULL;
+        bufSz = 0;
+
+        WSTRNCPY(names, strList->str, sizeof names - 1);
+        fileName = WSTRCHR(names, ':');
+        if (fileName != NULL) {
+            *fileName = 0;
+            fileName++;
+
+            load_file(fileName, NULL, &bufSz);
+            buf = (byte*)WMALLOC(bufSz, NULL, 0);
+            bufSz = load_file(fileName, buf, &bufSz);
+            if (bufSz > 0) {
+                if (format == WOLFSSH_FORMAT_SSH) {
+                    const byte* type = NULL;
+                    byte* out = NULL;
+                    word32 typeSz, outSz;
+
+                    wolfSSH_ReadKey_buffer(buf, bufSz, WOLFSSH_FORMAT_SSH,
+                            &out, &outSz, &type, &typeSz, NULL);
+
+                    (void)type;
+                    (void)typeSz;
+
+                    WFREE(buf, NULL, 0);
+                    buf = out;
+                    bufSz = outSz;
+                }
+                else if (format == WOLFSSH_FORMAT_PEM) {
+                    byte* out = NULL;
+                    word32 outSz;
+
+                    out = (byte*)WMALLOC(bufSz, NULL, 0);
+                    outSz = wc_CertPemToDer(buf, bufSz, out, bufSz, CERT_TYPE);
+
+                    WFREE(buf, NULL, 0);
+                    buf = out;
+                    bufSz = outSz;
+                }
+
+                PwMapNew(mapList, WOLFSSH_USERAUTH_PUBLICKEY,
+                        (byte*)names, (word32)WSTRLEN(names), buf, bufSz);
+            }
+            else {
+                fprintf(stderr, "File error: %s\n", names);
+            }
+        }
+        else {
+            fprintf(stderr, "Ignoring key: %s\n", names);
+        }
+
+        WFREE(buf, NULL, 0);
+        strList = strList->next;
+        count++;
+    }
+
+    return count;
+}
+
+
+static int wsUserAuthResult(byte res,
+                      WS_UserAuthData* authData,
+                      void* ctx)
+{
+    printf("In auth result callback, auth = %s\n",
+        (res == WOLFSSH_USERAUTH_SUCCESS) ? "Success" : "Failure");
+    (void)authData;
+    (void)ctx;
+    return WS_SUCCESS;
+}
+
+
 static int wsUserAuth(byte authType,
                       WS_UserAuthData* authData,
                       void* ctx)
@@ -1656,7 +1874,6 @@ static int wsUserAuth(byte authType,
     PwMapList* list;
     PwMap* map;
     byte authHash[WC_SHA256_DIGEST_SIZE];
-    int ret;
 
     if (ctx == NULL) {
         fprintf(stderr, "wsUserAuth: ctx not set");
@@ -1681,6 +1898,73 @@ static int wsUserAuth(byte authType,
         wc_Sha256Hash(authData->sf.publicKey.publicKey,
                 authData->sf.publicKey.publicKeySz,
                 authHash);
+    #if defined(WOLFSSH_CERTS) && !defined(WOLFSSH_NO_FPKI) && \
+        defined(WOLFSSL_FPKI)
+        /* Display FPKI info UUID and FASC-N, getter function for FASC-N and
+         * UUID are dependent on wolfSSL version newer than 5.3.0 so gatting
+         * on the macro WOLFSSL_FPKI here too */
+        if (authData->sf.publicKey.isCert) {
+            DecodedCert cert;
+            byte* uuid = NULL;
+            word32 fascnSz;
+            word32 uuidSz;
+            word32 i;
+            int ret;
+
+            printf("Peer connected with FPKI certificate\n");
+            wc_InitDecodedCert(&cert, authData->sf.publicKey.publicKey,
+                authData->sf.publicKey.publicKeySz, NULL);
+            ret = wc_ParseCert(&cert, CERT_TYPE, 0, NULL);
+
+            /* some profiles supported due not require FASC-N */
+            if (ret == 0 &&
+                wc_GetFASCNFromCert(&cert, NULL, &fascnSz) == LENGTH_ONLY_E) {
+                byte* fascn;
+
+                fascn = (byte*)WMALLOC(fascnSz, NULL, 0);
+                if (fascn != NULL &&
+                        wc_GetFASCNFromCert(&cert, fascn, &fascnSz) == 0) {
+                    printf("HEX of FASC-N :");
+                    for (i = 0; i < fascnSz; i++)
+                        printf("%02X", fascn[i]);
+                    printf("\n");
+                }
+                if (fascn != NULL)
+                    WFREE(fascn, NULL, 0);
+            }
+
+            /* all profiles supported must have a UUID */
+            if (ret == 0) {
+                ret = wc_GetUUIDFromCert(&cert, NULL, &uuidSz);
+                if (ret == LENGTH_ONLY_E) { /* expected error value */
+                    ret = 0;
+                }
+
+                if (ret == 0 ) {
+                    uuid = (byte*)WMALLOC(uuidSz, NULL, 0);
+                    if (uuid == NULL) {
+                        ret = WS_MEMORY_E;
+                    }
+                }
+
+                if (ret == 0) {
+                    ret = wc_GetUUIDFromCert(&cert, uuid, &uuidSz);
+                    printf("UUID string : ");
+                    for (i = 0; i < uuidSz; i++)
+                        printf("%c", uuid[i]);
+                    printf("\n");
+                }
+
+                if (uuid != NULL)
+                    WFREE(uuid, NULL, 0);
+            }
+
+            /* failed to at least get UUID string */
+            if (ret != 0) {
+                return WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
+            }
+        }
+    #endif /* WOLFSSH_CERTS && !WOLFSSH_NO_FPKI */
     }
 
     list = (PwMapList*)ctx;
@@ -1710,34 +1994,13 @@ static int wsUserAuth(byte authType,
                         WOLFSSH_USERAUTH_REJECTED;
                  }
             }
-#ifdef WOLFSSH_ALLOW_USERAUTH_NONE
+            #ifdef WOLFSSH_ALLOW_USERAUTH_NONE
             else if (authData->type == WOLFSSH_USERAUTH_NONE) {
                 return WOLFSSH_USERAUTH_SUCCESS;
             }
-#endif /* WOLFSSH_ALLOW_USERAUTH_NONE */
+            #endif /* WOLFSSH_ALLOW_USERAUTH_NONE */
             else {
                  return WOLFSSH_USERAUTH_INVALID_AUTHTYPE;
-            }
-
-            if (authData->type == map->type) {
-                if (WMEMCMP(map->p, authHash, WC_SHA256_DIGEST_SIZE) == 0) {
-                    return WOLFSSH_USERAUTH_SUCCESS;
-                }
-                else {
-                    if (authType == WOLFSSH_USERAUTH_PASSWORD) {
-                        passwdRetry--;
-                        ret = (passwdRetry > 0) ?
-                            WOLFSSH_USERAUTH_INVALID_PASSWORD :
-                            WOLFSSH_USERAUTH_REJECTED;
-                    }
-                    else {
-                        ret = WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
-                    }
-                    return ret;
-                }
-            }
-            else {
-                return WOLFSSH_USERAUTH_INVALID_AUTHTYPE;
             }
         }
         map = map->next;
@@ -1747,13 +2010,64 @@ static int wsUserAuth(byte authType,
 }
 
 
+#ifdef WOLFSSH_SFTP
+/*
+ * Sets the WOLFSSH object's default SFTP path to the value provided by
+ * defaultSftpPath, or uses the current working directory from where the
+ * echoserver is run. The new default path is cleaned up with the real
+ * path function.
+ *
+ * @param ssh             WOLFSSH object to update
+ * @param defaultSftpPath command line provided default SFTP path
+ * @return                0 for success or error code
+ */
+static int SetDefaultSftpPath(WOLFSSH* ssh, const char* defaultSftpPath)
+{
+    char path[WOLFSSH_MAX_FILENAME];
+    char realPath[WOLFSSH_MAX_FILENAME];
+    int ret = 0;
+
+    if (defaultSftpPath == NULL) {
+    #ifdef USE_WINDOWS_API
+        if (GetCurrentDirectoryA(sizeof(path)-1, path) == 0) {
+            ret = WS_INVALID_PATH_E;
+        }
+    #else
+        if (getcwd(path, sizeof(path)-1) == NULL) {
+            ret = WS_INVALID_PATH_E;
+        }
+    #endif
+    }
+    else {
+        if (WSTRLEN(defaultSftpPath) >= sizeof(path)) {
+            ret = WS_INVALID_PATH_E;
+        }
+        else {
+            WSTRNCPY(path, defaultSftpPath, sizeof(path));
+        }
+    }
+
+    if (ret == 0) {
+        path[sizeof(path) - 1] = 0;
+        ret = wolfSSH_RealPath(NULL, path, realPath, sizeof(realPath));
+    }
+
+    if (ret == WS_SUCCESS) {
+        ret = wolfSSH_SFTP_SetDefaultPath(ssh, realPath);
+    }
+
+    return ret;
+}
+#endif
+
+
 static void ShowUsage(void)
 {
     printf("echoserver %s\n", LIBWOLFSSH_VERSION_STRING);
     printf(" -?            display this help and exit\n");
     printf(" -1            exit after single (one) connection\n");
     printf(" -e            expect ECC public key from client\n");
-    printf(" -E            use ECC private key\n");
+    printf(" -E            load ECC private key first\n");
 #ifdef WOLFSSH_SHELL
     printf(" -f            echo input\n");
 #endif
@@ -1762,19 +2076,34 @@ static void ShowUsage(void)
 #ifdef WOLFSSH_SFTP
     printf(" -d <string>   set the home directory for SFTP connections\n");
 #endif
-    printf(" -j <file>     load in a public key to accept from peer\n");
+    printf(" -j <file>     load in a SSH public key to accept from peer\n"
+           "               (user assumed in comment)\n");
+    printf(" -I <name>:<file>\n"
+           "               load in a SSH public key to accept from peer\n");
+    printf(" -J <name>:<file>\n"
+           "               load in an X.509 PEM cert to accept from peer\n");
+    printf(" -K <name>:<file>\n"
+           "               load in an X.509 DER cert to accept from peer\n");
+    printf(" -P <name>:<password>\n"
+           "               add password to accept from peer\n");
+#ifdef WOLFSSH_CERTS
+    printf(" -a <file>     load in a root CA certificate file\n");
+#endif
 }
 
 
-static void SignalTcpReady(func_args* serverArgs, word16 port)
+static INLINE void SignalTcpReady(func_args* serverArgs, word16 port)
 {
-#if defined(_POSIX_THREADS) && defined(NO_MAIN_DRIVER) && !defined(__MINGW32__)
+#if defined(_POSIX_THREADS) && defined(NO_MAIN_DRIVER) && \
+    !defined(__MINGW32__) && !defined(SINGLE_THREADED)
     tcp_ready* ready = serverArgs->signal;
-    pthread_mutex_lock(&ready->mutex);
-    ready->ready = 1;
-    ready->port = port;
-    pthread_cond_signal(&ready->cond);
-    pthread_mutex_unlock(&ready->mutex);
+    if (ready != NULL) {
+        pthread_mutex_lock(&ready->mutex);
+        ready->ready = 1;
+        ready->port = port;
+        pthread_cond_signal(&ready->cond);
+        pthread_mutex_unlock(&ready->mutex);
+    }
 #else
     (void)serverArgs;
     (void)port;
@@ -1787,6 +2116,10 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     func_args* serverArgs = (func_args*)args;
     WOLFSSH_CTX* ctx = NULL;
     PwMapList pwMapList;
+    StrList* sshPubKeyList = NULL;
+    StrList* pemPubKeyList = NULL;
+    StrList* derPubKeyList = NULL;
+    StrList* passwdList = NULL;
     WS_SOCKET_T listenFd = 0;
     word32 defaultHighwater = EXAMPLE_HIGHWATER_MARK;
     word32 threadCount = 0;
@@ -1800,65 +2133,103 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     const char* defaultSftpPath = NULL;
     char  nonBlock  = 0;
     char* userPubKey = NULL;
+    #ifdef WOLFSSH_CERTS
+        char* caCert = NULL;
+    #endif
 
     int     argc = serverArgs->argc;
     char**  argv = serverArgs->argv;
-    serverArgs->return_code = 0;
+    serverArgs->return_code = EXIT_SUCCESS;
 
     if (argc > 0) {
-    while ((ch = mygetopt(argc, argv, "?1d:efEp:R:Nj:")) != -1) {
-        switch (ch) {
-            case '?' :
-                ShowUsage();
-                WEXIT(EXIT_SUCCESS);
+        const char* optlist = "?1a:d:efEp:R:Ni:j:I:J:K:P:";
+        myoptind = 0;
+        while ((ch = mygetopt(argc, argv, optlist)) != -1) {
+            switch (ch) {
+                case '?' :
+                    ShowUsage();
+                    serverArgs->return_code = MY_EX_USAGE;
+                    return 0;
 
-            case '1':
-                multipleConnections = 0;
-                break;
+                case '1':
+                    multipleConnections = 0;
+                    break;
 
-            case 'e' :
-                userEcc = 1;
-                break;
+                case 'a':
+                    #ifdef WOLFSSH_CERTS
+                        caCert = myoptarg;
+                    #endif
+                    break;
+                case 'e' :
+                    userEcc = 1;
+                    break;
 
-            case 'E':
-                peerEcc = 1;
-                break;
+                case 'E':
+                    peerEcc = 1;
+                    break;
 
-            case 'f':
-                #ifdef WOLFSSH_SHELL
-                    echo = 1;
-                #endif
-                break;
+                case 'f':
+                    #ifdef WOLFSSH_SHELL
+                        echo = 1;
+                    #endif
+                    break;
 
-            case 'p':
-                port = (word16)atoi(myoptarg);
-                #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
-                    if (port == 0)
-                        err_sys("port number cannot be 0");
-                #endif
-                break;
+                case 'p':
+                    if (myoptarg == NULL) {
+                        err_sys("NULL port value");
+                        serverArgs->return_code = EXIT_FAILURE;
+                        return 0;
+                    }
+                    else {
+                        port = (word16)atoi(myoptarg);
+                        #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
+                            if (port == 0) {
+                                err_sys("port number cannot be 0");
+                                serverArgs->return_code = EXIT_FAILURE;
+                                return 0;
+                            }
+                        #endif
+                    }
+                    break;
 
-            case 'R':
-                readyFile = myoptarg;
-                break;
+                case 'R':
+                    readyFile = myoptarg;
+                    break;
 
-            case 'N':
-                nonBlock = 1;
-                break;
+                case 'N':
+                    nonBlock = 1;
+                    break;
 
-            case 'd':
-                defaultSftpPath = myoptarg;
-                break;
+                case 'd':
+                    defaultSftpPath = myoptarg;
+                    break;
 
-            case 'j':
-                userPubKey = myoptarg;
-                break;
+                case 'j':
+                    userPubKey = myoptarg;
+                    break;
 
-            default:
-                ShowUsage();
-                WEXIT(MY_EX_USAGE);
+                case 'I':
+                    sshPubKeyList = StrListAdd(sshPubKeyList, myoptarg);
+                    break;
+
+                case 'J':
+                    pemPubKeyList = StrListAdd(pemPubKeyList, myoptarg);
+                    break;
+
+                case 'K':
+                    derPubKeyList = StrListAdd(derPubKeyList, myoptarg);
+                    break;
+
+                case 'P':
+                    passwdList = StrListAdd(passwdList, myoptarg);
+                    break;
+
+                default:
+                    ShowUsage();
+                    serverArgs->return_code = MY_EX_USAGE;
+                    return 0;
+            }
         }
-    }
     }
     myoptind = 0;      /* reset for test cases */
     wc_InitMutex(&doneLock);
@@ -1866,6 +2237,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
 #ifdef WOLFSSH_TEST_BLOCK
     if (!nonBlock) {
         err_sys("Use -N when testing forced non blocking");
+        serverArgs->return_code = EXIT_FAILURE;
+        return 0;
     }
 #endif
 
@@ -1879,16 +2252,19 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     userEcc = 0;
     peerEcc = 0;
 #endif
+    (void)userEcc;
 
     if (wolfSSH_Init() != WS_SUCCESS) {
         fprintf(stderr, "Couldn't initialize wolfSSH.\n");
-        WEXIT(EXIT_FAILURE);
+        serverArgs->return_code = EXIT_FAILURE;
+        return 0;
     }
 
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_SERVER, NULL);
     if (ctx == NULL) {
         fprintf(stderr, "Couldn't allocate SSH CTX data.\n");
-        WEXIT(EXIT_FAILURE);
+        serverArgs->return_code = EXIT_FAILURE;
+        return 0;
     }
 
     WMEMSET(&pwMapList, 0, sizeof(pwMapList));
@@ -1896,6 +2272,7 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         wolfSSH_SetUserAuth(ctx, wsUserAuth);
     else
         wolfSSH_SetUserAuth(ctx, ((func_args*)args)->user_auth);
+    wolfSSH_SetUserAuthResult(ctx, wsUserAuthResult);
     wolfSSH_CTX_SetBanner(ctx, echoserverBanner);
 #ifdef WOLFSSH_AGENT
     wolfSSH_CTX_set_agent_cb(ctx, wolfSSH_AGENT_DefaultActions, NULL);
@@ -1904,11 +2281,32 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     wolfSSH_CTX_SetFwdCb(ctx, wolfSSH_FwdDefaultActions, NULL);
 #endif
 
+    if (sshPubKeyList) {
+        LoadPubKeyList(sshPubKeyList, WOLFSSH_FORMAT_SSH, &pwMapList);
+        StrListFree(sshPubKeyList);
+        sshPubKeyList = NULL;
+    }
+    if (pemPubKeyList) {
+        LoadPubKeyList(pemPubKeyList, WOLFSSH_FORMAT_PEM, &pwMapList);
+        StrListFree(pemPubKeyList);
+        pemPubKeyList = NULL;
+    }
+    if (derPubKeyList) {
+        LoadPubKeyList(derPubKeyList, WOLFSSH_FORMAT_ASN1, &pwMapList);
+        StrListFree(derPubKeyList);
+        derPubKeyList = NULL;
+    }
+    if (passwdList) {
+        LoadPasswdList(passwdList, &pwMapList);
+        StrListFree(passwdList);
+        passwdList = NULL;
+    }
+
     {
         const char* bufName = NULL;
-        #ifndef WOLFSSH_SMALL_STACK
-            byte buf[EXAMPLE_KEYLOAD_BUFFER_SZ];
-        #endif
+    #ifndef WOLFSSH_SMALL_STACK
+        byte buf[EXAMPLE_KEYLOAD_BUFFER_SZ];
+    #endif
         byte* keyLoadBuf;
         word32 bufSz;
 
@@ -1916,7 +2314,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
             keyLoadBuf = (byte*)WMALLOC(EXAMPLE_KEYLOAD_BUFFER_SZ,
                     NULL, 0);
             if (keyLoadBuf == NULL) {
-                WEXIT(EXIT_FAILURE);
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
             }
         #else
             keyLoadBuf = buf;
@@ -1925,14 +2324,34 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
 
         bufSz = load_key(peerEcc, keyLoadBuf, bufSz);
         if (bufSz == 0) {
-            fprintf(stderr, "Couldn't load key file.\n");
-            WEXIT(EXIT_FAILURE);
+            fprintf(stderr, "Couldn't load first key file.\n");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
         if (wolfSSH_CTX_UsePrivateKey_buffer(ctx, keyLoadBuf, bufSz,
                                              WOLFSSH_FORMAT_ASN1) < 0) {
-            fprintf(stderr, "Couldn't use key buffer.\n");
-            WEXIT(EXIT_FAILURE);
+            fprintf(stderr, "Couldn't use first key buffer.\n");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
+
+        #if !defined(WOLFSSH_NO_RSA) && !defined(WOLFSSH_NO_ECC)
+        peerEcc = !peerEcc;
+        bufSz = EXAMPLE_KEYLOAD_BUFFER_SZ;
+
+        bufSz = load_key(peerEcc, keyLoadBuf, bufSz);
+        if (bufSz == 0) {
+            fprintf(stderr, "Couldn't load second key file.\n");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
+        }
+        if (wolfSSH_CTX_UsePrivateKey_buffer(ctx, keyLoadBuf, bufSz,
+                                             WOLFSSH_FORMAT_ASN1) < 0) {
+            fprintf(stderr, "Couldn't use second key buffer.\n");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
+        }
+        #endif
 
         if (userPubKey) {
             byte* userBuf = NULL;
@@ -1944,17 +2363,53 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
             /* create temp buffer and load in file */
             if (userBufSz == 0) {
                 fprintf(stderr, "Couldn't find size of file %s.\n", userPubKey);
-                WEXIT(EXIT_FAILURE);
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
             }
 
             userBuf = (byte*)WMALLOC(userBufSz, NULL, 0);
             if (userBuf == NULL) {
                 fprintf(stderr, "WMALLOC failed\n");
-                WEXIT(EXIT_FAILURE);
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
             }
             load_file(userPubKey, userBuf, &userBufSz);
             LoadPublicKeyBuffer(userBuf, userBufSz, &pwMapList);
+            WFREE(userBuf, NULL, 0);
         }
+
+        #ifdef WOLFSSH_CERTS
+        if (caCert) {
+            byte* certBuf = NULL;
+            word32 certBufSz = 0;
+            int ret = 0;
+
+            load_file(caCert, NULL, &certBufSz);
+
+            if (certBufSz == 0) {
+                fprintf(stderr,
+                        "Couldn't find size of file %s.\n", caCert);
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
+            }
+
+            certBuf = (byte*)WMALLOC(certBufSz, NULL, 0);
+            if (certBuf == NULL) {
+                fprintf(stderr, "WMALLOC failed\n");
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
+            }
+            load_file(caCert, certBuf, &certBufSz);
+            ret = wolfSSH_CTX_AddRootCert_buffer(ctx, certBuf, certBufSz,
+                    WOLFSSH_FORMAT_PEM);
+            if (ret != 0) {
+                fprintf(stderr, "Couldn't add root cert\n");
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
+            }
+            WFREE(certBuf, NULL, 0);
+        }
+        #endif
 
         bufSz = (word32)WSTRLEN(samplePasswordBuffer);
         WMEMCPY(keyLoadBuf, samplePasswordBuffer, bufSz);
@@ -1978,10 +2433,12 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
             LoadPublicKeyBuffer(keyLoadBuf, bufSz, &pwMapList);
         }
 
-        bufSz = (word32)WSTRLEN(sampleNoneBuffer);
-        WMEMCPY(keyLoadBuf, sampleNoneBuffer, bufSz);
-        keyLoadBuf[bufSz] = 0;
-        LoadNoneBuffer(keyLoadBuf, bufSz, &pwMapList);
+        #ifdef WOLFSSH_ALLOW_USERAUTH_NONE
+            bufSz = (word32)WSTRLEN(sampleNoneBuffer);
+            WMEMCPY(keyLoadBuf, sampleNoneBuffer, bufSz);
+            keyLoadBuf[bufSz] = 0;
+            LoadNoneBuffer(keyLoadBuf, bufSz, &pwMapList);
+        #endif /* WOLFSSH_ALLOW_USERAUTH_NONE */
 
         #ifdef WOLFSSH_SMALL_STACK
             WFREE(keyLoadBuf, NULL, 0);
@@ -1995,7 +2452,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         /* wait for network and storage device */
         if (NETBOOT_Wait_For_Network_Up(NU_SUSPEND) != NU_SUCCESS) {
             fprintf(stderr, "Couldn't find network.\r\n");
-            WEXIT(EXIT_FAILURE);
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
 
         for(i = 0; i < 15 && ret != NU_SUCCESS; i++)
@@ -2007,7 +2465,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
 
         if (ret != NU_SUCCESS) {
             fprintf(stderr, "Couldn't find storage device.\r\n");
-            WEXIT(EXIT_FAILURE);
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
     }
 #endif
@@ -2016,9 +2475,11 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     if (readyFile != NULL) {
     #ifdef NO_FILESYSTEM
         fprintf(stderr, "cannot create readyFile with no file system.\r\n");
-        WEXIT(EXIT_FAILURE);
-    #endif
+        serverArgs->return_code = EXIT_FAILURE;
+        return 0;
+    #else
         port = 0;
+    #endif
     }
     tcp_listen(&listenFd, &port, 1);
     /* write out port number listing to, to user set ready file */
@@ -2049,7 +2510,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
                 NULL, 0);
         if (threadCtx == NULL) {
             fprintf(stderr, "Couldn't allocate thread context data.\n");
-            WEXIT(EXIT_FAILURE);
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
         WMEMSET(threadCtx, 0, sizeof *threadCtx);
 
@@ -2057,7 +2519,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         if (ssh == NULL) {
             WFREE(threadCtx, NULL, 0);
             fprintf(stderr, "Couldn't allocate SSH data.\n");
-            WEXIT(EXIT_FAILURE);
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
         wolfSSH_SetUserAuthCtx(ssh, &pwMapList);
         /* Use the session object for its own highwater callback ctx */
@@ -2067,12 +2530,10 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         }
 
     #ifdef WOLFSSH_SFTP
-        if (defaultSftpPath) {
-            if (wolfSSH_SFTP_SetDefaultPath(ssh, defaultSftpPath)
-                    != WS_SUCCESS) {
-                fprintf(stderr, "Couldn't store default sftp path.\n");
-                WEXIT(EXIT_FAILURE);
-            }
+        if (SetDefaultSftpPath(ssh, defaultSftpPath) != 0) {
+            fprintf(stderr, "Couldn't store default sftp path.\n");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
         }
     #endif
 
@@ -2089,7 +2550,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
              * 0.0.0.0 if ip adder any */
             if (NU_Get_Sock_Name(listenFd, &sock, &addrLength) != NU_SUCCESS) {
                 fprintf(stderr, "Couldn't find network.\r\n");
-                WEXIT(EXIT_FAILURE);
+                serverArgs->return_code = EXIT_FAILURE;
+                return 0;
             }
 
             WMEMCPY(ipaddr, &sock.ip_num, MAX_ADDRESS_SIZE);
@@ -2106,8 +2568,11 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         clientFd = accept(listenFd, (struct sockaddr*)&clientAddr,
                                                          &clientAddrSz);
     #endif
-        if (clientFd == -1)
+        if (clientFd == -1) {
             err_sys("tcp accept failed");
+            serverArgs->return_code = EXIT_FAILURE;
+            return 0;
+        }
 
         if (nonBlock)
             tcp_set_nonblocking(&clientFd);
@@ -2135,12 +2600,16 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
 
     } while (multipleConnections && !quit);
 
+    if (listenFd != 0) {
+        WCLOSESOCKET(listenFd);
+    }
     wc_FreeMutex(&doneLock);
     PwMapListDelete(&pwMapList);
     wolfSSH_CTX_free(ctx);
     if (wolfSSH_Cleanup() != WS_SUCCESS) {
         fprintf(stderr, "Couldn't clean up wolfSSH.\n");
-        WEXIT(EXIT_FAILURE);
+        serverArgs->return_code = EXIT_FAILURE;
+        return 0;
     }
 #if !defined(WOLFSSH_NO_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free();  /* free per thread cache */
@@ -2153,37 +2622,44 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
 #endif /* NO_WOLFSSH_SERVER */
 
 
+void wolfSSL_Debugging_ON(void);
+
+int wolfSSH_Echoserver(int argc, char** argv)
+{
+    func_args args;
+
+    WMEMSET(&args, 0, sizeof(args));
+    args.argc = argc;
+    args.argv = argv;
+
+    WSTARTTCP();
+
+    #ifdef DEBUG_WOLFSSH
+        wolfSSL_Debugging_ON();
+        wolfSSH_Debugging_ON();
+    #endif
+
+#if !defined(WOLFSSL_NUCLEUS) && !defined(INTEGRITY) && !defined(__INTEGRITY)
+    ChangeToWolfSshRoot();
+#endif
+#ifndef NO_WOLFSSH_SERVER
+    echoserver_test(&args);
+#else
+    printf("wolfSSH compiled without server support\n");
+#endif
+
+    wolfSSH_Cleanup();
+
+    return args.return_code;
+}
+
+
 #ifndef NO_MAIN_DRIVER
 
     int main(int argc, char** argv)
     {
-        func_args args;
-
-        args.argc = argc;
-        args.argv = argv;
-        args.return_code = 0;
-        args.user_auth = NULL;
-
-        WSTARTTCP();
-
-        #ifdef DEBUG_WOLFSSH
-            wolfSSH_Debugging_ON();
-        #endif
-
-#ifndef WOLFSSL_NUCLEUS
-        ChangeToWolfSshRoot();
-#endif
-#ifndef NO_WOLFSSH_SERVER
-        echoserver_test(&args);
-#else
-        printf("wolfSSH compiled without server support\n");
-#endif
-
-        wolfSSH_Cleanup();
-
-        return args.return_code;
+        return wolfSSH_Echoserver(argc, argv);
     }
-
 
     int myoptind = 0;
     char* myoptarg = NULL;

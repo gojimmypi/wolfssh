@@ -1,5 +1,83 @@
+# wolfSSH v1.4.13 (Apr 3, 2023)
+
+## New Feature Additions and Improvements
+
+- Improvement to forking the wolfSSHd daemon.
+- Added an STM32Cube Expansion pack. See the file _ide/STM32CUBE/README.md_
+  for more information. (https://www.wolfssl.com/files/ide/I-CUBE-wolfSSH.pack)
+- Improved test coverage for wolfSSHd.
+- X.509 style private key support.
+
+## Fixes
+
+- Fixed shadow password checking in wolfSSHd.
+- Building cleanups: warnings, types, 32-bit.
+- SFTP fixes for large files.
+- Testing and fixes with SFTP and LwIP.
+
+## Vulnerabilities
+
+- wolfSSHd would allow users without passwords to log in with any password.
+  This is fixed as of this version. The return value of crypt() was not
+  correctly checked. This issue was introduced in v1.4.11 and only affects
+  wolfSSHd when using the default authentication callback provided with
+  wolfSSHd. Anyone using wolfSSHd should upgrade to v1.4.13.
+
+---
+
+# wolfSSH v1.4.12 (Dec 28, 2022)
+
+## New Feature Additions and Improvements
+- Support for Green Hills Software's INTEGRITY
+- wolfSSHd Release (https://github.com/wolfSSL/wolfssh/pull/453 rounds off testing and additions)
+- Support for RFC 6187, using X.509 Certificates as public keys
+- OCSP and CRL checking for X.509 Certificates (uses wolfSSL CertManager)
+- Add callback to the server for reporting userauth result
+- FPKI profile checking support
+- chroot jailing for SFTP in wolfSSHd
+- Permission level changes in wolfSSHd
+- Add Hybrid ECDH-P256 Kyber-Level1
+- Multiple server keys
+- Makefile updates
+- Remove dependency on wolfSSL being built with public math enabled
+
+## Fixes
+- Fixes for compiler complaints using GHS compiler
+- Fixes for compiler complaints using GCC 4.0.2
+- Fixes for the directory path cleanup function for SFTP
+- Fixes for SFTP directory listing when on Windows
+- Fixes for large file transfers with SFTP
+- Fixes for port forwarding
+- Fix for building with QNX
+- Fix for the wolfSSHd grace time alarm
+- Fixes for Yocto builds
+- Fixes for issues found with fuzzing
+
+## Vulnerabilities
+- The vulnerability fixed in wolfSSH v1.4.8 finally issued CVE-2022-32073
+
+---
+
+# wolfSSH v1.4.11 (Aug 22, 2022)
+
+## New Feature Additions and Improvements
+- Alpha version of SSHD implementation (--enable-sshd)
+- ECDSA key generation wrapper
+- Espressif port and component install
+- Improvements to detection of ECC RNG requirement
+
+## Fixes
+- Handle receiving extended data type with SCP connections
+- Multiple non blocking fixes in SSH and SFTP use cases
+- Fix for handling '.' character in file name with SFTP
+- Windows build fix for SFTP with log timestamps enabled
+- Fix to handle listing large directories with SFTP LS function
+- Fix for checking path length when cleaning it (SFTP/SCP)
+
+---
+
 # wolfSSH v1.4.10 (May 13, 2022)
- 
+
 ## New Feature Additions and Improvements
 - Additional small stack optimizations to reduce stack used farther
 - Update to Visual Studio paths for looking for wolfSSL library
@@ -7,7 +85,6 @@
 - Add support for flushing file IO using WOLFSCP_FLUSH
 - Add preprocessor guards for RSA/ECC to agent and the example and test applications
 - Initialization of variables to avoid warnings and use with ESP-IDF
-
 
 ## Fixes
 - When scp receives a string in STDERR, print it out, rather than treating it as an error
@@ -44,6 +121,8 @@
 
 ## Vulnerabilities
 - When processing SFTP messages, wolfSSH isn't checking data lengths against the size of the message and is potentially under-allocating, over-reading, and over-writing buffers. Thank you to Michael Randrianantenaina, an independent security researcher, for the report.
+
+---
 
 # wolfSSH v1.4.7 (July 23, 2021)
 
@@ -102,7 +181,6 @@
 - Use strncmp instead of memcmp for comparint session string type
 
 --------------------------------
-
 
 # wolfSSH v1.4.5 (August 31, 2020)
 
