@@ -20,7 +20,8 @@
  */
 /* ESP-IDF */
 #include <esp_log.h>
-#include "sdkconfig.h"
+#include "sdkconfig.h" /* auto-generated from sdkconfig / sdkconfig.defaults:
+                       ** typically found in build\[env]\Debug\config */
 
 /* wolfSSL */
 #include <wolfssl/wolfcrypt/settings.h>
@@ -36,12 +37,12 @@
 
 /* check BENCH_ARGV in sdkconfig to determine need to set WOLFSSL_BENCH_ARGV */
 #ifdef CONFIG_BENCH_ARGV
-#define WOLFSSL_BENCH_ARGV CONFIG_BENCH_ARGV
-#define WOLFSSL_BENCH_ARGV_MAX_ARGUMENTS 22 /* arbitrary number of max args */
+    #define WOLFSSL_BENCH_ARGV CONFIG_BENCH_ARGV
+    #define WOLFSSL_BENCH_ARGV_MAX_ARGUMENTS 22 /* arbitrary number of max args */
 #endif
 
 /*
-** the wolfssl component can be installed in either:
+** The wolfssl component can be installed in either:
 **
 **   - the ESP-IDF component directory
 **
@@ -49,7 +50,11 @@
 **
 **   - the local project component directory
 **
-** it is not recommended to install in both.
+** It is not recommended to install in both.
+**
+** For best results, use the "no install" configuration.
+**
+** See project [./components/wolfssl/CMakeFiles.txt]
 **
 */
 
@@ -179,7 +184,7 @@ int construct_argv()
 
     return (cnt);
 }
-#endif
+#endif /* WOLFSSL_BENCH_ARGV */
 
 /* entry point */
 void app_main(void)
