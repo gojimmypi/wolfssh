@@ -28,13 +28,15 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 set(CMAKE_CURRENT_SOURCE_DIR ".")
 set(COMPONENT_REQUIRES lwip)
-set(THIS_RELATIVE_PATH "../../../../../../../..")
 
 # set the root of wolfSSL:
 #   set(WOLFSSL_ROOT  "C:/some path/with/spaces")
 #   set(WOLFSSL_ROOT  "/mnt/c/some path/with/spaces")
 #   or use this logic to  assign value from Environment Variable,
 #   or  assume this is an example 7 subdirectories below:
+
+# set(WOLFSSL_ROOT "c:/workspace/wolfssl-gojimmypi")
+
 if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "wolfssl component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
@@ -45,64 +47,74 @@ if(CMAKE_BUILD_EARLY_EXPANSION)
 else()
     # not CMAKE_BUILD_EARLY_EXPANSION
     message(STATUS "wolfssl component:")
-    if( "$ENV{WOLFSSL_ROOT}" STREQUAL "" )
-        message(STATUS "Environment Variable WOLFSSL_ROOT not set.")
-        # We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
-        # The root of wolfSSL is 7 directories up from here:
-        message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
-        get_filename_component(THIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
-        message(STATUS "THIS_DIR = ${THIS_DIR}")
+    if ("${WOLFSSL_ROOT}" STREQUAL "")
+        # there's not a hard-coded WOLFSSL_ROOT value above, so let's see if we can find it.
+        if( "$ENV{WOLFSSL_ROOT}" STREQUAL "" )
+            message(STATUS "Environment Variable WOLFSSL_ROOT not set.")
 
-        message(STATUS "HOMEDRIVE = $ENV{HOMEDRIVE}")
-        message(STATUS "USERNAME = $ENV{USERNAME}")
-        if(  "$ENV{USER}" STREQUAL "" ) # the bash user
-            if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
-                message(STATUS "could not find USER or USERNAME")
+            message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
+            get_filename_component(THIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
+            message(STATUS "THIS_DIR = ${THIS_DIR}")
+
+            # find the user name to search for possible "wolfssl-username"
+            message(STATUS "USERNAME = $ENV{USERNAME}")
+            if(  "$ENV{USER}" STREQUAL "" ) # the bash user
+                if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
+                    message(STATUS "could not find USER or USERNAME")
+                else()
+                    # the bash user is not blank, so we'll use it.
+                    set(THIS_USER "$ENV{USERNAME}")
+                endif()
             else()
                 # the bash user is not blank, so we'll use it.
-                set(THIS_USER "$ENV{USERNAME}")
+               set(THIS_USER "$ENV{USER}")
             endif()
-        else()
-            # the bash user is not blank, so we'll use it.
-           set(THIS_USER "$ENV{USER}")
-        endif()
-        message(STATUS "THIS_USER = ${THIS_USER}")
+            message(STATUS "THIS_USER = ${THIS_USER}")
 
-        # This same makefile is used for both the wolfssl component, and other
-        # components that may depend on wolfssl, such as wolfssh. Therefore
-        # we need to determine if this makefile is in the wolfssl repo, or
-        # some other repo.
+            # This same makefile is used for both the wolfssl component, and other
+            # components that may depend on wolfssl, such as wolfssh. Therefore
+            # we need to determine if this makefile is in the wolfssl repo, or
+            # some other repo.
 
-        if(  "{THIS_USER}" STREQUAL "" )
-            message(STATUS "No username found!")
-            get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl" ABSOLUTE)
-        else() # we found an environment USER name
-            message(STATUS "Found THIS_USER = ${THIS_USER}")
-            get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl-${THIS_USER}" ABSOLUTE)
-            if( EXISTS "${WOLFSSL_ROOT}" )
-                message(STATUS "Found {WOLFSSL_ROOT}")
-            else()
-                message(STATUS "did not find wolfssl-${THIS_USER}")
+            # We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
+            # The root of wolfSSL is 7 directories up from here:
+
+            set(THIS_RELATIVE_PATH "../../../../../../../..")
+
+            if(  "{THIS_USER}" STREQUAL "" )
+                message(STATUS "No username found!")
                 get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl" ABSOLUTE)
+            else() # we found an environment USER name
+                message(STATUS "Found THIS_USER = ${THIS_USER}")
+                get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl-${THIS_USER}" ABSOLUTE)
                 if( EXISTS "${WOLFSSL_ROOT}" )
-                    message(STATUS "Found wolfssl")
+                    message(STATUS "Found {WOLFSSL_ROOT}")
                 else()
-                    message(STATUS "did not find wolfssl in ${WOLFSSL_ROOT}")
+                    message(STATUS "did not find wolfssl-${THIS_USER}")
+                    get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl" ABSOLUTE)
+                    if( EXISTS "${WOLFSSL_ROOT}" )
+                        message(STATUS "Found wolfssl")
+                    else()
+                        message(STATUS "did not find wolfssl in ${WOLFSSL_ROOT}")
+                    endif()
                 endif()
             endif()
-        endif()
 
-    else()
-        # there's an environment variable, so use it.
-        set(WOLFSSL_ROOT "$ENV{WOLFSSL_ROOT}")
-        if( EXISTS "${WOLFSSL_ROOT}" )
-            get_filename_component(WOLFSSL_ROOT  "$ENV{WOLFSSL_ROOT}" ABSOLUTE)
-            message(STATUS "Found WOLFSSL_ROOT via Environment Variable:")
         else()
-            message(FATAL_ERROR "WOLFSSL_ROOT Environment Variable defined, but path not found:")
-            message(STATUS "$ENV{WOLFSSL_ROOT}")
+            # there's an environment variable, so use it.
+            set(WOLFSSL_ROOT "$ENV{WOLFSSL_ROOT}")
+            if( EXISTS "${WOLFSSL_ROOT}" )
+                get_filename_component(WOLFSSL_ROOT  "$ENV{WOLFSSL_ROOT}" ABSOLUTE)
+                message(STATUS "Found WOLFSSL_ROOT via Environment Variable:")
+            else()
+                message(FATAL_ERROR "WOLFSSL_ROOT Environment Variable defined, but path not found:")
+                message(STATUS "$ENV{WOLFSSL_ROOT}")
+            endif()
         endif()
-    endif()
+        # end of search for wolfssl component root
+    else()
+        message(STATUS "Found user-specified WOLFSSL_ROOT value")
+    endif() # WOLFSSL_ROOT user defined
 
     if( EXISTS "${WOLFSSL_ROOT}" )
         message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
