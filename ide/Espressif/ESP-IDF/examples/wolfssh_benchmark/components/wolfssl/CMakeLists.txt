@@ -31,11 +31,14 @@ set(COMPONENT_REQUIRES lwip)
 
 # set the root of wolfSSL:
 #   set(WOLFSSL_ROOT  "C:/some path/with/spaces")
+#   set(WOLFSSL_ROOT  "c:/workspace/wolfssl-gojimmypi")
 #   set(WOLFSSL_ROOT  "/mnt/c/some path/with/spaces")
-#   or use this logic to  assign value from Environment Variable,
-#   or  assume this is an example 7 subdirectories below:
+#   or use this logic to assign value from Environment Variable WOLFSSL_ROOT,
+#   or assume this is an example 7 subdirectories below:
 
-# set(WOLFSSL_ROOT "c:/workspace/wolfssl-gojimmypi")
+# We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
+# The root of wolfSSL is 7 directories up from here:
+set(THIS_RELATIVE_PATH "../../../../../../../..")
 
 if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "wolfssl component CMAKE_BUILD_EARLY_EXPANSION:")
@@ -76,26 +79,30 @@ else()
             # we need to determine if this makefile is in the wolfssl repo, or
             # some other repo.
 
-            # We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
-            # The root of wolfSSL is 7 directories up from here:
-
-            set(THIS_RELATIVE_PATH "../../../../../../../..")
-
             if(  "{THIS_USER}" STREQUAL "" )
+                # This is highly unusual to not find a user name.
+                # In this case, we'll just search for a "wolfssl" directory:
                 message(STATUS "No username found!")
                 get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl" ABSOLUTE)
-            else() # we found an environment USER name
+            else()
+                # We found an environment USER name!
+                # The first place to look for wolfssl will be in a user-clone called "wolfssl-[username]"
                 message(STATUS "Found THIS_USER = ${THIS_USER}")
                 get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl-${THIS_USER}" ABSOLUTE)
+
                 if( EXISTS "${WOLFSSL_ROOT}" )
                     message(STATUS "Found {WOLFSSL_ROOT}")
                 else()
+                    # If there's not a user-clone called "wolfssl-[username]",
+                    # perhaps there's simpel a git clone called "wolfssl"?
                     message(STATUS "did not find wolfssl-${THIS_USER}")
                     get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}/wolfssl" ABSOLUTE)
+
                     if( EXISTS "${WOLFSSL_ROOT}" )
                         message(STATUS "Found wolfssl")
                     else()
-                        message(STATUS "did not find wolfssl in ${WOLFSSL_ROOT}")
+                        # Things are looking pretty bleak. We'll likely not be able to compile.
+                        message(STATUS "Did not find wolfssl in ${WOLFSSL_ROOT}")
                     endif()
                 endif()
             endif()
@@ -103,6 +110,7 @@ else()
         else()
             # there's an environment variable, so use it.
             set(WOLFSSL_ROOT "$ENV{WOLFSSL_ROOT}")
+
             if( EXISTS "${WOLFSSL_ROOT}" )
                 get_filename_component(WOLFSSL_ROOT  "$ENV{WOLFSSL_ROOT}" ABSOLUTE)
                 message(STATUS "Found WOLFSSL_ROOT via Environment Variable:")
@@ -113,12 +121,15 @@ else()
         endif()
         # end of search for wolfssl component root
     else()
+        # There's already a value assigned; we won't search for anything else.
         message(STATUS "Found user-specified WOLFSSL_ROOT value")
     endif() # WOLFSSL_ROOT user defined
 
+    # After all the logic above, does our WOLFSSL_ROOT actualy exist?
     if( EXISTS "${WOLFSSL_ROOT}" )
         message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
     else()
+        # Abort. We need wolfssl _somewhere_.
         message(FATAL_ERROR "Could not find wolfssl in ${WOLFSSL_ROOT}. Try setting environment variable or git clone.")
     endif()
 
@@ -134,8 +145,6 @@ else()
 
     set(WOLFSSL_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/wolfssl")
 
-
-
     # Espressif may take several passes through this makefile. Check to see if we found IDF
     string(COMPARE EQUAL "${PROJECT_SOURCE_DIR}" "" WOLFSSL_FOUND_IDF)
 
@@ -147,8 +156,9 @@ else()
     message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
     message(STATUS "EXCLUDE_ASM = ${EXCLUDE_ASM}")
 
-
-    # check to see if there's both a local copy and EDP-IDF copy of the wolfssl and/or wolfssh components
+    #
+    # Check to see if there's both a local copy and EDP-IDF copy of the wolfssl and/or wolfssh components.
+    #
     if( EXISTS "${WOLFSSL_PROJECT_DIR}" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
         #
         # wolfSSL found in both ESP-IDF and local project - needs to be resolved by user
