@@ -19,7 +19,7 @@
 #
 # cmake for wolfssl Espressif projects
 #
-# Version 5.6.0.002
+# Version 5.6.0.003 for wolfssh
 #
 # See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html
 #
@@ -38,7 +38,6 @@ set(COMPONENT_REQUIRES lwip)
 
 # We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
 # The root of wolfSSL is 7 directories up from here:
-set(THIS_RELATIVE_PATH "../../../../../../../..")
 
 if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "wolfssl component CMAKE_BUILD_EARLY_EXPANSION:")
@@ -49,7 +48,26 @@ if(CMAKE_BUILD_EARLY_EXPANSION)
 
 else()
     # not CMAKE_BUILD_EARLY_EXPANSION
-    message(STATUS "wolfssl component:")
+    message(STATUS "************************************************************************************************")
+    message(STATUS "wolfssl component config:")
+    message(STATUS "************************************************************************************************")
+
+    # Check to see if we're already in wolfssl, and only if WOLFSSL_ROOT not specified
+    if ("${WOLFSSL_ROOT}" STREQUAL "")
+        # wolfssl examples are 7 directories deep from wolfssl repo root
+        #                        1  2  3  4  5  6  7
+        set(THIS_RELATIVE_PATH "../../../../../../..")
+        if( EXISTS "${THIS_RELATIVE_PATH}/wolfcrypt/src")
+            # we're already in wolfssl examples!
+            get_filename_component(WOLFSSL_ROOT  "${THIS_RELATIVE_PATH}" ABSOLUTE)
+        else()
+            # We're in some other repo such as wolfssh, so we'll search for an
+            # adjacent-level directory for wolfssl. (8 directories up)
+            #                        1  2  3  4  5  6  7  8
+            set(THIS_RELATIVE_PATH "../../../../../../../..")
+        endif()
+    endif()
+
     if ("${WOLFSSL_ROOT}" STREQUAL "")
         # there's not a hard-coded WOLFSSL_ROOT value above, so let's see if we can find it.
         if( "$ENV{WOLFSSL_ROOT}" STREQUAL "" )
