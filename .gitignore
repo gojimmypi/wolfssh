@@ -150,3 +150,4 @@ config_h_*.bak
 /ide/Espressif/**/*.mk.bak
 /ide/Espressif/**/*.bat.bak
 /ide/Espressif/**/*.txt.bak
+/ide/Espressif/**/user_settings*.bak
