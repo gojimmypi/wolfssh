@@ -18,7 +18,7 @@
 #
 # cmake for wolfssh Espressif projects
 #
-# Version 5.6.0.002x
+# Version 5.6.0.004
 #
 # See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html
 #
