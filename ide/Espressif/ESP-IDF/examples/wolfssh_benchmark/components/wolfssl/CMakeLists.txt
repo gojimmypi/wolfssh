@@ -35,12 +35,14 @@ set(COMPONENT_REQUIRES lwip)
 #   or use this logic to  assign value from Environment Variable,
 #   or  assume this is an example 7 subdirectories below:
 if(CMAKE_BUILD_EARLY_EXPANSION)
+    message(STATUS "wolfssl component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
                             REQUIRES "${COMPONENT_REQUIRES}"
                             PRIV_REQUIRES esp_timer driver # this will typically only be needed for wolfSSL benchmark
                            )
 
 else()
+    message(STATUS "wolfssl component:")
     if( "$ENV{WOLFSSL_ROOT}" STREQUAL "" )
         message(STATUS "Environment Variable WOLFSSL_ROOT not set.")
         # We are currently in [root]/IDE/Espressif/ESP-IDF/examples/wolfssl_test/components/wolfssl
@@ -49,8 +51,39 @@ else()
         get_filename_component(THIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
         message(STATUS "THIS_DIR = ${THIS_DIR}")
 
-        get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl-gojimmypi/" ABSOLUTE)
+        message(STATUS "HOMEDRIVE = $ENV{HOMEDRIVE}")
+        message(STATUS "USERNAME = $ENV{USERNAME}")
+        if(  "$ENV{USER}" STREQUAL "" ) # the bash user
+            if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
+                message(STATUS "could not find USER or USERNAME")
+            else()
+                # the bash user is not blank, so we'll use it.
+                set(THIS_USER "$ENV{USERNAME}")
+            endif()
+        else()
+            # the bash user is not blank, so we'll use it.
+           set(THIS_USER "$ENV{USER}")
+        endif()
+        message(STATUS "THIS_USER = ${THIS_USER}")
+
+        if(  "{THIS_USER}" STREQUAL "" )
+            get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl" ABSOLUTE)
+        else() # we found an environment USER name
+            message(STATUS "Found THIS_USER = ${THIS_USER}")
+            get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl-${THIS_USER}" ABSOLUTE)
+            if( EXISTS "${WOLFSSL_ROOT}" )
+                message(STATUS "Found {WOLFSSL_ROOT}")
+            else()
+                message(STATUS "did not find wolfssl-${THIS_USER}")
+                if( EXISTS "../../../../../../../../wolfssl" )
+                    message(STATUS "Found wolfssl")
+                    get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl" ABSOLUTE)
+                endif()
+            endif()
+        endif()
+
     else()
+        # there's an environment variable, so use it.
         set(WOLFSSL_ROOT "$ENV{WOLFSSL_ROOT}")
         if( EXISTS "${WOLFSSL_ROOT}" )
             get_filename_component(WOLFSSL_ROOT  "$ENV{WOLFSSL_ROOT}" ABSOLUTE)
@@ -59,6 +92,12 @@ else()
             message(FATAL_ERROR "WOLFSSL_ROOT Environment Variable defined, but path not found:")
             message(STATUS "$ENV{WOLFSSL_ROOT}")
         endif()
+    endif()
+
+    if( EXISTS "${WOLFSSL_ROOT}" )
+        message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
+    else()
+        message(FATAL_ERROR "Could not find wolfssl in ${WOLFSSL_ROOT}. Try setting environment variable or git clone.")
     endif()
 
     set(INCLUDE_PATH ${WOLFSSL_ROOT})
@@ -73,7 +112,6 @@ else()
 
     set(WOLFSSL_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/wolfssl")
 
-    message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
 
 
     # Espressif may take several passes through this makefile. Check to see if we found IDF
@@ -83,12 +121,9 @@ else()
     file(GLOB EXCLUDE_ASM *.S)
     file(GLOB_RECURSE EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSL_ROOT}/wolfcrypt/src/*.S")
 
-    if(NOT CMAKE_BUILD_EARLY_EXPANSION)
-        message(STATUS "IDF_PATH = $ENV{IDF_PATH}")
-        message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
-        message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
-        message(STATUS "EXCLUDE_ASM = ${EXCLUDE_ASM}")
-    endif()
+    message(STATUS "IDF_PATH = $ENV{IDF_PATH}")
+    message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
+    message(STATUS "EXCLUDE_ASM = ${EXCLUDE_ASM}")
 
 
     # check to see if there's both a local copy and EDP-IDF copy of the wolfssl and/or wolfssh components
@@ -265,23 +300,23 @@ else()
                             EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
                             PRIV_REQUIRES esp_timer driver # this will typically only be needed for wolfSSL benchmark
                            )
+    # some optional diagnostics
+    if (1)
+        get_cmake_property(_variableNames VARIABLES)
+        list (SORT _variableNames)
+        message(STATUS "")
+        message(STATUS "ALL VARIABLES BEGIN")
+        message(STATUS "")
+        foreach (_variableName ${_variableNames})
+            message(STATUS "${_variableName}=${${_variableName}}")
+        endforeach()
+        message(STATUS "")
+        message(STATUS "ALL VARIABLES END")
+        message(STATUS "")
+    endif()
 endif() # CMAKE_BUILD_EARLY_EXPANSION
 
 
-# some optional diagnostics
-if (0)
-    get_cmake_property(_variableNames VARIABLES)
-    list (SORT _variableNames)
-    message(STATUS "")
-    message(STATUS "ALL VARIABLES BEGIN")
-    message(STATUS "")
-    foreach (_variableName ${_variableNames})
-        message(STATUS "${_variableName}=${${_variableName}}")
-    endforeach()
-    message(STATUS "")
-    message(STATUS "ALL VARIABLES END")
-    message(STATUS "")
-endif()
 
 # check to see if there's both a local copy and EDP-IDF copy of the wolfssl components
 if( EXISTS "${WOLFSSL_PROJECT_DIR}" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
