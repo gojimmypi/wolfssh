@@ -6,15 +6,21 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{803FD0C6-D64E-4E16-9DC3-1DAEC859A3D2}") = "wolfssh_benchmark_IDF_v5_ESP32", "wolfssh_benchmark_IDF_v5_ESP32.vgdbproj", "{EADCC9AB-72B3-4B51-A838-593E5D80DDF7}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E2D76098-090D-441E-B97A-129DE292B61C}"
-	ProjectSection(SolutionItems) = preProject
-		..\components\wolfssh\CMakeLists.txt = ..\components\wolfssh\CMakeLists.txt
-		..\components\wolfssh\component.mk = ..\components\wolfssh\component.mk
-		..\components\wolfssh\Kconfig = ..\components\wolfssh\Kconfig
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfssl", "wolfssl", "{84B54195-98E5-42C1-9BA6-32F780A51A86}"
 	ProjectSection(SolutionItems) = preProject
 		..\components\wolfssl\CMakeLists.txt = ..\components\wolfssl\CMakeLists.txt
+		..\components\wolfssl\component.mk = ..\components\wolfssl\component.mk
+		..\components\wolfssl\include\config.h = ..\components\wolfssl\include\config.h
+		..\components\wolfssl\Kconfig = ..\components\wolfssl\Kconfig
+		..\components\wolfssl\include\user_settings.h = ..\components\wolfssl\include\user_settings.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfssh", "wolfssh", "{7F42C325-0803-4421-B5E7-5AC5E9BB4878}"
+	ProjectSection(SolutionItems) = preProject
+		..\components\wolfssh\CMakeLists.txt = ..\components\wolfssh\CMakeLists.txt
+		..\components\wolfssh\component.mk = ..\components\wolfssh\component.mk
+		..\components\wolfssh\Kconfig = ..\components\wolfssh\Kconfig
 	EndProjectSection
 EndProject
 Global
@@ -39,6 +45,7 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{84B54195-98E5-42C1-9BA6-32F780A51A86} = {E2D76098-090D-441E-B97A-129DE292B61C}
+		{7F42C325-0803-4421-B5E7-5AC5E9BB4878} = {E2D76098-090D-441E-B97A-129DE292B61C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8436EFB4-D5AD-4E0A-A1E4-9AE5C48E41D6}
