@@ -172,34 +172,37 @@ else()
 
 
     if(IS_DIRECTORY ${IDF_PATH}/components/freertos/FreeRTOS-Kernel/)
-        set(COMPONENT_ADD_INCLUDEDIRS
+        set(WOLFSSH_COMPONENT_ADD_INCLUDEDIRS
            "."
            "./include" # this is the location of wolfssh user_settings.h
+           "\"${WOLFSSH_ROOT}\""
            "\"${WOLFSSH_ROOT}/wolfssh/\""
            )
     else()
 
-       set(COMPONENT_ADD_INCLUDEDIRS
+       set(WOLFSSH_COMPONENT_ADD_INCLUDEDIRS
            "."
            "./include" # this is the location of wolfssh user_settings.h
+           "\"${WOLFSSH_ROOT}\""
            "\"${WOLFSSH_ROOT}/wolfssh/\""
           )
     endif()
 
 
-    set(COMPONENT_SRCEXCLUDE ""
+    set(WOLFSSH_COMPONENT_SRCEXCLUDE ""
         )
 
     spaces2list(COMPONENT_REQUIRES)
 
-    separate_arguments(WOLFSSH_COMPONENT_SRCDIRS NATIVE_COMMAND "${WOLFSSH_COMPONENT_SRCDIRS}")
-    separate_arguments(COMPONENT_SRCEXCLUDE NATIVE_COMMAND "${COMPONENT_SRCEXCLUDE}")
-    separate_arguments(COMPONENT_ADD_INCLUDEDIRS NATIVE_COMMAND "${COMPONENT_ADD_INCLUDEDIRS}")
+    separate_arguments(WOLFSSH_COMPONENT_SRCDIRS         NATIVE_COMMAND "${WOLFSSH_COMPONENT_SRCDIRS}")
+    separate_arguments(WOLFSSH_COMPONENT_SRCEXCLUDE      NATIVE_COMMAND "${WOLFSSH_COMPONENT_SRCEXCLUDE}")
+    separate_arguments(WOLFSSH_COMPONENT_ADD_INCLUDEDIRS NATIVE_COMMAND "${WOLFSSH_COMPONENT_ADD_INCLUDEDIRS}")
 
     #
     # See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html#example-component-requirements
     #
     message(STATUS "WOLFSSH_COMPONENT_SRCDIRS=${WOLFSSH_COMPONENT_SRCDIRS}")
+    message(STATUS "WOLFSSH_COMPONENT_ADD_INCLUDEDIRS=${WOLFSSH_COMPONENT_ADD_INCLUDEDIRS}")
 
 
     # check to see if there's both a local copy and EDP-IDF copy of the wolfssh components
@@ -213,13 +216,14 @@ else()
     endif()
     # end multiple component check
 
-    message(STATUS, "COMPONENT_ADD_INCLUDEDIRS = ${COMPONENT_ADD_INCLUDEDIRS}")
+    message(STATUS "WOLFSSH_COMPONENT_ADD_INCLUDEDIRS = ${WOLFSSH_COMPONENT_ADD_INCLUDEDIRS}")
     idf_component_register(
                             SRC_DIRS "${WOLFSSH_COMPONENT_SRCDIRS}"
-                            INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
+                            INCLUDE_DIRS "${WOLFSSH_COMPONENT_ADD_INCLUDEDIRS}"
                             REQUIRES "${COMPONENT_REQUIRES}"
-                            EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
-                            PRIV_REQUIRES esp_timer driver wolfssl # this will typically only be needed for wolfSSH benchmark
+                            EXCLUDE_SRCS "${WOLFSSH_COMPONENT_SRCEXCLUDE}"
+                            REQUIRES "${COMPONENT_REQUIRES}"
+                            PRIV_REQUIRES esp_timer driver  # this will typically only be needed for wolfSSH benchmark
                            )
 endif() # NOT CMAKE_BUILD_EARLY_EXPANSION
 
