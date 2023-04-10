@@ -7873,8 +7873,8 @@ int SendKexInit(WOLFSSH* ssh)
     byte* output = NULL;
     byte* payload = NULL;
     char* keyAlgoNames = NULL;
-    const byte* privateKey;
-    word32 idx = 0, payloadSz = 0, keyAlgoNamesSz = 0, privateKeyCount;
+    const byte* privateKey = 0;
+    word32 idx = 0, payloadSz = 0, keyAlgoNamesSz = 0, privateKeyCount = 0;
     int ret = WS_SUCCESS;
 
     WLOG(WS_LOG_DEBUG, "Entering SendKexInit()");
@@ -8514,8 +8514,8 @@ int SendKexDhReply(WOLFSSH* ssh)
     byte kPad = 0;
     word32 sigBlockSz = 0;
     word32 payloadSz = 0;
-    byte* output;
-    word32 idx;
+    byte* output = 0;
+    word32 idx = 0;
     word32 keyIdx = 0;
     byte msgId = MSGID_KEXDH_REPLY;
     enum wc_HashType enmhashId = WC_HASH_TYPE_NONE;
@@ -11228,7 +11228,7 @@ int SendUserAuthFailure(WOLFSSH* ssh, byte partialSuccess)
     byte* output;
     word32 idx;
     int ret = WS_SUCCESS;
-    int   authSz;
+    int   authSz = 0;
     char  authStr[MAX_AUTH_STRING];
 
     WLOG(WS_LOG_DEBUG, "Entering SendUserAuthFailure()");
