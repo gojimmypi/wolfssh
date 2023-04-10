@@ -42,6 +42,7 @@ if(CMAKE_BUILD_EARLY_EXPANSION)
                            )
 
 else()
+    # not CMAKE_BUILD_EARLY_EXPANSION
     message(STATUS "wolfssl component:")
     if( "$ENV{WOLFSSL_ROOT}" STREQUAL "" )
         message(STATUS "Environment Variable WOLFSSL_ROOT not set.")
@@ -66,7 +67,13 @@ else()
         endif()
         message(STATUS "THIS_USER = ${THIS_USER}")
 
+        # This same makefile is used for both the wolfssl component, and other
+        # components that may depend on wolfssl, such as wolfssh. Therefore
+        # we need to determine if this makefile is in the wolfssl repo, or
+        # some other repo.
+
         if(  "{THIS_USER}" STREQUAL "" )
+            message(STATUS "No username found!")
             get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl" ABSOLUTE)
         else() # we found an environment USER name
             message(STATUS "Found THIS_USER = ${THIS_USER}")
@@ -75,9 +82,11 @@ else()
                 message(STATUS "Found {WOLFSSL_ROOT}")
             else()
                 message(STATUS "did not find wolfssl-${THIS_USER}")
-                if( EXISTS "../../../../../../../../wolfssl" )
+                get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl" ABSOLUTE)
+                if( EXISTS "${WOLFSSL_ROOT}" )
                     message(STATUS "Found wolfssl")
-                    get_filename_component(WOLFSSL_ROOT  "../../../../../../../../wolfssl" ABSOLUTE)
+                else()
+                    message(STATUS "did not find wolfssl in ${WOLFSSL_ROOT}")
                 endif()
             endif()
         endif()
