@@ -120,7 +120,7 @@ DLL Release
 **/*/*.vcxproj.filters
 **/*/*.vcxproj.user
 
-# EDP-IDF 
+# EDP-IDF
 **/main/build/CMakeFiles/*
 **/build/*
 
@@ -128,3 +128,25 @@ DLL Release
 user_settings_h*.bak
 config_h_*.bak
 
+# VisualGDB
+**/.visualgdb
+
+# auto-created CMake backups
+**/CMakeLists.txt.old
+
+# any installed /include/user_settings.h is specific to an install, so exclude:
+/include/user_settings.h
+
+# Espressif sdk config default should be saved in sdkconfig.defaults
+# we won't track the actual working sdkconfig files
+/ide/Espressif/**/sdkconfig
+
+# no Espressif copied oqs here
+/ide/Espressif/ESP-IDF/**/components/oqs
+
+# various Espressif backups
+/ide/Espressif/**/sdkconfig.bak
+/ide/Espressif/**/sdkconfig.old
+/ide/Espressif/**/*.mk.bak
+/ide/Espressif/**/*.bat.bak
+/ide/Espressif/**/*.txt.bak
