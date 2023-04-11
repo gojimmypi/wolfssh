@@ -21,7 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "lib", "lib", "{E9586E44-782
 		..\..\..\user_settings.h = ..\..\..\user_settings.h
 	EndProjectSection
 EndProject
-Project("{803FD0C6-D64E-4E16-9DC3-1DAEC859A3D2}") = "wolfssl_benchmark_IDF_v5_ESP32S3", "wolfssl_benchmark_IDF_v5_ESP32S3.vgdbproj", "{870D7357-61DA-432A-806F-041A23BC8532}"
+Project("{803FD0C6-D64E-4E16-9DC3-1DAEC859A3D2}") = "wolfssh_benchmark_IDF_v5_ESP32S3", "wolfssh_benchmark_IDF_v5_ESP32S3.vgdbproj", "{870D7357-61DA-432A-806F-041A23BC8532}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
