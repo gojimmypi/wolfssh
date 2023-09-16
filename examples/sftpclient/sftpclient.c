@@ -24,6 +24,12 @@
 
 #define WOLFSSH_TEST_CLIENT
 
+#ifdef WOLFSSL_USER_SETTINGS
+#include <wolfssl/wolfcrypt/settings.h>
+#else
+#include <wolfssl/options.h>
+#endif
+
 #include <wolfssh/ssh.h>
 #include <wolfssh/internal.h>
 #include <wolfssh/wolfsftp.h>
@@ -501,8 +507,14 @@ static int doCmds(func_args* args)
                 if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
                     ret = wolfSSH_get_error(ssh);
                 }
+                while (ret == WS_REKEYING || ssh->error == WS_REKEYING) {
+                    ret = wolfSSH_worker(ssh, NULL);
+                    if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                        ret = wolfSSH_get_error(ssh);
+                    }
+                }
             } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
-                    ret == WS_CHAN_RXD || ret == WS_REKEYING);
+                    ret == WS_CHAN_RXD);
 
 #ifndef WOLFSSH_NO_TIMESTAMP
             WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
@@ -1010,11 +1022,25 @@ static int doAutopilot(int cmd, char* local, char* remote)
     int ret = WS_SUCCESS;
     char fullpath[128] = ".";
     WS_SFTPNAME* name  = NULL;
+    byte remoteAbsPath = 0;
 
-    if (remote != NULL && remote[0] == '/') {
-        /* use remote absolute path if provided */
-        WMEMSET(fullpath, 0, sizeof(fullpath));
-        WSTRNCPY(fullpath, remote, sizeof(fullpath) - 1);
+    /* check if is absolute path before making it one */
+    if (remote != NULL && WSTRLEN(remote) > 2 && remote[1] == ':' &&
+            remote[2] == '\\') {
+        remoteAbsPath = 1;
+    }
+    else if (remote != NULL && WSTRLEN(remote) > 2 && remote[1] == ':' &&
+            remote[2] == '/') {
+        remoteAbsPath = 1;
+    }
+    else if (remote != NULL && remote[0] == '/') {
+        remoteAbsPath = 1;
+    }
+
+    if (remoteAbsPath) {
+       /* use remote absolute path if provided */
+       WMEMSET(fullpath, 0, sizeof(fullpath));
+       WSTRNCPY(fullpath, remote, sizeof(fullpath) - 1);
     }
     else {
         do {
@@ -1225,7 +1251,7 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     else
         wolfSSH_SetUserAuth(ctx, ((func_args*)args)->user_auth);
 
-#ifndef WS_NO_SIGNAL
+#if !defined(WS_NO_SIGNAL) && !defined(USE_WINDOWS_API)
     /* handle interrupt with get and put */
     signal(SIGINT, sig_handler);
 #endif
@@ -1313,7 +1339,11 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     WFREE(workingDir, NULL, DYNAMIC_TYPE_TMP_BUFFER);
     if (ret == WS_SUCCESS) {
         if (wolfSSH_shutdown(ssh) != WS_SUCCESS) {
-            printf("error with wolfSSH_shutdown(), already disconnected?\n");
+            int rc;
+            rc = wolfSSH_get_error(ssh);
+
+            if (rc != WS_SOCKET_ERROR_E && rc != WS_EOF)
+                printf("error with wolfSSH_shutdown()\n");
         }
     }
     WCLOSESOCKET(sockFd);

@@ -558,7 +558,7 @@ int wolfSSH_accept(WOLFSSH* ssh)
                 if (ChannelCommandIsScp(ssh)) {
                     ssh->acceptState = ACCEPT_INIT_SCP_TRANSFER;
                     WLOG(WS_LOG_DEBUG, acceptState, "ACCEPT_INIT_SCP_TRANSFER");
-                    continue;
+                    return WS_SCP_INIT;
                 }
 #endif
 #if defined(WOLFSSH_SFTP) && !defined(NO_WOLFSSH_SERVER)
@@ -998,6 +998,15 @@ int wolfSSH_stream_peek(WOLFSSH* ssh, byte* buf, word32 bufSz)
     if (ssh == NULL || ssh->channelList == NULL)
         return WS_BAD_ARGUMENT;
 
+    if (ssh->isKeying) {
+        ssh->error = WS_REKEYING;
+        return WS_REKEYING;
+    }
+    if (ssh->channelList->eofRxd) {
+        ssh->error = WS_EOF;
+        return WS_ERROR;
+    }
+
     inputBuffer = &ssh->channelList->inputBuffer;
     bufSz = min(bufSz, inputBuffer->length - inputBuffer->idx);
     if (buf != NULL) {
@@ -1029,6 +1038,11 @@ int wolfSSH_stream_read(WOLFSSH* ssh, byte* buf, word32 bufSz)
 
     if (ssh == NULL || buf == NULL || bufSz == 0 || ssh->channelList == NULL)
         return WS_BAD_ARGUMENT;
+
+    if (ssh->channelList->eofRxd) {
+        ssh->error = WS_EOF;
+        return WS_ERROR;
+    }
 
     inputBuffer = &ssh->channelList->inputBuffer;
     ssh->error = WS_SUCCESS;
@@ -1088,6 +1102,11 @@ int wolfSSH_stream_send(WOLFSSH* ssh, byte* buf, word32 bufSz)
 
     if (ssh == NULL || buf == NULL || ssh->channelList == NULL)
         return WS_BAD_ARGUMENT;
+
+    if (ssh->isKeying) {
+        ssh->error = WS_REKEYING;
+        return WS_REKEYING;
+    }
 
     bytesTxd = SendChannelData(ssh, ssh->channelList->channel, buf, bufSz);
 
@@ -1294,6 +1313,41 @@ void* wolfSSH_GetPublicKeyCheckCtx(WOLFSSH* ssh)
         return ssh->publicKeyCheckCtx;
     }
     return NULL;
+}
+
+
+/* Used to resize terminal window with shell connections
+ * returns WS_SUCCESS on success */
+int wolfSSH_ChangeTerminalSize(WOLFSSH* ssh, word32 columns, word32 rows,
+    word32 widthPixels, word32 heightPixels)
+{
+    int ret = WS_SUCCESS;
+
+    WLOG(WS_LOG_DEBUG, "Entering wolfSSH_ChangeWindowDimension()");
+
+    if (ssh == NULL)
+        ret = WS_BAD_ARGUMENT;
+
+    if (ret == WS_SUCCESS) {
+        ret = SendChannelTerminalResize(ssh, columns, rows, widthPixels,
+        heightPixels);
+    }
+
+    WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_ChangeWindowDimension(), ret = %d",
+        ret);
+    return ret;
+}
+
+
+void wolfSSH_SetTerminalResizeCb(WOLFSSH* ssh, WS_CallbackTerminalSize cb)
+{
+    ssh->termResizeCb = cb;
+}
+
+
+void wolfSSH_SetTerminalResizeCtx(WOLFSSH* ssh, void* usrCtx)
+{
+    ssh->termCtx = usrCtx;
 }
 
 
@@ -1515,7 +1569,7 @@ int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
 }
 
 
-#ifndef NO_FILESYSTEM
+#if !defined(NO_FILESYSTEM) && !defined(WOLFSSH_USER_FILESYSTEM)
 
 /* Reads a key from the file name into a buffer. If the key starts with the
    string "ssh-rsa" or "ecdsa-sha2-nistp256", it is considered an SSH format
@@ -1538,27 +1592,27 @@ int wolfSSH_ReadKey_file(const char* name,
             isPrivate == NULL)
         return WS_BAD_ARGUMENT;
 
-    ret = WFOPEN(&file, name, "rb");
+    ret = WFOPEN(NULL, &file, name, "rb");
     if (ret != 0 || file == WBADFILE) return WS_BAD_FILE_E;
-    if (WFSEEK(file, 0, WSEEK_END) != 0) {
-        WFCLOSE(file);
+    if (WFSEEK(NULL, file, 0, WSEEK_END) != 0) {
+        WFCLOSE(NULL, file);
         return WS_BAD_FILE_E;
     }
-    inSz = (word32)WFTELL(file);
-    WREWIND(file);
+    inSz = (word32)WFTELL(NULL, file);
+    WREWIND(NULL, file);
 
     if (inSz > WOLFSSH_MAX_FILE_SIZE || inSz == 0) {
-        WFCLOSE(file);
+        WFCLOSE(NULL, file);
         return WS_BAD_FILE_E;
     }
 
     in = (byte*)WMALLOC(inSz + 1, heap, DYNTYPE_FILE);
     if (in == NULL) {
-        WFCLOSE(file);
+        WFCLOSE(NULL, file);
         return WS_MEMORY_E;
     }
 
-    ret = (int)WFREAD(in, 1, inSz, file);
+    ret = (int)WFREAD(NULL, in, 1, inSz, file);
     if (ret <= 0 || (word32)ret != inSz) {
         ret = WS_BAD_FILE_E;
     }
@@ -1580,7 +1634,7 @@ int wolfSSH_ReadKey_file(const char* name,
                 out, outSz, outType, outTypeSz, heap);
     }
 
-    WFCLOSE(file);
+    WFCLOSE(ssh->fs, file);
     WFREE(in, heap, DYNTYPE_FILE);
 
     return ret;
@@ -1609,6 +1663,16 @@ int wolfSSH_CTX_SetBanner(WOLFSSH_CTX* ctx,
     return WS_SUCCESS;
 }
 
+int wolfSSH_CTX_SetSshProtoIdStr(WOLFSSH_CTX* ctx,
+                                          const char* protoIdStr)
+{
+    if (!ctx || !protoIdStr) {
+        return WS_BAD_ARGUMENT;
+    }
+
+    ctx->sshProtoIdStr = protoIdStr;
+    return WS_SUCCESS;
+}
 
 int wolfSSH_CTX_UsePrivateKey_buffer(WOLFSSH_CTX* ctx,
                                    const byte* in, word32 inSz, int format)
@@ -1716,9 +1780,10 @@ int wolfSSH_KDF(byte hashId, byte keyId,
                 const byte* h, word32 hSz,
                 const byte* sessionId, word32 sessionIdSz)
 {
+    int doKeyPadding = 1;
     WLOG(WS_LOG_DEBUG, "Entering wolfSSH_KDF()");
     return GenerateKey(hashId, keyId, key, keySz, k, kSz, h, hSz,
-                       sessionId, sessionIdSz);
+                       sessionId, sessionIdSz, doKeyPadding);
 }
 
 
@@ -1764,15 +1829,24 @@ int wolfSSH_worker(WOLFSSH* ssh, word32* channelId)
         ret = DoReceive(ssh);
     }
 
-    if (channelId != NULL && ssh != NULL) {
-        *channelId = ssh->lastRxId;
+    if (ret == WS_SUCCESS) {
+        if (channelId != NULL) {
+            *channelId = ssh->lastRxId;
+        }
+
+        if (ssh->isKeying) {
+            ssh->error = WS_REKEYING;
+            return WS_REKEYING;
+        }
     }
 
-    if (ret == WS_CHAN_RXD)
+    if (ret == WS_CHAN_RXD) {
         WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_worker(), "
                            "data received on channel %u", ssh->lastRxId);
-    else
+    }
+    else {
         WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_worker(), ret = %d", ret);
+    }
     return ret;
 }
 

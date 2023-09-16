@@ -65,9 +65,26 @@ extern "C" {
 #endif
 
 
-/* Check options set by wolfSSL and set wolfSSH options as appropriate. If
+/*
+ * Force some options. Do not want ssh-rsa with SHA1 at anymore. Not ready
+ * for rsa-sha2-512 yet.
+ */
+
+#undef WOLFSSH_NO_SSH_RSA_SHA1
+#ifndef WOLFSSH_YES_SSH_RSA_SHA1
+    #define WOLFSSH_NO_SSH_RSA_SHA1
+#endif
+#undef WOLFSSH_NO_RSA_SHA2_512
+#ifndef WOLFSSH_YES_RSA_SHA2_512
+    #define WOLFSSH_NO_RSA_SHA2_512
+#endif
+
+
+/*
+ * Check options set by wolfSSL and set wolfSSH options as appropriate. If
  * the derived options and any override options leave wolfSSH without
- * at least one algorithm to use, throw an error. */
+ * at least one algorithm to use, throw an error.
+ */
 
 #ifdef NO_RSA
     #undef WOLFSSH_NO_RSA
@@ -123,15 +140,18 @@ extern "C" {
     #undef WOLFSSH_NO_DH_GEX_SHA256
     #define WOLFSSH_NO_DH_GEX_SHA256
 #endif
-#if defined(WOLFSSH_NO_ECDH) || defined(NO_SHA256) || defined(NO_ECC256)
+#if defined(WOLFSSH_NO_ECDH) \
+    || defined(NO_SHA256) || defined(NO_ECC256)
     #undef WOLFSSH_NO_ECDH_SHA2_NISTP256
     #define WOLFSSH_NO_ECDH_SHA2_NISTP256
 #endif
-#if defined(WOLFSSH_NO_ECDH) || !defined(WOLFSSL_SHA384) || !defined(HAVE_ECC384)
+#if defined(WOLFSSH_NO_ECDH) \
+    || !defined(WOLFSSL_SHA384) || !defined(HAVE_ECC384)
     #undef WOLFSSH_NO_ECDH_SHA2_NISTP384
     #define WOLFSSH_NO_ECDH_SHA2_NISTP384
 #endif
-#if defined(WOLFSSH_NO_ECDH) || !defined(WOLFSSL_SHA512) || !defined(HAVE_ECC521)
+#if defined(WOLFSSH_NO_ECDH) \
+    || !defined(WOLFSSL_SHA512) || !defined(HAVE_ECC521)
     #undef WOLFSSH_NO_ECDH_SHA2_NISTP521
     #define WOLFSSH_NO_ECDH_SHA2_NISTP521
 #endif
@@ -141,8 +161,8 @@ extern "C" {
     #define WOLFSSH_NO_ECDH_SHA2_ED25519
 #endif
 #if !defined(WOLFSSH_HAVE_LIBOQS) || defined(NO_SHA256)
-    #undef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
-    #define WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+    #undef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
+    #define WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
 #endif
 
 #if defined(WOLFSSH_NO_DH_GROUP1_SHA1) && \
@@ -152,7 +172,7 @@ extern "C" {
     defined(WOLFSSH_NO_ECDH_SHA2_NISTP384) && \
     defined(WOLFSSH_NO_ECDH_SHA2_NISTP521) && \
     defined(WOLFSSH_NO_ECDH_SHA2_ED25519) && \
-    defined(WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256)
+    defined(WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256)
     #error "You need at least one key agreement algorithm."
 #endif
 
@@ -174,12 +194,12 @@ extern "C" {
     #define WOLFSSH_NO_SSH_RSA_SHA1
 #endif
 #if defined(WOLFSSH_NO_RSA) || defined(NO_SHA256)
-    #undef WOLFSSH_NO_SSH_RSA_SHA2_256
-    #define WOLFSSH_NO_SSH_RSA_SHA2_256
+    #undef WOLFSSH_NO_RSA_SHA2_256
+    #define WOLFSSH_NO_RSA_SHA2_256
 #endif
 #if defined(WOLFSSH_NO_RSA) || !defined(WOLFSSL_SHA512)
-    #undef WOLFSSH_NO_SSH_RSA_SHA2_512
-    #define WOLFSSH_NO_SSH_RSA_SHA2_512
+    #undef WOLFSSH_NO_RSA_SHA2_512
+    #define WOLFSSH_NO_RSA_SHA2_512
 #endif
 
 #if defined(WOLFSSH_NO_ECDSA) || \
@@ -198,13 +218,17 @@ extern "C" {
     #define WOLFSSH_NO_ECDSA_SHA2_NISTP521
 #endif
 #if defined(WOLFSSH_NO_SSH_RSA_SHA1) && \
+    defined(WOLFSSH_NO_RSA_SHA2_256) && \
+    defined(WOLFSSH_NO_RSA_SHA2_512) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP256) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP384) && \
     defined(WOLFSSH_NO_ECDSA_SHA2_NISTP521)
     #error "You need at least one signing algorithm."
 #endif
 
-#ifdef WOLFSSH_NO_SSH_RSA_SHA1
+#if defined(WOLFSSH_NO_SSH_RSA_SHA1) && \
+    defined(WOLFSSH_NO_RSA_SHA2_256) && \
+    defined(WOLFSSH_NO_RSA_SHA2_512)
     #undef WOLFSSH_NO_RSA
     #define WOLFSSH_NO_RSA
 #endif
@@ -285,12 +309,16 @@ enum {
     ID_ECDH_SHA2_ED25519,
     ID_ECDH_SHA2_ED25519_LIBSSH,
     ID_DH_GROUP14_SHA256,
-#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
-    ID_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256,
+#ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
+    ID_ECDH_NISTP256_KYBER_LEVEL1_SHA256,
 #endif
+    ID_EXTINFO_S, /* Pseudo-KEX to indicate server extensions. */
+    ID_EXTINFO_C, /* Pseudo-KEX to indicate client extensions. */
 
     /* Public Key IDs */
     ID_SSH_RSA,
+    ID_RSA_SHA2_256,
+    ID_RSA_SHA2_512,
     ID_ECDSA_SHA2_NISTP256,
     ID_ECDSA_SHA2_NISTP384,
     ID_ECDSA_SHA2_NISTP521,
@@ -317,6 +345,8 @@ enum {
     ID_GLOBREQ_TCPIP_FWD,
     ID_GLOBREQ_TCPIP_FWD_CANCEL,
 
+    ID_EXTINFO_SERVER_SIG_ALGS,
+
     ID_UNKNOWN
 };
 
@@ -331,13 +361,13 @@ enum {
 #define MAX_HMAC_SZ WC_SHA256_DIGEST_SIZE
 #define MIN_BLOCK_SZ 8
 #define COOKIE_SZ 16
-#define LENGTH_SZ 4
 #define PAD_LENGTH_SZ 1
 #define MIN_PAD_LENGTH 4
 #define BOOLEAN_SZ 1
 #define MSG_ID_SZ 1
 #define SHA1_96_SZ 12
 #define UINT32_SZ 4
+#define LENGTH_SZ UINT32_SZ
 #define SSH_PROTO_SZ 7 /* "SSH-2.0" */
 #define AEAD_IMP_IV_SZ 4
 #define AEAD_EXP_IV_SZ 8
@@ -369,7 +399,7 @@ enum {
     #define WOLFSSH_DEFAULT_GEXDH_MAX 8192
 #endif
 #ifndef MAX_KEX_KEY_SZ
-    #ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+    #ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
         /* Private key size of Kyber Level1. Biggest artifact. */
         #define MAX_KEX_KEY_SZ 1632
     #else
@@ -381,7 +411,10 @@ enum {
     #define WOLFSSH_MAX_FILE_SIZE (1024ul * 1024ul * 4)
 #endif
 #ifndef WOLFSSH_MAX_PVT_KEYS
-    #define WOLFSSH_MAX_PVT_KEYS 2
+    #define WOLFSSH_MAX_PVT_KEYS 8
+#endif
+#ifndef WOLFSSH_MAX_PUB_KEY_ALGO
+    #define WOLFSSH_MAX_PUB_KEY_ALGO (WOLFSSH_MAX_PVT_KEYS + 2)
 #endif
 
 WOLFSSH_LOCAL byte NameToId(const char*, word32);
@@ -406,8 +439,23 @@ typedef struct WOLFSSH_BUFFER {
 } WOLFSSH_BUFFER;
 
 WOLFSSH_LOCAL int BufferInit(WOLFSSH_BUFFER* buffer, word32 size, void* heap);
-WOLFSSH_LOCAL int GrowBuffer(WOLFSSH_BUFFER* buf, word32 sz, word32 usedSz);
+WOLFSSH_LOCAL int GrowBuffer(WOLFSSH_BUFFER* buf, word32 sz);
 WOLFSSH_LOCAL void ShrinkBuffer(WOLFSSH_BUFFER* buf, int forcedFree);
+
+
+typedef struct WOLFSSH_PVT_KEY {
+    byte* key;
+        /* List of pointers to raw private keys. Owned by CTX. */
+    word32 keySz;
+#ifdef WOLFSSH_CERTS
+    byte* cert;
+        /* Pointer to certificates for the private key. Owned by CTX. */
+    word32 certSz;
+#endif
+    byte publicKeyFmt;
+        /* Public key format for the private key. Note, some public key
+         * formats are used with multiple public key signing algorithms. */
+} WOLFSSH_PVT_KEY;
 
 
 /* our wolfSSH Context */
@@ -438,19 +486,14 @@ struct WOLFSSH_CTX {
     WOLFSSH_CERTMAN* certMan;
 #endif /* WOLFSSH_CERTS */
     WS_CallbackPublicKeyCheck publicKeyCheckCb;
-                                      /* Check server's public key callback */
-    byte* privateKey[WOLFSSH_MAX_PVT_KEYS];
-                                      /* Owned by CTX */
-    word32 privateKeySz[WOLFSSH_MAX_PVT_KEYS];
-#ifdef WOLFSSH_CERTS
-    /* public certificate matching the private key */
-    byte* cert[WOLFSSH_MAX_PVT_KEYS];
-    word32 certSz[WOLFSSH_MAX_PVT_KEYS];
-#endif
-    byte privateKeyId[WOLFSSH_MAX_PVT_KEYS];
+        /* Check server's public key callback */
+    WOLFSSH_PVT_KEY privateKey[WOLFSSH_MAX_PVT_KEYS];
     word32 privateKeyCount;
+    byte publicKeyAlgo[WOLFSSH_MAX_PUB_KEY_ALGO];
+    word32 publicKeyAlgoCount;
     word32 highwaterMark;
     const char* banner;
+    const char* sshProtoIdStr;
     word32 bannerSz;
     word32 windowSz;
     word32 maxPacketSz;
@@ -480,11 +523,10 @@ typedef struct Keys {
 typedef struct HandshakeInfo {
     byte kexId;
     byte kexIdGuess;
+    byte kexHashId;
     byte pubKeyId;
-    byte sigId;
     byte encryptId;
     byte macId;
-    byte hashId;
     byte kexPacketFollows;
     byte aeadMode;
 
@@ -493,9 +535,9 @@ typedef struct HandshakeInfo {
 
     Keys keys;
     Keys peerKeys;
-    wc_HashAlg hash;
+    wc_HashAlg kexHash;
     byte e[MAX_KEX_KEY_SZ+1]; /* May have a leading zero for unsigned
-                               or is a Q_S value. */
+                                 or is a Q_S value. */
     word32 eSz;
     byte x[MAX_KEX_KEY_SZ+1]; /* May have a leading zero, for unsigned. */
     word32 xSz;
@@ -513,7 +555,7 @@ typedef struct HandshakeInfo {
 #endif
 
     byte useEcc;
-#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+#ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
     byte useEccKyber;
 #endif
 
@@ -530,6 +572,9 @@ typedef struct HandshakeInfo {
 #ifdef WOLFSSH_SFTP
 #define WOLFSSH_MAX_SFTPOFST 3
 
+#ifndef NO_WOLFSSH_DIR
+    typedef struct WS_DIR_LIST WS_DIR_LIST;
+#endif
 typedef struct WS_HANDLE_LIST WS_HANDLE_LIST;
 typedef struct SFTP_OFST {
     word32 offset[2];
@@ -537,6 +582,7 @@ typedef struct SFTP_OFST {
     char to[WOLFSSH_MAX_FILENAME];
 } SFTP_OFST;
 
+struct WS_SFTP_RECV_INIT_STATE;
 struct WS_SFTP_GET_STATE;
 struct WS_SFTP_PUT_STATE;
 struct WS_SFTP_LSTAT_STATE;
@@ -690,6 +736,9 @@ struct WOLFSSH {
     void* publicKeyCheckCtx;
     byte  sendTerminalRequest;
     byte userAuthPkDone;
+    byte sendExtInfo;
+    byte* peerSigId;
+    word32 peerSigIdSz;
 
 #ifdef USE_WINDOWS_API
     word32 defaultAttr; /* default windows attributes */
@@ -707,9 +756,14 @@ struct WOLFSSH {
     word32 sftpExtSz; /* size of extension buffer (buffer not currently used) */
     SFTP_OFST sftpOfst[WOLFSSH_MAX_SFTPOFST];
     char* sftpDefaultPath;
+#ifndef NO_WOLFSSH_DIR
+    WS_DIR_LIST* dirList;
+    word32 dirIdCount[2];
+#endif
 #ifdef WOLFSSH_STOREHANDLE
     WS_HANDLE_LIST* handleList;
 #endif
+    struct WS_SFTP_RECV_INIT_STATE* recvInitState;
     struct WS_SFTP_RECV_STATE* recvState;
     struct WS_SFTP_RMDIR_STATE* rmdirState;
     struct WS_SFTP_MKDIR_STATE* mkdirState;
@@ -745,6 +799,12 @@ struct WOLFSSH {
 #ifdef WOLFSSH_FWD
     void* fwdCbCtx;
 #endif /* WOLFSSH_FWD */
+#ifdef WOLFSSH_TERM
+    WS_CallbackTerminalSize termResizeCb;
+    void* termCtx;
+    word32 curX; /* current terminal width */
+    word32 curY; /* current terminal height */
+#endif
 };
 
 
@@ -823,6 +883,13 @@ WOLFSSH_LOCAL int wsEmbedSend(WOLFSSH*, void*, word32, void*);
 
 #endif /* WOLFSSH_USER_IO */
 
+enum ChannelOpenFailReasons {
+    OPEN_OK = 0,
+    OPEN_ADMINISTRATIVELY_PROHIBITED,
+    OPEN_CONNECT_FAILED,
+    OPEN_UNKNOWN_CHANNEL_TYPE,
+    OPEN_RESOURCE_SHORTAGE
+};
 
 WOLFSSH_LOCAL int DoReceive(WOLFSSH*);
 WOLFSSH_LOCAL int DoProtoId(WOLFSSH*);
@@ -842,6 +909,7 @@ WOLFSSH_LOCAL int SendGlobalRequest(WOLFSSH *, const unsigned char *, word32, in
 WOLFSSH_LOCAL int SendDebug(WOLFSSH*, byte, const char*);
 WOLFSSH_LOCAL int SendServiceRequest(WOLFSSH*, byte);
 WOLFSSH_LOCAL int SendServiceAccept(WOLFSSH*, byte);
+WOLFSSH_LOCAL int SendExtInfo(WOLFSSH* ssh);
 WOLFSSH_LOCAL int SendUserAuthRequest(WOLFSSH*, byte, int);
 WOLFSSH_LOCAL int SendUserAuthSuccess(WOLFSSH*);
 WOLFSSH_LOCAL int SendUserAuthFailure(WOLFSSH*, byte);
@@ -852,6 +920,7 @@ WOLFSSH_LOCAL int SendRequestSuccess(WOLFSSH*, int);
 WOLFSSH_LOCAL int SendChannelOpenSession(WOLFSSH*, WOLFSSH_CHANNEL*);
 WOLFSSH_LOCAL int SendChannelOpenForward(WOLFSSH*, WOLFSSH_CHANNEL*);
 WOLFSSH_LOCAL int SendChannelOpenConf(WOLFSSH*, WOLFSSH_CHANNEL*);
+WOLFSSH_LOCAL int SendChannelOpenFail(WOLFSSH*, word32, word32, const char*, const char*);
 WOLFSSH_LOCAL int SendChannelEof(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelEow(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelClose(WOLFSSH*, word32);
@@ -859,11 +928,13 @@ WOLFSSH_LOCAL int SendChannelExit(WOLFSSH*, word32, int);
 WOLFSSH_LOCAL int SendChannelData(WOLFSSH*, word32, byte*, word32);
 WOLFSSH_LOCAL int SendChannelWindowAdjust(WOLFSSH*, word32, word32);
 WOLFSSH_LOCAL int SendChannelRequest(WOLFSSH*, byte*, word32);
+WOLFSSH_LOCAL int SendChannelTerminalResize(WOLFSSH*, word32, word32, word32,
+    word32);
 WOLFSSH_LOCAL int SendChannelTerminalRequest(WOLFSSH* ssh);
 WOLFSSH_LOCAL int SendChannelAgentRequest(WOLFSSH* ssh);
 WOLFSSH_LOCAL int SendChannelSuccess(WOLFSSH*, word32, int);
 WOLFSSH_LOCAL int GenerateKey(byte, byte, byte*, word32, const byte*, word32,
-                              const byte*, word32, const byte*, word32);
+                              const byte*, word32, const byte*, word32, byte doKeyPad);
 
 
 enum AcceptStates {
@@ -952,19 +1023,20 @@ enum WS_MessageIds {
     MSGID_DEBUG = 4,
     MSGID_SERVICE_REQUEST = 5,
     MSGID_SERVICE_ACCEPT = 6,
+    MSGID_EXT_INFO = 7,
 
     MSGID_KEXINIT = 20,
     MSGID_NEWKEYS = 21,
 
     MSGID_KEXDH_INIT = 30,
     MSGID_KEXECDH_INIT = 30,
-#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+#ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
     MSGID_KEXKEM_INIT = 30,
 #endif
 
     MSGID_KEXDH_REPLY = 31,
     MSGID_KEXECDH_REPLY = 31,
-#ifndef WOLFSSH_NO_ECDH_SHA2_NISTP256_KYBER_LEVEL1_SHA256
+#ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
     MSGID_KEXKEM_REPLY = 31,
 #endif
 
