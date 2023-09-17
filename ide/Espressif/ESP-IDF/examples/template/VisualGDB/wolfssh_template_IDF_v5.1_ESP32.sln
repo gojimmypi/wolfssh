@@ -18,6 +18,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfssh", "wolfssh", "{A945
 		..\components\wolfssh\CMakeLists.txt = ..\components\wolfssh\CMakeLists.txt
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfssl", "wolfssl", "{530EF870-BCA9-4320-AD27-1D8FC6B3770C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "include", "include", "{C3B90A14-D318-4828-BDD3-A5D018C032F5}"
+	ProjectSection(SolutionItems) = preProject
+		..\components\wolfssl\include\user_settings.h = ..\components\wolfssl\include\user_settings.h
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|VisualGDB = Debug|VisualGDB
@@ -37,6 +44,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C3B90A14-D318-4828-BDD3-A5D018C032F5} = {530EF870-BCA9-4320-AD27-1D8FC6B3770C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {68907C18-A199-469F-8856-F03632FDA03E}

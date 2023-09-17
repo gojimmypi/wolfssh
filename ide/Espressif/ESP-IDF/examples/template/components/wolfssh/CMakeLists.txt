@@ -27,6 +27,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
 set(CMAKE_CURRENT_SOURCE_DIR ".")
 set(COMPONENT_REQUIRES lwip wolfssl)
 
+# TODO need cmake function to find wolfssl:
+set(WOLFSSL_ROOT "/workspace/wolfssl-gojimmypi")
+
 # COMPONENT_NAME = wolfssh
 # The component name is the directory name. "No feature to change this".
 # See https://github.com/espressif/esp-idf/issues/8978#issuecomment-1129892685
@@ -170,7 +173,11 @@ else()
 
     set(INCLUDE_PATH ${WOLFSSH_ROOT})
 
-    set(COMPONENT_SRCDIRS "\"${WOLFSSH_ROOT}/src/\""
+    set(COMPONENT_SRCDIRS "\"${WOLFSSL_ROOT}/src/\""
+                          "\"${WOLFSSL_ROOT}/wolfcrypt/src\""
+                          "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/Espressif\""
+                          "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/atmel\""
+                          "\"${WOLFSSH_ROOT}/src/\""
        ) # COMPONENT_SRCDIRS
     message(STATUS "This COMPONENT_SRCDIRS = ${COMPONENT_SRCDIRS}")
 
@@ -181,7 +188,7 @@ else()
 
     # get a list of all wolfcrypt assembly files; we'll exclude them as they don't target Xtensa
     file(GLOB EXCLUDE_ASM *.S)
-    file(GLOB_RECURSE EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSH_ROOT}/wolfcrypt/src/*.S")
+    file(GLOB_RECURSE EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSL_ROOT}/wolfcrypt/src/*.S")
 
     message(STATUS "IDF_PATH = $ENV{IDF_PATH}")
     message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
