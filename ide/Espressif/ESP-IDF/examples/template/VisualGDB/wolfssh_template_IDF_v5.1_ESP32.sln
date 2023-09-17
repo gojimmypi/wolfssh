@@ -8,7 +8,14 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{F0564364-33CD-468B-8514-D6A907B2449C}"
 	ProjectSection(SolutionItems) = preProject
 		..\README.md = ..\README.md
+		..\..\..\setup.sh = ..\..\..\setup.sh
+		..\..\..\setup_win.bat = ..\..\..\setup_win.bat
 		..\..\wolfssl_monitor.py = ..\..\wolfssl_monitor.py
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wolfssh", "wolfssh", "{A9456F78-BEB7-4057-8015-E5A63CB41D44}"
+	ProjectSection(SolutionItems) = preProject
+		..\components\wolfssh\CMakeLists.txt = ..\components\wolfssh\CMakeLists.txt
 	EndProjectSection
 EndProject
 Global

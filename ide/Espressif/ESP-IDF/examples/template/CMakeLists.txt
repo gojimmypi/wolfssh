@@ -58,4 +58,4 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project(wolfssl_template)
+project(wolfssh_template)

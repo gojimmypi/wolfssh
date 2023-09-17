@@ -25,7 +25,7 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
 set(CMAKE_CURRENT_SOURCE_DIR ".")
-set(COMPONENT_REQUIRES lwip wolfssl) 
+set(COMPONENT_REQUIRES lwip wolfssl)
 
 # COMPONENT_NAME = wolfssh
 # The component name is the directory name. "No feature to change this".
@@ -45,7 +45,7 @@ if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "WOLFSSH component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
                             REQUIRES "${COMPONENT_REQUIRES}"
-                            PRIV_REQUIRES esp_timer driver # this will typically only be needed for WOLFSSH benchmark
+                            PRIV_REQUIRES esp_timer driver wolfssl # this will typically only be needed for WOLFSSH benchmark
                            )
 
 else()
@@ -171,15 +171,10 @@ else()
     set(INCLUDE_PATH ${WOLFSSH_ROOT})
 
     set(COMPONENT_SRCDIRS "\"${WOLFSSH_ROOT}/src/\""
-                          "\"${WOLFSSH_ROOT}/wolfcrypt/src\""
-                          "\"${WOLFSSH_ROOT}/wolfcrypt/src/port/Espressif\""
-                          "\"${WOLFSSH_ROOT}/wolfcrypt/src/port/atmel\""
-                          "\"${WOLFSSH_ROOT}/wolfcrypt/benchmark\"" # the benchmark application
-                          "\"${WOLFSSH_ROOT}/wolfcrypt/test\"" # the test application
        ) # COMPONENT_SRCDIRS
     message(STATUS "This COMPONENT_SRCDIRS = ${COMPONENT_SRCDIRS}")
 
-    set(WOLFSSH_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/WOLFSSH")
+    set(WOLFSSH_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/wolfssh")
 
     # Espressif may take several passes through this makefile. Check to see if we found IDF
     string(COMPARE EQUAL "${PROJECT_SOURCE_DIR}" "" WOLFSSH_FOUND_IDF)
@@ -271,24 +266,11 @@ else()
                         else()
                             message(STATUS "Installing WOLFSSH user_settings.h to "
                                            "${WOLFSSH_PROJECT_DIR}/include/user_settings.h")
-                            file(COPY "${WOLFSSH_ROOT}/IDE/Espressif/ESP-IDF/user_settings.h"
-                            DESTINATION "${CMAKE_HOME_DIRECTORY}/WOLFSSH/include/")
+                            # file(COPY "${WOLFSSH_ROOT}/IDE/Espressif/ESP-IDF/user_settings.h"
+                            # DESTINATION "${CMAKE_HOME_DIRECTORY}/WOLFSSH/include/")
                         endif()
                     endif() # user_settings.h
 
-                    # next check if there's a [root]/include/config.h
-                    if( EXISTS "${WOLFSSH_ROOT}/include/config.h" )
-                        message(FATAL_ERROR "Found stray WOLFSSH config.h in        ${WOLFSSH_ROOT}/include/config.h (please move it to ${WOLFSSH_PROJECT_DIR}/include/config.h")
-                    else()
-                        # we won't overwrite an existing user settings file, just note that we already have one:
-                        if( EXISTS "${WOLFSSH_PROJECT_DIR}/include/config.h" )
-                            message(STATUS "Using existing WOLFSSH config.h           ${WOLFSSH_PROJECT_DIR}/include/config.h")
-                        else()
-                            message(STATUS "Installing WOLFSSH config.h to            ${WOLFSSH_PROJECT_DIR}/include/config.h")
-                            file(COPY   "${WOLFSSH_ROOT}/IDE/Espressif/ESP-IDF/dummy_config_h" DESTINATION "${WOLFSSH_PROJECT_DIR}/include/")
-                            file(RENAME "${WOLFSSH_PROJECT_DIR}/include/dummy_config_h" "${WOLFSSH_PROJECT_DIR}/include/config.h")
-                        endif() # Project config.h
-                    endif() # WOLFSSH_ROOT config.h
                     message(STATUS "************************************************************************************************")
                     message(STATUS "")
                 endif()
@@ -332,8 +314,7 @@ else()
     set(COMPONENT_ADD_INCLUDEDIRS
         "./include" # this is the location of WOLFSSH user_settings.h
         "\"${WOLFSSH_ROOT}/\""
-        "\"${WOLFSSH_ROOT}/WOLFSSH/\""
-        "\"${WOLFSSH_ROOT}/WOLFSSH/wolfcrypt/\""
+        "\"${WOLFSSH_ROOT}/wolfssh/\""
         "\"${RTOS_IDF_PATH}/\""
         )
 
@@ -342,24 +323,23 @@ else()
         list(APPEND COMPONENT_ADD_INCLUDEDIRS "../cryptoauthlib/lib")
     endif()
 
-    list(APPEND COMPONENT_ADD_INCLUDEDIRS "\"${WOLFSSH_ROOT}/WOLFSSH/\"")
-    list(APPEND COMPONENT_ADD_INCLUDEDIRS "\"${WOLFSSH_ROOT}/WOLFSSH/wolfcrypt/\"")
+    list(APPEND COMPONENT_ADD_INCLUDEDIRS "\"${WOLFSSH_ROOT}/wolfssh/\"")
 
 
 
     set(COMPONENT_SRCEXCLUDE
-        "\"${WOLFSSH_ROOT}/src/bio.c\""
-        "\"${WOLFSSH_ROOT}/src/conf.c\""
-        "\"${WOLFSSH_ROOT}/src/misc.c\""
-        "\"${WOLFSSH_ROOT}/src/pk.c\""
-        "\"${WOLFSSH_ROOT}/src/ssl_asn1.c\""    # included by ssl.c
-        "\"${WOLFSSH_ROOT}/src/ssl_certman.c\"" # included by ssl.c
-        "\"${WOLFSSH_ROOT}/src/ssl_bn.c\""      # included by ssl.c
-        "\"${WOLFSSH_ROOT}/src/ssl_misc.c\""    # included by ssl.c
-        "\"${WOLFSSH_ROOT}/src/x509.c\""
-        "\"${WOLFSSH_ROOT}/src/x509_str.c\""
-        "\"${WOLFSSH_ROOT}/wolfcrypt/src/evp.c\""
-        "\"${WOLFSSH_ROOT}/wolfcrypt/src/misc.c\""
+        "\"${WOLFSSL_ROOT}/src/bio.c\""
+        "\"${WOLFSSL_ROOT}/src/conf.c\""
+        "\"${WOLFSSL_ROOT}/src/misc.c\""
+        "\"${WOLFSSL_ROOT}/src/pk.c\""
+        "\"${WOLFSSL_ROOT}/src/ssl_asn1.c\""    # included by ssl.c
+        "\"${WOLFSSL_ROOT}/src/ssl_certman.c\"" # included by ssl.c
+        "\"${WOLFSSL_ROOT}/src/ssl_bn.c\""      # included by ssl.c
+        "\"${WOLFSSL_ROOT}/src/ssl_misc.c\""    # included by ssl.c
+        "\"${WOLFSSL_ROOT}/src/x509.c\""
+        "\"${WOLFSSL_ROOT}/src/x509_str.c\""
+        "\"${WOLFSSL_ROOT}/wolfcrypt/src/evp.c\""
+        "\"${WOLFSSL_ROOT}/wolfcrypt/src/misc.c\""
         "\"${EXCLUDE_ASM}\""
         )
 
@@ -386,7 +366,7 @@ else()
                             INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
                             REQUIRES "${COMPONENT_REQUIRES}"
                             EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
-                            PRIV_REQUIRES esp_timer driver # this will typically only be needed for WOLFSSH benchmark
+                            PRIV_REQUIRES esp_timer driver wolfssl # this will typically only be needed for WOLFSSH benchmark
                            )
     # some optional diagnostics
     if (1)
