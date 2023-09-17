@@ -31,6 +31,10 @@ libtool
 libtool.m4
 *.log
 *.gz
+*.zip
+*.bak
+*.dummy
+*.xcworkspace
 Makefile
 Makefile.in
 *.deps
@@ -38,6 +42,8 @@ Makefile.in
 *.libs
 stamp-h*
 build-aux/
+build-test/
+build/
 wolfssh-config
 aminclude.am
 
@@ -70,6 +76,18 @@ client.plist
 # misc
 .DS_Store
 
+# Visual Studio Code Workspace Files
+*.vscode
+*.userprefs
+*.exe
+*.dll
+.vs
+Backup
+UpgradeLog.htm
+*.aps
+*.VC.db
+*.filters
+
 # VS debris
 *.sdf
 *.v11.suo
@@ -82,3 +100,61 @@ Debug
 Release
 DLL Debug
 DLL Release
+
+
+/IDE/Espressif/**/out/
+
+# auto-created CMake backups
+**/CMakeLists.txt.old
+
+# VisualGDB
+**/.visualgdb
+**/*.vgdbproj.*.user
+
+# Espressif sdk config default should be saved in sdkconfig.defaults
+# we won't track the actual working sdkconfig files
+/ide/Espressif/**/sdkconfig
+
+# Espressif managed components to exclude:
+/ide/Espressif/**/managed_components/**
+
+# Espressif managed component lock files to exclude.
+# "In general, it's ok to have it under version control, however, it ties
+# the solution to the exact version of ESP-IDF and will be ignored if an
+# example is built against another IDF version or for a different target.
+# So it's better to git ignore it for the examples."
+/ide/Espressif/**/dependencies.lock
+
+# exclude any local oqs components
+/ide/Espressif/ESP-IDF/examples/**/components/oqs
+
+/ide/Espressif/**/sdkconfig.old
+
+# ESP Registry Files
+
+# Temporary wolfssl component install directories that are copied locally at install time
+/ide/Espressif/wolfssl
+/ide/Espressif/component-manager/wolfssl
+/ide/Espressif/component-manager/wolfcrypt
+/ide/Espressif/component-manager/src
+/ide/Espressif/component-manager/dist
+
+# Exclude most of the example files that are copied at install time
+# from https://github.com/wolfSSL/wolfssl/tree/master/ide/Espressif/ESP-IDF/examples
+/ide/Espressif/component-manager/examples/**/CMakeLists.txt
+/ide/Espressif/component-manager/examples/*/partitions_singleapp_large.csv
+/ide/Espressif/component-manager/examples/*/sdkconfig.defaults
+/ide/Espressif/component-manager/examples/*/main/CMakeLists.txt
+/ide/Espressif/component-manager/examples/**/main/*.c
+/ide/Espressif/component-manager/examples/*/main/*.h
+/ide/Espressif/component-manager/examples/*/main/component.mk
+/ide/Espressif/component-manager/examples/*/main/Kconfig.projbuild
+
+# The only ESP Registry Files specific to this location
+!/ide/Espressif/component-manager/examples/*/main/idf_component.yml
+!/ide/Espressif/component-manager/examples/*/README.md
+/ide/Espressif/ESP-IDF/examples/wolfssl_test/components/cryptoauthlib
+
+# Never include the build failure semaphore file
+/ide/build_failed.txt
+/ide/Espressif/component-manager/examples/template/main/include/main.h
