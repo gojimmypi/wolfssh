@@ -24,6 +24,8 @@
 
 /* wolfSSL  */
 #include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
+#include <wolfssh/ssh.h>
+#include <wolfssh/log.h>
 
 /* project */
 #include "main.h"
@@ -38,8 +40,16 @@ void app_main(void)
     esp_ShowExtendedSystemInfo();
 #endif
 
-    ESP_LOGI(TAG, "\n\nDone!"
-                  "If running from idf.py monitor, press twice: Ctrl+]\n\n"
+#ifdef DEBUG_WOLFSSH
+    wolfSSH_Debugging_ON();
+#else
+    ESP_LOGI(TAG, "DEBUG_WOLFSSH is not defined, "
+                  "so nothing will happen for teh next statement");
+#endif
+    wolfSSH_Log(WS_LOG_INFO, "[wolfssh] Hello World!");
+
+    ESP_LOGI(TAG, "\n\nDone! \n\n"
                   "WOLFSSL_COMPLETE\n" /* exit keyword for wolfssl_monitor.py */
+                  "If running from idf.py monitor, press twice: Ctrl+]\n\n"
             );
 }
