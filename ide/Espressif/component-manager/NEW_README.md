@@ -1,4 +1,4 @@
-This is the Espressif Component Version of wolfSSH 1.0.0-test, Release #2 (version ^1.0.0-test)
+This is the Espressif Component Version of wolfMQTT 1.0.0-test, Release #1 (version ^1.0.0-test)
 
 For questions or beta test of this library, please send a message to support@wolfssl.com
 
@@ -87,363 +87,502 @@ contact us at [licensing@wolfssl.com](mailto:licensing@wolfssl.com?subject=Espre
 or call +1 425 245 8247
 
 View Commercial Support Options: [wolfssl.com/products/support-and-maintenance](https://www.wolfssl.com/products/support-and-maintenance/)
-# wolfMQTT
+WOLFSSH
+=======
 
-This is an implementation of the MQTT Client written in C for embedded use, which supports SSL/TLS via the wolfSSL library. This library was built from the ground up to be multi-platform, space conscious and extensible. Integrates with wolfSSL to provide TLS support.
+wolfSSL's Embeddable SSH Server
+[wolfSSH Manual](https://www.wolfssl.com/docs/wolfssh-manual/)
 
+dependencies
+------------
 
-## Building
+[wolfSSH](https://www.wolfssl.com/wolfssh/) is dependent on
+[wolfCrypt](https://www.wolfssl.com/download/), found as a part of
+wolfSSL. The following is the simplest configuration of wolfSSL to
+enable wolfSSH.
 
-### Mac/Linux/Unix
+    $ cd wolfssl
+    $ ./configure [OPTIONS] --enable-ssh
+    $ make check
+    $ sudo make install
 
-1. `./autogen.sh` (if cloned from GitHub)
-2. `./configure` (to see a list of build options use `./configure --help`)
-3. `make`
-4. `sudo make install`
+On some systems the optional ldconfig command is needed after installing.
 
-Notes:
-* If `wolfssl` was recently installed, run `sudo ldconfig` to update the linker cache.
-* Debug messages can be enabled using `--enable-debug` or `--enable-debug=verbose` (for extra logging).
-* For a list of build options run `./configure --help`.
-* The build options are generated in a file here: `wolfmqtt/options.h`.
+To use the key generation function in wolfSSH, wolfSSL will need to be
+configured with keygen: `--enable-keygen`.
 
-### Windows Visual Studio
+When using X.509 certificates for user authentication, wolfSSL must be
+built with TLS enabled. wolfSSH uses wolfSSL's certificate manager system
+for X.509, including OCSP lookups. To allow OCSP, add `--enable-ocsp` to the
+wolfSSL configure.
 
-For building wolfMQTT with TLS support in Visual Studio:
+If the bulk of wolfSSL code isn't desired, wolfSSL can be configured with
+the crypto only option: `--enable-cryptonly`.
 
-1. Open the `<wolfssl-root>/wolfssl64.sln`.
-2. Re-target for your Visual Studio version (right-click on solution and choose `Retarget solution`).
-3. Make sure the `Debug DLL` or `Release DLL` configuration is selected. Make note if you are building 32-bit `x86` or 64-bit `x64`.
-4. Build the wolfSSL solution.
-5. Copy the `wolfssl.lib` and `wolfssl.dll` files into `<wolfmqtt-root>`.
-   * For `DLL Debug` with `x86` the files are in: `DLL Debug`.
-   * For `DLL Release` with `x86` the files are in: `DLL Release`.
-   * For `DLL Debug` with `x64` the files are in: `x64/DLL Debug`.
-   * For `DLL Release` with `x64` the files are in: `x64/DLL Release`.
-6. Open the `<wolfmqtt-root>/wolfmqtt.sln` solution.
-7. Make sure you have the same architecture (`x86` or `x64` selected) as used in wolfSSL above.
-8. By default the include path for the wolfssl headers is `./../wolfssl/`. If your wolfssl root location is different you can go into the project settings and adjust this in `C/C++` -> `General` -> `Additional Include Directories`.
-9. Configure your Visual Studio build settings using `wolfmqtt/vs_settings.h`.
-10. Build the wolfMQTT solution.
+Additional build options for wolfSSL are located in
+[chapter two](https://www.wolfssl.com/docs/wolfssl-manual/ch2/).
+of the wolfSSH manual.
 
-### CMake
-CMake supports compiling in many environments including Visual Studio
-if CMake support is installed. The commands below can be run in
-`Developer Command Prompt`.
+building
+--------
 
-```
-mkdir build
-cd build
-# to use installed wolfSSL location (library and headers)
-cmake .. -DWITH_WOLFSSL=/prefix/to/wolfssl/install/
-# OR to use a wolfSSL source tree
-cmake .. -DWITH_WOLFSSL_TREE=/path/to/wolfssl/
-# build
-cmake --build .
-```
+From the wolfSSH source directory run:
 
-### vcpkg
+    $ ./autogen.sh
+    $ ./configure --with-wolfssl=[/usr/local]
+    $ make
+    $ make check
 
- You can download and install wolfMQTT using the [vcpkg](https://github.com/Microsoft/vcpkg):
+The `autogen.sh` script only has to be run the first time after cloning
+the repository. If you have already run it or are using code from a
+source archive, you should skip it.
 
-    git clone https://github.com/Microsoft/vcpkg.git
-    cd vcpkg
-    ./bootstrap-vcpkg.sh
-    OR for Windows
-    bootstrap-vcpkg.bat
+For building under Windows with Visual Studio, see the file
+"ide/winvs/README.md".
 
-    ./vcpkg integrate install
-    ./vcpkg install wolfmqtt
+NOTE: On resource constrained devices the `DEFAULT_WINDOW_SZ` may need
+to be set to a lower size. It can also be increased in desktop use cases
+to help with large file transfers. By default channels are set to receive
+up to 128kB of data before sending a channel window adjust message. An
+example of setting a window size for new channels would be as follows
+`./configure CPPFLAGS="-DDEFAULT_WINDOW_SZ=16384"`
 
-The wolfMQTT port in vcpkg is kept up to date by wolfSSL.
+For 32bit Linux platforms you can add support for files > 2GB by compling
+with `CFLAGS=-D_FILE_OFFSET_BITS=64`.
 
-We also have vcpkg ports for wolftpm, wolfssl and curl.
+examples
+--------
 
-### Arduino
+The directory `examples` contains an echoserver that any client should
+be able to connect to. From the terminal run:
 
-See `README.md` at [IDE/ARDUINO.README.md](IDE/ARDUINO.README.md)
+    $ ./examples/echoserver/echoserver -f
 
-### MinGW
+The option `-f` enables echo-only mode. From another terminal run:
 
-```sh
-export PATH="/opt/mingw-w32-bin_i686-darwin/bin:$PATH"
-export PREFIX=$PWD/build
+    $ ssh jill@localhost -p 22222
 
-# wolfSSL
-cd wolfssl
-./configure --host=i686 CC=i686-w64-mingw32-gcc LD=i686-w64-mingw32-ld CFLAGS="-DWIN32 -DMINGW -D_WIN32_WINNT=0x0600" LIBS="-lws2_32 -L$PREFIX/lib -lwolfssl" --prefix=$PREFIX
-make
-make install
+When prompted for a password, enter "upthehill". The server will send a
+canned banner to the client:
 
-# wolfMQTT
-cd ../wolfmqtt
-./configure --host=i686 CC=i686-w64-mingw32-gcc LD=i686-w64-mingw32-ld CFLAGS="-DWIN32 -DMINGW -D_WIN32_WINNT=0x0600 -DBUILDING_WOLFMQTT -I$PREFIX/include" LDFLAGS="-lws2_32 -L$PREFIX/lib -lwolfssl" --prefix=$PREFIX --disable-examples
-make
-```
+    wolfSSH Example Echo Server
 
-### Zephyr RTOS
+Characters typed into the client will be echoed to the screen by the
+server. If the characters are echoed twice, the client has local echo
+enabled. The echoserver isn't being a proper terminal so the CR/LF
+translation will not work as expected.
 
-Support for Zephyr is available in the [zephyr](zephyr) directory. For instructions on how to build for Zephyr, see the [README.md](zephyr/README.md).
+The following control characters will trigger special actions in the
+echoserver:
 
-## Architecture
+- CTRL-C: Terminate the connection.
+- CTRL-E: Print out some session statistics.
+- CTRL-F: Trigger a new key exchange.
 
-The library has three components.
 
-### 1. mqtt_client
+testing notes
+-------------
 
-This is where the top level application interfaces for the MQTT client reside.
+After cloning the repository, be sure to make the testing private keys
+read-only for the user, otherwise `ssh` will tell you to do it.
 
-* `int MqttClient_Init(MqttClient *client, MqttNet *net, MqttMsgCb msg_cb, byte *tx_buf, int tx_buf_len, byte *rx_buf, int rx_buf_len, int cmd_timeout_ms);`
+    $ chmod 0600 ./keys/gretel-key-rsa.pem ./keys/hansel-key-rsa.pem \
+                 ./keys/gretel-key-ecc.pem ./keys/hansel-key-ecc.pem
 
-These API's are blocking on `MqttNet.read` until error/timeout (`cmd_timeout_ms`):
+Authentication against the example echoserver can be done with a
+password or public key. To use a password the command line:
 
-* `int MqttClient_Connect(MqttClient *client, MqttConnect *connect);`
-* `int MqttClient_Publish(MqttClient *client, MqttPublish *publish);`
-* `int MqttClient_Subscribe(MqttClient *client, MqttSubscribe *subscribe);`
-* `int MqttClient_Unsubscribe(MqttClient *client, MqttUnsubscribe *unsubscribe);`
-* `int MqttClient_Ping(MqttClient *client);`
-* `int MqttClient_Disconnect(MqttClient *client);`
+    $ ssh -p 22222 USER@localhost
 
-This function blocks waiting for a new publish message to arrive for a maximum duration of `timeout_ms`.
+Where the *USER* and password pairs are:
 
-* `int MqttClient_WaitMessage(MqttClient *client, MqttMessage *message, int timeout_ms);`
+    jill:upthehill
+    jack:fetchapail
 
-These are the network connect / disconnect interfaces that wrap the MqttNet callbacks and handle WolfSSL TLS:
+To use public key authentication use the command line:
 
-* `int MqttClient_NetConnect(MqttClient *client, const char* host, word16 port, int timeout_ms, int use_tls, MqttTlsCb cb);`
-* `int MqttClient_NetDisconnect(MqttClient *client);`
+    $ ssh -i ./keys/USER-key-TYPE.pem -p 22222 USER@localhost
 
-Helper functions:
+Where the *USER* can be `gretel` or `hansel`, and *TYPE* is `rsa` or
+`ecc`.
 
-* `const char* MqttClient_ReturnCodeToString(int return_code);`
+Keep in mind, the echoserver has several fake accounts in its
+`wsUserAuth()` callback function. (jack, jill, hansel, and gretel) When
+the shell support is enabled, those fake accounts will not work. They
+don't exist in the system's _passwd_ file. The users will authenticate,
+but the server will err out because they don't exist in the system. You
+can add your own username to the password or public key list in the
+echoserver. That account will be logged into a shell started by the
+echoserver with the privileges of the user running echoserver.
 
-### 2. mqtt_packet
 
-This is where all the packet encoding/decoding is handled.
+EXAMPLE TOOLS
+=============
 
-The header contains the MQTT Packet structures for:
+wolfSSH comes packaged with a few example tools for testing purposes
+and to demonstrate interoperability with other SSH implementations.
 
-* Connect: `MqttConnect`
-* Publish / Message: `MqttPublish` / `MqttMessage` (they are the same)
-* Subscribe: `MqttSubscribe`
-* Unsubscribe: `MqttUnsubscribe`
 
+echoserver
+----------
 
-### 3. mqtt_socket
+The echoserver is the workhorse of wolfSSH. It originally only allowed one
+to authenticate one of the canned account and would repeat the characters
+typed into it. When enabling [shell support](#shell-support), it can
+spawn a user shell. It will need an actual user name on the machine and an
+updated user authentication callback function to validate the credentials.
+The echoserver can also handle SCP and SFTP connections.
 
-This is where the transport socket optionally wraps TLS and uses the `MqttNet` callbacks for the platform specific network handling.
+The echoserver tool accepts the following command line options:
 
-The header contains the MQTT Network structure `MqttNet` for network callback and context.
+    -1             exit after a single (one) connection
+    -e             expect ECC public key from client
+    -E             use ECC private key
+    -f             echo input
+    -p <num>       port to accept on, default 22222
+    -N             use non-blocking sockets
+    -d <string>    set the home directory for SFTP connections
+    -j <file>      load in a public key to accept from peer
 
 
-## Implementation
+client
+------
 
-Here are the steps for creating your own implementation.
+The client establishes a connection to an SSH server. In its simplest mode,
+it sends the string "Hello, wolfSSH!" to the server, prints the response,
+and then exits. With the pseudo terminal option, the client will be a real
+client.
 
-1. Create network callback functions for Connect, Read, Write and Disconnect. See `examples/mqttnet.c` and `examples/mqttnet.h`.
-2. Define the callback functions and context in a `MqttNet` structure.
-3. Call `MqttClient_Init` passing in a `MqttClient` structure pointer, `MqttNet` structure pointer, `MqttMsgCb` function pointer, TX/RX buffers with maximum length and command timeout.
-4. Call `MqttClient_NetConnect` to connect to broker over network. If `use_tls` is non-zero value then it will perform a TLS connection. The TLS callback `MqttTlsCb` should be defined for wolfSSL certificate configuration.
-5. Call `MqttClient_Connect` passing pointer to `MqttConnect` structure to send MQTT connect command and wait for Connect Ack.
-6. Call `MqttClient_Subscribe` passing pointer to `MqttSubscribe` structure to send MQTT Subscribe command and wait for Subscribe Ack (depending on QoS level).
-7. Call `MqttClient_WaitMessage` passing pointer to `MqttMessage` to wait for incoming MQTT Publish message.
+The client tool accepts the following command line options:
 
+    -h <host>      host to connect to, default 127.0.0.1
+    -p <num>       port to connect on, default 22222
+    -u <username>  username to authenticate as (REQUIRED)
+    -P <password>  password for username, prompted if omitted
+    -e             use sample ecc key for user
+    -i <filename>  filename for the user's private key
+    -j <filename>  filename for the user's public key
+    -x             exit after successful connection without doing
+                   read/write
+    -N             use non-blocking sockets
+    -t             use psuedo terminal
+    -c <command>   executes remote command and pipe stdin/stdout
+    -a             Attempt to use SSH-AGENT
 
-## Examples
 
-### Client Example
-The example MQTT client is located in `/examples/mqttclient/`. This example exercises many of the exposed API’s and prints any incoming publish messages for subscription topic “wolfMQTT/example/testTopic”. This client contains examples of many MQTTv5 features, including the property callback and server assignment of client ID. The mqqtclient example is a good starting template for your MQTT application.
+portfwd
+-------
 
-### Simple Standalone Client Example
-The example MQTT client is located in `/examples/mqttsimple/`. This example demonstrates a standalone client using standard BSD sockets. This requires `HAVE_SOCKET` to be defined, which comes from the ./configure generated `wolfmqtt/config.h` file. All parameters are build-time macros defined at the top of `/examples/mqttsimple/mqttsimple.c`.
+The portfwd tool establishes a connection to an SSH server and sets up a
+listener for local port forwarding or requests a listener for remote port
+forwarding. After a connection, the tool terminates.
 
-### Non-Blocking Client Example
-The example MQTT client is located in `/examples/nbclient/`. This example uses non-blocking I/O for message exchange. The wolfMQTT library must be configured with the `--enable-nonblock` option (or built with `WOLFMQTT_NONBLOCK`).
+The portfwd tool accepts the following command line options:
 
-### Firmware Example
-The MQTT firmware update is located in `/examples/firmware/`. This example has two parts. The first is called “fwpush”, which signs and publishes a firmware image. The second is called “fwclient”, which receives the firmware image and verifies the signature. This example publishes message on the topic “wolfMQTT/example/firmware”. The "fwpush" application is an example of using a publish callback to send the payload data.
+    -h <host>      host to connect to, default 127.0.0.1
+    -p <num>       port to connect on, default 22222
+    -u <username>  username to authenticate as (REQUIRED)
+    -P <password>  password for username, prompted if omitted
+    -F <host>      host to forward from, default 0.0.0.0
+    -f <num>       host port to forward from (REQUIRED)
+    -T <host>      host to forward to, default to host
+    -t <num>       port to forward to (REQUIRED)
 
-### Azure IoT Hub Example
-We setup a wolfMQTT IoT Hub on the Azure server for testing. We added a device called `demoDevice`, which you can connect and publish to. The example demonstrates creation of a SasToken, which is used as the password for the MQTT connect packet. It also shows the topic names for publishing events and listening to `devicebound` messages. This example only works with `ENABLE_MQTT_TLS` set and the wolfSSL library present because it requires Base64 Encode/Decode and HMAC-SHA256. Note: The wolfSSL library must be built with `./configure --enable-base64encode` or `#define WOLFSSL_BASE64_ENCODE`. The `wc_GetTime` API was added in 3.9.1 and if not present you'll need to implement your own version of this to get current UTC seconds or update your wolfSSL library.
-**NOTE** The Azure broker only supports MQTT v3.1.1
 
-### AWS IoT Example
-We setup an AWS IoT endpoint and testing device certificate for testing. The AWS server uses TLS client certificate for authentication. The example is located in `/examples/aws/`. The example subscribes to `$aws/things/"AWSIOT_DEVICE_ID"/shadow/update/delta` and publishes to `$aws/things/"AWSIOT_DEVICE_ID"/shadow/update`.
-**NOTE** The AWS broker only supports MQTT v3.1.1
+scpclient
+---------
 
-### Watson IoT Example
-This example enables the wolfMQTT client to connect to the IBM Watson Internet of Things (WIOT) Platform. The WIOT Platform has a limited test broker called "Quickstart" that allows non-secure connections to exercise the component. The example is located in `/examples/wiot/`. Works with MQTT v5 support enabled.
-**NOTE** The WIOT Platform will be disabled DEC2023. The demo may still be useful for users of IBM Watson IOT. 
+The scpclient, wolfscp, establishes a connection to an SSH server and copies
+the specified files from or to the local machine.
 
-### MQTT-SN Example
-The Sensor Network client implements the MQTT-SN protocol for low-bandwidth networks. There are several differences from MQTT, including the ability to use a two byte Topic ID instead the full topic during subscribe and publish. The SN client requires an MQTT-SN gateway. The gateway acts as an intermediary between the SN clients and the broker. This client was tested with the Eclipse Paho MQTT-SN Gateway, which connects by default to the public Eclipse broker, much like our wolfMQTT Client example. The address of the gateway must be configured as the host. The example is located in `/examples/sn-client/`.
+The scpclient tool accepts the following command line options:
 
-A special feature of MQTT-SN is the ability to use QoS level -1 (negative one) to publish to a predefined topic without first connecting to the gateway. There is no feedback in the application if there was an error, so confirmation of the test would involve running the `sn-client` first and watching for the publish from the `sn-client_qos-1`. There is an example provided in `/examples/sn-client/sn-client_qos-1`. It requires some configuration changes of the gateway.
+    -H <host>      host to connect to, default 127.0.0.1
+    -p <num>       port to connect on, default 22222
+    -u <username>  username to authenticate as (REQUIRED)
+    -P <password>  password for username, prompted if omitted
+    -L <from>:<to> copy from local to server
+    -S <from>:<to> copy from server to local
 
-* Enable the the QoS-1 feature, predefined topics, and change the gateway name in `gateway.conf`:
 
-```
-QoS-1=YES
-PredefinedTopic=YES
-PredefinedTopicList=./predefinedTopic.conf
-.
-.
-.
-#GatewayName=PahoGateway-01
-GatewayName=WolfGateway
-```
-
-* Comment out all entries and add a new topic in `predefinedTopic.conf`:
+sftpclient
+----------
 
-```
-WolfGatewayQoS-1,wolfMQTT/example/testTopic, 1
-```
-
-### Multithread Example
-This example exercises the multithreading capabilities of the client library. The client implements two tasks: one that publishes to the broker; and another that waits for messages from the broker. The publish thread is created `NUM_PUB_TASKS` times (10 by default) and sends unique messages to the broker. This feature is enabled using the `--enable-mt` configuration option. The example is located in `/examples/multithread/`.
-
-## Example Options
-The command line examples can be executed with optional parameters. To see a list of the available parameters, add the `-?`
-
-```
- ./examples/mqttclient/mqttclient -?
-mqttclient:
--?          Help, print this usage
--h <host>   Host to connect to, default: test.mosquitto.org
--p <num>    Port to connect on, default: Normal 1883, TLS 8883
--t          Enable TLS
--A <file>   Load CA (validate peer)
--K <key>    Use private key (for TLS mutual auth)
--c <cert>   Use certificate (for TLS mutual auth)
--S <str>    Use Host Name Indication, blank defaults to host
--q <num>    Qos Level 0-2, default: 0
--s          Disable clean session connect flag
--k <num>    Keep alive seconds, default: 60
--i <id>     Client Id, default: WolfMQTTClient
--l          Enable LWT (Last Will and Testament)
--u <str>    Username
--w <str>    Password
--m <str>    Message, default: test
--n <str>    Topic name, default: wolfMQTT/example/testTopic
--r          Set Retain flag on publish message
--C <num>    Command Timeout, default: 30000ms
--P <num>    Max packet size the client will accept, default: 1048576
--T          Test mode
--f <file>   Use file contents for publish
-```
-The available options vary depending on the library configuration.
+The sftpclient, wolfsftp, establishes a connection to an SSH server and
+allows directory navigation, getting and putting files, making and removing
+directories, etc.
 
+The sftpclient tool accepts the following command line options:
 
-## Broker compatibility
-wolfMQTT client library has been tested with the following brokers:
-* Adafruit IO by Adafruit
-* AWS by Amazon
-* Azure by Microsoft
-* flespi by Gurtam
-* HiveMQ and HiveMQ Cloud by HiveMQ GmbH
-* IBM WIoTP Message Gateway by IBM
-* Mosquitto by Eclipse
-* Paho MQTT-SN Gateway by Eclipse
-* VerneMQ by VerneMQ/Erlio
-* EMQX broker
+    -h <host>      host to connect to, default 127.0.0.1
+    -p <num>       port to connect on, default 22222
+    -u <username>  username to authenticate as (REQUIRED)
+    -P <password>  password for username, prompted if omitted
+    -d <path>      set the default local path
+    -N             use non blocking sockets
+    -e             use ECC user authentication
+    -l <filename>  local filename
+    -r <filename>  remote filename
+    -g             put local filename as remote filename
+    -G             get remote filename as local filename
 
-## Specification Support
 
-### MQTT v3.1.1 Specification Support
+server
+------
 
-The initially supported version with full specification support for all features and packets type such as:
-* QoS 0-2
-* Last Will and Testament (LWT)
-* Client examples for: AWS, Azure IoT, Firmware update, non-blocking and generic.
+This tool is a place holder.
 
-### MQTT v5.0 Specification Support
 
-The wolfMQTT client supports connecting to v5 enabled brokers when configured with the `--enable-v5` option. 
-The following v5.0 specification features are supported by the wolfMQTT client:
-* AUTH packet
-* User properties
-* Server connect ACK properties
-* Format and content type for publish
-* Server disconnect
-* Reason codes and strings
-* Maximum packet size
-* Server assigned client identifier
-* Subscription ID
-* Topic Alias
+SCP
+===
 
-The v5 enabled wolfMQTT client was tested with the following MQTT v5 brokers:
-* Mosquitto
-** Runs locally.
-** `./examples/mqttclient/mqttclient -h localhost`
-* Flespi
-** Requires an account tied token that is regenerated hourly.
-** `./examples/mqttclient/mqttclient -h "mqtt.flespi.io" -u "<your-flespi-token>"`
-* VerneMQ MQTTv5 preview
-** Runs locally.
-** `./examples/mqttclient/mqttclient -h localhost`
-* HiveMQ 4.0.0 EAP
-** Runs locally.
-** `./examples/mqttclient/mqttclient -h localhost`
-* HiveMQ Cloud
-** `./examples/mqttclient/mqttclient -h 833f87e253304692bd2b911f0c18dba1.s1.eu.hivemq.cloud -t -S -u wolf1 -w NEZjcm7i8eRjFKF -p 8883`
-* EMQX broker
-** `./examples/mqttclient/mqttclient -h "broker.emqx.io"`
+wolfSSH includes server-side support for scp, which includes support for both
+copying files 'to' the server, and copying files 'from' the server. Both
+single file and recursive directory copy are supported with the default
+send and receive callbacks.
 
-Properties are allocated from a local stack (size `MQTT_MAX_PROPS`) by default. Define `WOLFMQTT_DYN_PROP` to use malloc for property allocation.
+To compile wolfSSH with scp support, use the `--enable-scp` build option
+or define `WOLFSSL_SCP`:
 
-### MQTT Sensor Network (MQTT-SN) Specification Support
+    $ ./configure --enable-scp
+    $ make
 
-The wolfMQTT SN Client implementation is based on the OASIS MQTT-SN v1.2 specification. The SN API is configured with the `--enable-sn` option. There is a separate API for the sensor network API, which all begin with the "SN_" prefix. The wolfMQTT SN Client operates over UDP, which is distinct from the wolfMQTT clients that use TCP. The following features are supported by the wolfMQTT SN Client:
-* Register
-* Will topic and message set up
-* Will topic and message update
-* All QoS levels
-* Variable-sized packet length field
+For full API usage and implementation details, please see the wolfSSH User
+Manual.
 
-Unsupported features:
-* Automatic gateway discovery is not implemented
-* Multiple gateway handling
+The wolfSSL example server has been set up to accept a single scp request,
+and is compiled by default when compiling the wolfSSH library. To start the
+example server, run:
 
-The SN client was tested using the Eclipse Paho MQTT-SN Gateway (https://github.com/eclipse/paho.mqtt-sn.embedded-c) running locally and on a separate network node. Instructions for building and running the gateway are in the project README.
+    $ ./examples/server/server
 
-## Post-Quantum MQTT Support
+Standard scp commands can be used on the client side. The following are a
+few examples, where `scp` represents the ssh client you are using.
 
-Recently the OpenQuantumSafe project has integrated their fork of OpenSSL with the mosquito MQTT broker. You can now build wolfMQTT with wolfSSL and liboqs and use that to publish to the mosquito MQTT broker. Currently, wolfMQTT supports the `KYBER_LEVEL1` and `P256_KYBER_LEVEL1` groups and FALCON_LEVEL1 for authentication in TLS 1.3. This works on Linux.
+To copy a single file TO the server, using the default example user "jill":
 
-### Getting Started with Post-Quantum Mosquito MQTT Broker and Subscriber
+    $ scp -P 22222 <local_file> jill@127.0.0.1:<remote_path>
 
-To get started, you can use the code from the following github pull request:
+To copy the same single file TO the server, but with timestamp and in
+verbose mode:
 
-https://github.com/open-quantum-safe/oqs-demos/pull/143
+    $ scp -v -p -P 22222 <local_file> jill@127.0.0.1:<remote_path>
 
-Follow all the instructions in README.md and USAGE.md. This allows you to create a docker image and a docker network. Then you will run a broker, a subscriber and a publisher. At the end the publisher will exit and the broker and subscriber will remain active. You will need to re-activate the publisher docker instance and get the following files onto your local machine:
+To recursively copy a directory TO the server:
 
-- /test/cert/CA.crt
-- /test/cert/publisher.crt
-- /test/cert/publisher.key
+    $ scp -P 22222 -r <local_dir> jill@127.0.0.1:<remote_dir>
 
-NOTE: Do not stop the broker and the subscriber instances.
+To copy a single file FROM the server to the local client:
 
-### Building and Running Post-Quantum wolfMQTT Publisher
+    $ scp -P 22222 jill@127.0.0.1:<remote_file> <local_path>
 
-Follow the instructions for obtaining and building liboqs and building wolfSSL in section 15 of the following document:
+To recursively copy a directory FROM the server to the local client:
 
-https://github.com/wolfSSL/wolfssl/blob/master/INSTALL
+    $ scp -P 22222 -r jill@127.0.0.1:<remote_dir> <local_path>
 
-No special flags are required for building wolfMQTT. Simply do the following:
 
-```
-./autogen.sh (if obtained from github)
-./configure
-make all
-make check
-```
+PORT FORWARDING
+===============
 
-Since the broker and subscriber are still running, you can use `mqttclient` to publish using post-quantum algorithms in TLS 1.3 by doing the following:
+wolfSSH provides support for port forwarding. This allows the user
+to set up an encrypted tunnel to another server, where the SSH client listens
+on a socket and forwards connections on that socket to another socket on
+the server.
 
-```
-./examples/mqttclient/mqttclient -h 172.18.0.2 -t -A CA.crt -K publisher.key -c publisher.crt -m "Hello from post-quantum wolfMQTT!!" -n test/sensor1 -Q KYBER_LEVEL1
-```
+To compile wolfSSH with port forwarding support, use the `--enable-fwd` build
+option or define `WOLFSSH_FWD`:
 
-Congratulations! You have just published an MQTT message using TLS 1.3 with the `KYBER_LEVEL1` KEM and `FALCON_LEVEL1` signature scheme. To use the hybrid group, replace `KYBER_LEVEL1` with `P256_KYBER_LEVEL1`.
+    $ ./configure --enable-fwd
+    $ make
+
+For full API usage and implementation details, please see the wolfSSH User
+Manual.
+
+The portfwd example tool will create a "direct-tcpip" style channel. These
+directions assume you have OpenSSH's server running in the background with
+port forwarding enabled. This example forwards the port for the wolfSSL
+client to the server as the application. It assumes that all programs are run
+on the same machine in different terminals.
+
+    src/wolfssl$ ./examples/server/server
+    src/wolfssh$ ./examples/portfwd/portfwd -p 22 -u <username> \
+                 -f 12345 -t 11111
+    src/wolfssl$ ./examples/client/client -p 12345
+
+By default, the wolfSSL server listens on port 11111. The client is set to
+try to connect to port 12345. The portfwd logs in as user "username", opens
+a listener on port 12345 and connects to the server on port 11111. Packets
+are routed back and forth between the client and server. "Hello, wolfSSL!"
+
+The source for portfwd provides an example on how to set up and use the
+port forwarding support in wolfSSH.
+
+The echoserver will handle local and remote port forwarding. To connect with
+the ssh tool, using one of the following command lines. You can run either of
+the ssh command lines from anywhere:
+
+    src/wolfssl$ ./examples/server/server
+    src/wolfssh$ ./examples/echoserver/echoserver
+    anywhere 1$ ssh -p 22222 -L 12345:localhost:11111 jill@localhost
+    anywhere 2$ ssh -p 22222 -R 12345:localhost:11111 jill@localhost
+    src/wolfssl$ ./examples/client/client -p 12345
+
+This will allow port forwarding between the wolfSSL client and server like in
+the previous example.
+
+
+SFTP
+====
+
+wolfSSH provides server and client side support for SFTP version 3. This
+allows the user to set up an encrypted connection for managing file systems.
+
+To compile wolfSSH with SFTP support, use the `--enable-sftp` build option or
+define `WOLFSSH_SFTP`:
+
+    $ ./configure --enable-sftp
+    $ make
+
+For full API usage and implementation details, please see the wolfSSH User
+Manual.
+
+The SFTP client created is located in the directory examples/sftpclient/ and the
+server is ran using the same echoserver as with wolfSSH.
+
+    src/wolfssh$ ./examples/sftpclient/wolfsftp
+
+A full list of supported commands can be seen with typeing "help" after a
+connection.
+
+
+    wolfSSH sftp> help
+
+    Commands :
+        cd  <string>                      change directory
+        chmod <mode> <path>               change mode
+        get <remote file> <local file>    pulls file(s) from server
+        ls                                list current directory
+        mkdir <dir name>                  creates new directory on server
+        put <local file> <remote file>    push file(s) to server
+        pwd                               list current path
+        quit                              exit
+        rename <old> <new>                renames remote file
+        reget <remote file> <local file>  resume pulling file
+        reput <remote file> <local file>  resume pushing file
+        <crtl + c>                        interrupt get/put cmd
+
+An example of connecting to another system would be
+
+    src/wolfssh$ ./examples/sftpclient/wolfsftp -p 22 -u user -h 192.168.1.111
+
+
+SHELL SUPPORT
+=============
+
+wolfSSH's example echoserver can now fork a shell for the user trying to log
+in. This currently has only been tested on Linux and macOS. The file
+echoserver.c must be modified to have the user's credentials in the user
+authentication callback, or the user authentication callback needs to be
+changed to verify the provided password.
+
+To compile wolfSSH with shell support, use the `--enable-shell` build option
+or define `WOLFSSH_SHELL`:
+
+    $ ./configure --enable-shell
+    $ make
+
+By default, the echoserver will try to start a shell. To use the echo testing
+behavior, give the echoserver the command line option `-f`.
+
+    $ ./examples/echoserver/echoserver -f
+
+
+POST-QUANTUM
+============
+
+wolfSSH now supports the post-quantum algorithm Kyber. It uses the NIST
+submission's Level 1 parameter set implemented by liboqs via an integration
+with wolfSSH. It is hybridized with ECDHE over the P-256 ECC curve.
+
+In order be able to use liboqs, you must have it built and installed on your
+system. We support the 0.7.0 release of liboqs. You can download it from the
+following link:
+
+    https://github.com/open-quantum-safe/liboqs/archive/refs/tags/0.7.0.tar.gz
+
+Once unpacked, this would be sufficient:
+
+    $ cd liboqs-0.7.0
+    $ mkdir build
+    $ cd build
+    $ cmake -DOQS_USE_OPENSSL=0 ..
+    $ make all
+    $ sudo make install
+
+
+In order to enable support for Kyber Level1 hybridized with ECDHE over the P-256
+ECC curve in wolfSSH, use the `--with-liboqs` build option during configuration:
+
+    $ ./configure --with-liboqs
+
+The wolfSSH client and server will automatically negotiate using Kyber Level1
+hybridized with ECDHE over the P-256 ECC curve if this feature is enabled.
+
+    $ ./examples/echoserver/echoserver -f
+
+    $ ./examples/client/client -u jill -P upthehill
+
+On the client side, you will see the following output:
+
+Server said: Hello, wolfSSH!
+
+If you want to see inter-operability with OpenQauntumSafe's fork of OpenSSH, you
+can build and execute the fork while the echoserver is running. Download the
+release from here:
+
+    https://github.com/open-quantum-safe/openssh/archive/refs/tags/OQS-OpenSSH-snapshot-2021-08.tar.gz
+
+The following is sufficient for build and execution:
+
+    $ tar xmvf openssh-OQS-OpenSSH-snapshot-2021-08.tar.gz
+    $ cd openssh-OQS-OpenSSH-snapshot-2021-08/
+    $ ./configure --with-liboqs-dir=/usr/local
+    $ make all
+    $ ./ssh -o"KexAlgorithms=ecdh-nistp256-kyber-512r3-sha256-d00@openquantumsafe.org" \
+      -o"PubkeyAcceptedAlgorithms +ssh-rsa" \
+      -o"HostkeyAlgorithms +ssh-rsa" \
+      jill@localhost -p 22222
+
+NOTE: when prompted, enter the password which is "upthehill".
+
+You can type a line of text and when you press enter, the line will be echoed
+back. Use CTRL-C to terminate the connection.
+
+
+CERTIFICATE SUPPORT
+===================
+
+wolfSSH can accept X.509 certificates in place of just public keys when
+authenticating a user.
+
+To compile wolfSSH with X.509 support, use the `--enable-certs` build option
+or define `WOLFSSH_CERTS`:
+
+    $ ./configure --enable-certs
+    $ make
+
+To provide a CA root certificate to validate a user's certificate, give the
+echoserver the command line option `-a`.
+
+    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem
+
+The echoserver and client have a fake user named "john" whose certificate
+will be used for authentication.
+
+An example echoserver / client connection using the example certificate
+john-cert.der would be:
+
+    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem -K john:./keys/john-cert.der
+
+    $ ./examples/client/client -u john -J ./keys/john-cert.der -i ./keys/john-key.der
 
