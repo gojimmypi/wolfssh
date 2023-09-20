@@ -101,7 +101,6 @@ Release
 DLL Debug
 DLL Release
 
-
 /IDE/Espressif/**/out/
 
 # auto-created CMake backups
@@ -110,6 +109,7 @@ DLL Release
 # VisualGDB
 **/.visualgdb
 **/*.vgdbproj.*.user
+
 
 # Espressif sdk config default should be saved in sdkconfig.defaults
 # we won't track the actual working sdkconfig files
@@ -141,20 +141,29 @@ DLL Release
 
 # Exclude most of the example files that are copied at install time
 # from https://github.com/wolfSSL/wolfssl/tree/master/ide/Espressif/ESP-IDF/examples
-/ide/Espressif/component-manager/examples/**/CMakeLists.txt
+/ide/Espressif/component-manager/examples/*/CMakeLists.txt
 /ide/Espressif/component-manager/examples/*/partitions_singleapp_large.csv
 /ide/Espressif/component-manager/examples/*/sdkconfig.defaults
 /ide/Espressif/component-manager/examples/*/main/CMakeLists.txt
 /ide/Espressif/component-manager/examples/**/main/*.c
-/ide/Espressif/component-manager/examples/*/main/*.h
+/ide/Espressif/component-manager/examples/**/main/*.h
+/ide/Espressif/component-manager/examples/**/main/include/*.h
 /ide/Espressif/component-manager/examples/*/main/component.mk
 /ide/Espressif/component-manager/examples/*/main/Kconfig.projbuild
+/ide/Espressif/component-manager/examples/**/VisualGDB/*.sln
+/ide/Espressif/component-manager/examples/**/VisualGDB/*.vgdbproj
 
 # The only ESP Registry Files specific to this location
-!/ide/Espressif/component-manager/examples/*/main/idf_component.yml
-!/ide/Espressif/component-manager/examples/*/README.md
-/ide/Espressif/ESP-IDF/examples/wolfssl_test/components/cryptoauthlib
+!/ide/Espressif/component-manager/examples/**/main/idf_component.yml
+!/ide/Espressif/component-manager/examples/**/README.md
+/ide/Espressif/ESP-IDF/examples/wolfssl_test/**/components/cryptoauthlib
 
 # Never include the build failure semaphore file
 /ide/build_failed.txt
-/ide/Espressif/component-manager/examples/template/main/include/main.h
+/ide/Espressif/ESP-IDF/component-manager/dist.bak
+/ide/Espressif/ESP-IDF/component-manager/src
+/ide/Espressif/ESP-IDF/component-manager/wolfcrypt
+/ide/Espressif/ESP-IDF/component-manager/wolfssl
+/ide/Espressif/ESP-IDF/component-manager/dist
+
+

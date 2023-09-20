@@ -1,4 +1,4 @@
-This is the Espressif Component Version of wolfSSL 5.6, Release #1 (version ^5.6.0-stable-PRtest)
+This is the Espressif Component Version of wolfSSH 1.0.0-test, Release #2 (version ^1.0.0-test)
 
 For questions or beta test of this library, please send a message to support@wolfssl.com
 
@@ -87,254 +87,363 @@ contact us at [licensing@wolfssl.com](mailto:licensing@wolfssl.com?subject=Espre
 or call +1 425 245 8247
 
 View Commercial Support Options: [wolfssl.com/products/support-and-maintenance](https://www.wolfssl.com/products/support-and-maintenance/)
+# wolfMQTT
 
-# wolfSSL Embedded SSL/TLS Library
+This is an implementation of the MQTT Client written in C for embedded use, which supports SSL/TLS via the wolfSSL library. This library was built from the ground up to be multi-platform, space conscious and extensible. Integrates with wolfSSL to provide TLS support.
 
-The [wolfSSL embedded SSL library](https://www.wolfssl.com/products/wolfssl/) 
-(formerly CyaSSL) is a lightweight SSL/TLS library written in ANSI C and
-targeted for embedded, RTOS, and resource-constrained environments - primarily
-because of its small size, speed, and feature set.  It is commonly used in
-standard operating environments as well because of its royalty-free pricing
-and excellent cross platform support. wolfSSL supports industry standards up
-to the current [TLS 1.3](https://www.wolfssl.com/tls13) and DTLS 1.2, is up to
-20 times smaller than OpenSSL, and offers progressive ciphers such as ChaCha20,
-Curve25519, Blake2b and Post-Quantum TLS 1.3 groups. User benchmarking and
-feedback reports dramatically better performance when using wolfSSL over
-OpenSSL.
 
-wolfSSL is powered by the wolfCrypt cryptography library. Two versions of
-wolfCrypt have been FIPS 140-2 validated (Certificate #2425 and
-certificate #3389). FIPS 140-3 validation is in progress. For additional
-information, visit the [wolfCrypt FIPS FAQ](https://www.wolfssl.com/license/fips/)
-or contact fips@wolfssl.com.
+## Building
 
-## Why Choose wolfSSL?
+### Mac/Linux/Unix
 
-There are many reasons to choose wolfSSL as your embedded, desktop, mobile, or
-enterprise SSL/TLS solution. Some of the top reasons include size (typical
-footprint sizes range from 20-100 kB), support for the newest standards
-(SSL 3.0, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3, DTLS 1.0, and DTLS 1.2), current
-and progressive cipher support (including stream ciphers), multi-platform,
-royalty free, and an OpenSSL compatibility API to ease porting into existing
-applications which have previously used the OpenSSL package. For a complete
-feature list, see [Chapter 4](https://www.wolfssl.com/docs/wolfssl-manual/ch4/)
-of the wolfSSL manual.
+1. `./autogen.sh` (if cloned from GitHub)
+2. `./configure` (to see a list of build options use `./configure --help`)
+3. `make`
+4. `sudo make install`
 
-## Notes, Please Read
+Notes:
+* If `wolfssl` was recently installed, run `sudo ldconfig` to update the linker cache.
+* Debug messages can be enabled using `--enable-debug` or `--enable-debug=verbose` (for extra logging).
+* For a list of build options run `./configure --help`.
+* The build options are generated in a file here: `wolfmqtt/options.h`.
 
-### Note 1
-wolfSSL as of 3.6.6 no longer enables SSLv3 by default.  wolfSSL also no longer
-supports static key cipher suites with PSK, RSA, or ECDH. This means if you
-plan to use TLS cipher suites you must enable DH (DH is on by default), or
-enable ECC (ECC is on by default), or you must enable static key cipher suites
-with one or more of the following defines:
+### Windows Visual Studio
+
+For building wolfMQTT with TLS support in Visual Studio:
+
+1. Open the `<wolfssl-root>/wolfssl64.sln`.
+2. Re-target for your Visual Studio version (right-click on solution and choose `Retarget solution`).
+3. Make sure the `Debug DLL` or `Release DLL` configuration is selected. Make note if you are building 32-bit `x86` or 64-bit `x64`.
+4. Build the wolfSSL solution.
+5. Copy the `wolfssl.lib` and `wolfssl.dll` files into `<wolfmqtt-root>`.
+   * For `DLL Debug` with `x86` the files are in: `DLL Debug`.
+   * For `DLL Release` with `x86` the files are in: `DLL Release`.
+   * For `DLL Debug` with `x64` the files are in: `x64/DLL Debug`.
+   * For `DLL Release` with `x64` the files are in: `x64/DLL Release`.
+6. Open the `<wolfmqtt-root>/wolfmqtt.sln` solution.
+7. Make sure you have the same architecture (`x86` or `x64` selected) as used in wolfSSL above.
+8. By default the include path for the wolfssl headers is `./../wolfssl/`. If your wolfssl root location is different you can go into the project settings and adjust this in `C/C++` -> `General` -> `Additional Include Directories`.
+9. Configure your Visual Studio build settings using `wolfmqtt/vs_settings.h`.
+10. Build the wolfMQTT solution.
+
+### CMake
+CMake supports compiling in many environments including Visual Studio
+if CMake support is installed. The commands below can be run in
+`Developer Command Prompt`.
 
 ```
-WOLFSSL_STATIC_DH
-WOLFSSL_STATIC_RSA
-WOLFSSL_STATIC_PSK
-```
-Though static key cipher suites are deprecated and will be removed from future
-versions of TLS.  They also lower your security by removing PFS.
-
-When compiling `ssl.c`, wolfSSL will now issue a compiler error if no cipher
-suites are available. You can remove this error by defining
-`WOLFSSL_ALLOW_NO_SUITES` in the event that you desire that, i.e., you're
-not using TLS cipher suites.
-
-### Note 2
-wolfSSL takes a different approach to certificate verification than OpenSSL
-does. The default policy for the client is to verify the server, this means
-that if you don't load CAs to verify the server you'll get a connect error,
-no signer error to confirm failure (-188).
-
-If you want to mimic OpenSSL behavior of having `SSL_connect` succeed even if
-verifying the server fails and reducing security you can do this by calling:
-
-```c
-wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_NONE, NULL);
+mkdir build
+cd build
+# to use installed wolfSSL location (library and headers)
+cmake .. -DWITH_WOLFSSL=/prefix/to/wolfssl/install/
+# OR to use a wolfSSL source tree
+cmake .. -DWITH_WOLFSSL_TREE=/path/to/wolfssl/
+# build
+cmake --build .
 ```
 
-before calling `wolfSSL_new();`. Though it's not recommended.
+### vcpkg
 
-### Note 3
-The enum values SHA, SHA256, SHA384, SHA512 are no longer available when
-wolfSSL is built with `--enable-opensslextra` (`OPENSSL_EXTRA`) or with the
-macro `NO_OLD_SHA_NAMES`. These names get mapped to the OpenSSL API for a
-single call hash function. Instead the name `WC_SHA`, `WC_SHA256`, `WC_SHA384` and
-`WC_SHA512` should be used for the enum name.
+ You can download and install wolfMQTT using the [vcpkg](https://github.com/Microsoft/vcpkg):
 
+    git clone https://github.com/Microsoft/vcpkg.git
+    cd vcpkg
+    ./bootstrap-vcpkg.sh
+    OR for Windows
+    bootstrap-vcpkg.bat
 
-# wolfSSL Release 5.6.3 (Jun 20, 2023)
+    ./vcpkg integrate install
+    ./vcpkg install wolfmqtt
 
-Release 5.6.3 has been developed according to wolfSSL's development and QA process (see link below) and successfully passed the quality criteria.
+The wolfMQTT port in vcpkg is kept up to date by wolfSSL.
 
-Release 5.6.3 of wolfSSL embedded TLS has 4 bug fixes:
+We also have vcpkg ports for wolftpm, wolfssl and curl.
 
-* Fix for setting the atomic macro options introduced in release 5.6.2. This issue affects GNU gcc autoconf builds. The fix resolves a potential mismatch of the generated macros defined in options.h file and the macros used when the wolfSSL library is compiled. In version 5.6.2 this mismatch could result in unstable runtime behavior.
-* Fix for invalid suffix error with Windows build using the macro GCM_TABLE_4BIT.
-* Improvements to Encrypted Memory support (WC_PROTECT_ENCRYPTED_MEM) implementations for modular exponentiation in SP math-all (sp_int.c) and TFM (tfm.c).
-* Improvements to SendAlert for getting output buffer.
+### Arduino
 
+See `README.md` at [IDE/ARDUINO.README.md](IDE/ARDUINO.README.md)
 
-# wolfSSL Release 5.6.2 (Jun 09, 2023)
+### MinGW
 
-Release 5.6.2 has been developed according to wolfSSL's development and QA process (see link below) and successfully passed the quality criteria.
-https://www.wolfssl.com/about/wolfssl-software-development-process-quality-assurance
+```sh
+export PATH="/opt/mingw-w32-bin_i686-darwin/bin:$PATH"
+export PREFIX=$PWD/build
 
-NOTE: * --enable-heapmath is being deprecated and will be removed by 2024
+# wolfSSL
+cd wolfssl
+./configure --host=i686 CC=i686-w64-mingw32-gcc LD=i686-w64-mingw32-ld CFLAGS="-DWIN32 -DMINGW -D_WIN32_WINNT=0x0600" LIBS="-lws2_32 -L$PREFIX/lib -lwolfssl" --prefix=$PREFIX
+make
+make install
 
-Release 5.6.2 of wolfSSL embedded TLS has bug fixes and new features including:
+# wolfMQTT
+cd ../wolfmqtt
+./configure --host=i686 CC=i686-w64-mingw32-gcc LD=i686-w64-mingw32-ld CFLAGS="-DWIN32 -DMINGW -D_WIN32_WINNT=0x0600 -DBUILDING_WOLFMQTT -I$PREFIX/include" LDFLAGS="-lws2_32 -L$PREFIX/lib -lwolfssl" --prefix=$PREFIX --disable-examples
+make
+```
 
-## Vulnerabilities
-* [Low] In cases where a malicious agent could analyze cache timing at a very detailed level, information about the AES key used could be leaked during T/S Box lookups. One such case was shown on RISC-V hardware using the MicroWalk tool (https://github.com/microwalk-project/Microwalk). A hardened version of T/S Box lookups was added in wolfSSL to help mitigate this potential attack and is now on by default with RISC-V builds and can be enabled on other builds if desired by compiling wolfSSL with the macro WOLFSSL_AES_TOUCH_LINES. Thanks to Jan Wichelmann, Christopher Peredy, Florian Sieck, Anna Pätschke, Thomas Eisenbarth (University of Lübeck): MAMBO-V: Dynamic Side-Channel Leakage Analysis on RISC-V. Fixed in the following GitHub pull request https://github.com/wolfSSL/wolfssl/pull/6309
-* [High] In previous versions of wolfSSL if a TLS 1.3 client gets neither a PSK (pre shared key) extension nor a KSE (key share extension) when connecting to a malicious server, a default predictable buffer gets used for the IKM value when generating the session master secret. Using a potentially known IKM value when generating the session master secret key compromises the key generated, allowing an eavesdropper to reconstruct it and potentially allowing surreptitious access to or meddling with message contents in the session. This issue does not affect client validation of connected servers, nor expose private key information, but could result in an insecure TLS 1.3 session when not controlling both sides of the connection. We recommend that TLS 1.3 client side users update the version of wolfSSL used. Thanks to Johannes from Sectra Communications and Linköping University for the report. Fixed in the following GitHub pull request https://github.com/wolfSSL/wolfssl/pull/6412
+### Zephyr RTOS
 
-## New Feature Additions
+Support for Zephyr is available in the [zephyr](zephyr) directory. For instructions on how to build for Zephyr, see the [README.md](zephyr/README.md).
 
-### New Ports and Expansions
-* Add support for STM32H5
-* Add support for Renesas TSIP v1.17
-* Add Renesas SCE RSA crypto-only support
-* STARCORE DSP port and example builds added
-* Add the function wc_PKCS7_SetDefaultSignedAttribs for setting PKCS7 signed attributes to use with PKCS7 bundle creation
-* NXP IMX6Q CAAM port with QNX and performance optimizations for AES-CTR
+## Architecture
 
-### New Build Options
-* ASN.1 print utility to decode ASN.1 syntax and print out human readable text --enable-asn-print. Utility app is located in the directory ./examples/asn1/
-* Add introspection for math build, wc_GetMathInfo() to get information about the math library compiled into the linked wolfSSL library
-* Implement TLS recommendations from RFC 9325 for hardening TLS/DTLS security. Enabled with the autoconf flag --enable-harden-tls.
-* Add option to support disabling thread local storage, --disable-threadlocal
-* Added wc_DsaSign_ex() and wc_DsaVerify_ex() for handling alternative digest algorithms with DSA Sign/Verify
-* Implement atomic operations interface. Macros auto-detect if atomic operations are expected to be available, can be turned off with the macro WOLFSSL_NO_ATOMICS
-* Added support for DTLS 1.3 Authentication and Integrity-Only Cipher Suites
-* Expand crypto callback to have a device ID find callback function with wc_CryptoCb_SetDeviceFindCb. Enabled with the macro WOLF_CRYPTO_CB_FIND
+The library has three components.
 
-## Enhancements and Optimizations
+### 1. mqtt_client
 
-### Optimizations
-* Increased performance with ChaCha20 C implementation and general XOR operations
-* Added integer type to the ASN.1 sequencing with ASN.1 Integer sequence
-* With wolfSSL_get_x509_next_altname reset alt name list to head once cycled through if compiling with the macro WOLFSSL_MULTICIRCULATE_ALTNAMELIST
-* Additional key validity sanity checks on input to wolfSSL_EC_KEY_set_private_key
-* adds support for TLSv1.3 stateful session tickets when using SSL_OP_NO_TICKET
+This is where the top level application interfaces for the MQTT client reside.
 
-### Memory Optimizations
-* Improvements to stack usage and management with SP int math library
-* Optimization to TLS 1.3 server to remove caching messages for Ed25519/Ed448
-* Added a HAVE_CURL macro build for building a subset of the wolfSSL library when linking with cURL
-* Memory usage improvement with reducing the size of alignment needed with AES
-* Reduce run time memory used with ECC operations and ALT_ECC_SIZE
-* Fixes and improvements for building edge cases such as crypto callback without hash-drbg with low footprint options
-* Support HAVE_SESSION_TICKET build option without depending on realloc
+* `int MqttClient_Init(MqttClient *client, MqttNet *net, MqttMsgCb msg_cb, byte *tx_buf, int tx_buf_len, byte *rx_buf, int rx_buf_len, int cmd_timeout_ms);`
 
-### Documentation
-* Instructions for GPDMA on STM32 configuration added
-* Add in instructions for compiling with zephyr on STM32
-* Documentation fixup for wolfSSL_get_chain_cert()
-* Fix the file pointed to in the TI RTOS documentation that we maintain
-* Documentation for wolfSSL_CertManagerFreeCRL
-* Updates made to AES and Chacha documentation
-* Update Japanese comments for Ed25519, AES, and other miscellaneous items
+These API's are blocking on `MqttNet.read` until error/timeout (`cmd_timeout_ms`):
 
-### Tests
-* Add in an option for easily testing malloc failures when building with WOLFSSL_MEM_FAIL_COUNT macro
-* Updated in process for using Expect vs Assert to facilitate more malloc failure tests
-* Enhance wolfCrypt test for builds that do not have ECC SECP curves enabled
-* ESP32 platform-specific VisualGDB test & benchmark projects
-* Update to dependencies in docker container file used for tests
-* Fix up for base 10 output with bundled benchmark application
+* `int MqttClient_Connect(MqttClient *client, MqttConnect *connect);`
+* `int MqttClient_Publish(MqttClient *client, MqttPublish *publish);`
+* `int MqttClient_Subscribe(MqttClient *client, MqttSubscribe *subscribe);`
+* `int MqttClient_Unsubscribe(MqttClient *client, MqttUnsubscribe *unsubscribe);`
+* `int MqttClient_Ping(MqttClient *client);`
+* `int MqttClient_Disconnect(MqttClient *client);`
 
-### Port Updates
-* Zephyr port update, compile time warning fixes, misc. fixes when used with TLS and update of includes
-* Update RIOT-OS to not compile out use of writev by default
-* Update Micrium port to enable use of STM32_RNG
-* Micrium updates for XMEMOVE and XSTRTOK use
-* Various Espressif HW crypto, SHA2, AES, MP updates
-* Added in ASIO build option with CMake builds
+This function blocks waiting for a new publish message to arrive for a maximum duration of `timeout_ms`.
 
-### General Enhancements
-* Global codebase cleanup for C89 compliance and wolfCrypt -Wconversion hygiene
-* PKCS#11 enhancement adding a callback for RSA key size when using a hardware key, by default 2048 bit key is used
-* Allow for unknown OIDs in extensions in wolfSSL_X509_set_ext()
-* Allow user to override XSTAT by defining the macro XSTAT when compiling
-* Support UPN and SID with x509 certificate extensions and custom OID build
-* Write next IV in wolfSSL_DES_ede3_cbc_encrypt for better handling of inline encryption
-* Adding NO_ASN_TIME_CHECK build option for compiling out certificate before/after checks
-* Improve different peer recvfrom handling and error reporting with ipv4 vs ipv6
+* `int MqttClient_WaitMessage(MqttClient *client, MqttMessage *message, int timeout_ms);`
 
-## Fixes
-* Fix for STM32 ECC sign and verify out of bounds buffer write when the hash length passed in is larger than the key size. Thanks to Maximilian for the report.
-* Fix to skip Async_DevCtxInit when using init rsa/ecc label/id api's
-* Revert WOLFSSL_NO_ASN_STRICT macro guard around alternate names directory list
-* In async mode, don't retry decrypting if a valid error is encountered on a packet parse attempt
-* Add additional sanity check on PKCS7 index value in wc_PKCS7_DecryptKekri
-* Fix for padding when using an AuthEnvelope PKCS7 type with GCM/CCM stream ciphers
-* Fix siphash assembly so that no register is left behind
-* Fix to not send a TLS 1.3 session ID resume response when resuming and downgrading to a protocol less than TLS 1.3
-* Fix overwriting serialNumber by favouriteDrink when generating a certificate using Cert struct
-* Fix for the default realloc used with EspressIf builds
-* Track SetDigest usage to avoid invalid free under error conditions
-* DTLS v1.3 fix for epoch 0 check on plaintext message
-* Fix for session ticket memory leak in wolfSSL_Cleanup
-* Fixes for propagating SendAlert errors when the peer disconnects
-* Replace XMEMCPY with XMEMMOVE to fix valgrind-3.15.0 reports "Source and destination overlap in memcpy" when using --enable-aesgcm-stream
-* Fix for potential out-of-bounds write edge case in fp_mod_2d with --enable-fastmath math library
-* Fix getting ECC key size in stm32_ecc_sign_hash_ex
-* Fix for case where wc_PeekErrorNodeLineData was not unlocking error queue on error
-* Fix for async ECC shared secret state
-* Fix for better error checking with sp_gcd with SP int math library
-* Fix memory leak in TLSX_KeyShare_Setup when handling an error case
-* Fix for double free edge case in InitOCSPRequest when handling a memory allocation failure
-* X509 NAME Entry fix for leaking memory on error case
-* Fix wolfssl_asn1_time_to_tm setting unexpected fields in tm struct
-* Fix for FIPS ECC integrity check with crypto callback set
-* BN_to_ASN1_INTEGER fix for handling leading zero byte padding when needed
-* Fix a typo in PP macro and add a ceiling to guard against implementation bugs
-* DTLS 1.3 fix for using the correct label when deriving the resumption key
-* OCSP fix for GetDateInfo edge case with non ASN template builds
-* Allow a user set certificate callback function to override the skipAddCA flag when parsing a certificate
-* SP int: sp_radix_size when radix 10 fix temp size for handling edge case
-* Fixes and improvements for handling failures with memory allocations
-* Fix for DecodeECC_DSA_Sig to handle r and s being initialized
-* Fix for wc_ecc_is_point to ensure that the x and y are in range [0, p-1] and z is one (affine ordinates)
+These are the network connect / disconnect interfaces that wrap the MqttNet callbacks and handle WolfSSL TLS:
 
-### Build Fixes
-* Fix for building on Windows with CMake and using USER_SETTINGS and fix for options.h creation with CMake when using USER_SETTINGS
-* CMake fixes and improvements for use with mingw32
-* Fix for building with wpas and x509 small options
-* Check if colrm is available for options.h creation when using autoconf
-* Clean up NO_BIG_INT build, removing WOLFSSL_SP_MATH macro and heapmath compile
-* Fix PKCS#7 build with NO_PKCS7_STREAM
-* Fix compilation error in CC-RX and remove unnecessary public key import
-* SP Build fixes for ARM assembly with ARMv6 clz and ARM thumb debug build
-* For to not advertise support for RSA in TLS extensions when compiled with NO_RSA
+* `int MqttClient_NetConnect(MqttClient *client, const char* host, word16 port, int timeout_ms, int use_tls, MqttTlsCb cb);`
+* `int MqttClient_NetDisconnect(MqttClient *client);`
 
-For additional vulnerability information visit the vulnerability page at:
-https://www.wolfssl.com/docs/security-vulnerabilities/
+Helper functions:
 
-See INSTALL file for build instructions.
-More info can be found on-line at: https://wolfssl.com/wolfSSL/Docs.html
+* `const char* MqttClient_ReturnCodeToString(int return_code);`
+
+### 2. mqtt_packet
+
+This is where all the packet encoding/decoding is handled.
+
+The header contains the MQTT Packet structures for:
+
+* Connect: `MqttConnect`
+* Publish / Message: `MqttPublish` / `MqttMessage` (they are the same)
+* Subscribe: `MqttSubscribe`
+* Unsubscribe: `MqttUnsubscribe`
 
 
-# Resources
+### 3. mqtt_socket
 
-[wolfSSL Website](https://www.wolfssl.com/)
+This is where the transport socket optionally wraps TLS and uses the `MqttNet` callbacks for the platform specific network handling.
 
-[wolfSSL Wiki](https://github.com/wolfSSL/wolfssl/wiki)
+The header contains the MQTT Network structure `MqttNet` for network callback and context.
 
-[FIPS 140-2/140-3 FAQ](https://wolfssl.com/license/fips)
 
-[wolfSSL Documentation](https://wolfssl.com/wolfSSL/Docs.html)
+## Implementation
 
-[wolfSSL Manual](https://wolfssl.com/wolfSSL/Docs-wolfssl-manual-toc.html)
+Here are the steps for creating your own implementation.
 
-[wolfSSL API Reference](https://wolfssl.com/wolfSSL/Docs-wolfssl-manual-17-wolfssl-api-reference.html)
+1. Create network callback functions for Connect, Read, Write and Disconnect. See `examples/mqttnet.c` and `examples/mqttnet.h`.
+2. Define the callback functions and context in a `MqttNet` structure.
+3. Call `MqttClient_Init` passing in a `MqttClient` structure pointer, `MqttNet` structure pointer, `MqttMsgCb` function pointer, TX/RX buffers with maximum length and command timeout.
+4. Call `MqttClient_NetConnect` to connect to broker over network. If `use_tls` is non-zero value then it will perform a TLS connection. The TLS callback `MqttTlsCb` should be defined for wolfSSL certificate configuration.
+5. Call `MqttClient_Connect` passing pointer to `MqttConnect` structure to send MQTT connect command and wait for Connect Ack.
+6. Call `MqttClient_Subscribe` passing pointer to `MqttSubscribe` structure to send MQTT Subscribe command and wait for Subscribe Ack (depending on QoS level).
+7. Call `MqttClient_WaitMessage` passing pointer to `MqttMessage` to wait for incoming MQTT Publish message.
 
-[wolfCrypt API Reference](https://wolfssl.com/wolfSSL/Docs-wolfssl-manual-18-wolfcrypt-api-reference.html)
 
-[TLS 1.3](https://www.wolfssl.com/docs/tls13/)
+## Examples
 
-[wolfSSL Vulnerabilities](https://www.wolfssl.com/docs/security-vulnerabilities/)
+### Client Example
+The example MQTT client is located in `/examples/mqttclient/`. This example exercises many of the exposed API’s and prints any incoming publish messages for subscription topic “wolfMQTT/example/testTopic”. This client contains examples of many MQTTv5 features, including the property callback and server assignment of client ID. The mqqtclient example is a good starting template for your MQTT application.
 
-[Additional wolfSSL Examples](https://github.com/wolfssl/wolfssl-examples)
+### Simple Standalone Client Example
+The example MQTT client is located in `/examples/mqttsimple/`. This example demonstrates a standalone client using standard BSD sockets. This requires `HAVE_SOCKET` to be defined, which comes from the ./configure generated `wolfmqtt/config.h` file. All parameters are build-time macros defined at the top of `/examples/mqttsimple/mqttsimple.c`.
+
+### Non-Blocking Client Example
+The example MQTT client is located in `/examples/nbclient/`. This example uses non-blocking I/O for message exchange. The wolfMQTT library must be configured with the `--enable-nonblock` option (or built with `WOLFMQTT_NONBLOCK`).
+
+### Firmware Example
+The MQTT firmware update is located in `/examples/firmware/`. This example has two parts. The first is called “fwpush”, which signs and publishes a firmware image. The second is called “fwclient”, which receives the firmware image and verifies the signature. This example publishes message on the topic “wolfMQTT/example/firmware”. The "fwpush" application is an example of using a publish callback to send the payload data.
+
+### Azure IoT Hub Example
+We setup a wolfMQTT IoT Hub on the Azure server for testing. We added a device called `demoDevice`, which you can connect and publish to. The example demonstrates creation of a SasToken, which is used as the password for the MQTT connect packet. It also shows the topic names for publishing events and listening to `devicebound` messages. This example only works with `ENABLE_MQTT_TLS` set and the wolfSSL library present because it requires Base64 Encode/Decode and HMAC-SHA256. Note: The wolfSSL library must be built with `./configure --enable-base64encode` or `#define WOLFSSL_BASE64_ENCODE`. The `wc_GetTime` API was added in 3.9.1 and if not present you'll need to implement your own version of this to get current UTC seconds or update your wolfSSL library.
+**NOTE** The Azure broker only supports MQTT v3.1.1
+
+### AWS IoT Example
+We setup an AWS IoT endpoint and testing device certificate for testing. The AWS server uses TLS client certificate for authentication. The example is located in `/examples/aws/`. The example subscribes to `$aws/things/"AWSIOT_DEVICE_ID"/shadow/update/delta` and publishes to `$aws/things/"AWSIOT_DEVICE_ID"/shadow/update`.
+**NOTE** The AWS broker only supports MQTT v3.1.1
+
+### Watson IoT Example
+This example enables the wolfMQTT client to connect to the IBM Watson Internet of Things (WIOT) Platform. The WIOT Platform has a limited test broker called "Quickstart" that allows non-secure connections to exercise the component. The example is located in `/examples/wiot/`. Works with MQTT v5 support enabled.
+**NOTE** The WIOT Platform will be disabled DEC2023. The demo may still be useful for users of IBM Watson IOT. 
+
+### MQTT-SN Example
+The Sensor Network client implements the MQTT-SN protocol for low-bandwidth networks. There are several differences from MQTT, including the ability to use a two byte Topic ID instead the full topic during subscribe and publish. The SN client requires an MQTT-SN gateway. The gateway acts as an intermediary between the SN clients and the broker. This client was tested with the Eclipse Paho MQTT-SN Gateway, which connects by default to the public Eclipse broker, much like our wolfMQTT Client example. The address of the gateway must be configured as the host. The example is located in `/examples/sn-client/`.
+
+A special feature of MQTT-SN is the ability to use QoS level -1 (negative one) to publish to a predefined topic without first connecting to the gateway. There is no feedback in the application if there was an error, so confirmation of the test would involve running the `sn-client` first and watching for the publish from the `sn-client_qos-1`. There is an example provided in `/examples/sn-client/sn-client_qos-1`. It requires some configuration changes of the gateway.
+
+* Enable the the QoS-1 feature, predefined topics, and change the gateway name in `gateway.conf`:
+
+```
+QoS-1=YES
+PredefinedTopic=YES
+PredefinedTopicList=./predefinedTopic.conf
+.
+.
+.
+#GatewayName=PahoGateway-01
+GatewayName=WolfGateway
+```
+
+* Comment out all entries and add a new topic in `predefinedTopic.conf`:
+
+```
+WolfGatewayQoS-1,wolfMQTT/example/testTopic, 1
+```
+
+### Multithread Example
+This example exercises the multithreading capabilities of the client library. The client implements two tasks: one that publishes to the broker; and another that waits for messages from the broker. The publish thread is created `NUM_PUB_TASKS` times (10 by default) and sends unique messages to the broker. This feature is enabled using the `--enable-mt` configuration option. The example is located in `/examples/multithread/`.
+
+## Example Options
+The command line examples can be executed with optional parameters. To see a list of the available parameters, add the `-?`
+
+```
+ ./examples/mqttclient/mqttclient -?
+mqttclient:
+-?          Help, print this usage
+-h <host>   Host to connect to, default: test.mosquitto.org
+-p <num>    Port to connect on, default: Normal 1883, TLS 8883
+-t          Enable TLS
+-A <file>   Load CA (validate peer)
+-K <key>    Use private key (for TLS mutual auth)
+-c <cert>   Use certificate (for TLS mutual auth)
+-S <str>    Use Host Name Indication, blank defaults to host
+-q <num>    Qos Level 0-2, default: 0
+-s          Disable clean session connect flag
+-k <num>    Keep alive seconds, default: 60
+-i <id>     Client Id, default: WolfMQTTClient
+-l          Enable LWT (Last Will and Testament)
+-u <str>    Username
+-w <str>    Password
+-m <str>    Message, default: test
+-n <str>    Topic name, default: wolfMQTT/example/testTopic
+-r          Set Retain flag on publish message
+-C <num>    Command Timeout, default: 30000ms
+-P <num>    Max packet size the client will accept, default: 1048576
+-T          Test mode
+-f <file>   Use file contents for publish
+```
+The available options vary depending on the library configuration.
+
+
+## Broker compatibility
+wolfMQTT client library has been tested with the following brokers:
+* Adafruit IO by Adafruit
+* AWS by Amazon
+* Azure by Microsoft
+* flespi by Gurtam
+* HiveMQ and HiveMQ Cloud by HiveMQ GmbH
+* IBM WIoTP Message Gateway by IBM
+* Mosquitto by Eclipse
+* Paho MQTT-SN Gateway by Eclipse
+* VerneMQ by VerneMQ/Erlio
+* EMQX broker
+
+## Specification Support
+
+### MQTT v3.1.1 Specification Support
+
+The initially supported version with full specification support for all features and packets type such as:
+* QoS 0-2
+* Last Will and Testament (LWT)
+* Client examples for: AWS, Azure IoT, Firmware update, non-blocking and generic.
+
+### MQTT v5.0 Specification Support
+
+The wolfMQTT client supports connecting to v5 enabled brokers when configured with the `--enable-v5` option. 
+The following v5.0 specification features are supported by the wolfMQTT client:
+* AUTH packet
+* User properties
+* Server connect ACK properties
+* Format and content type for publish
+* Server disconnect
+* Reason codes and strings
+* Maximum packet size
+* Server assigned client identifier
+* Subscription ID
+* Topic Alias
+
+The v5 enabled wolfMQTT client was tested with the following MQTT v5 brokers:
+* Mosquitto
+** Runs locally.
+** `./examples/mqttclient/mqttclient -h localhost`
+* Flespi
+** Requires an account tied token that is regenerated hourly.
+** `./examples/mqttclient/mqttclient -h "mqtt.flespi.io" -u "<your-flespi-token>"`
+* VerneMQ MQTTv5 preview
+** Runs locally.
+** `./examples/mqttclient/mqttclient -h localhost`
+* HiveMQ 4.0.0 EAP
+** Runs locally.
+** `./examples/mqttclient/mqttclient -h localhost`
+* HiveMQ Cloud
+** `./examples/mqttclient/mqttclient -h 833f87e253304692bd2b911f0c18dba1.s1.eu.hivemq.cloud -t -S -u wolf1 -w NEZjcm7i8eRjFKF -p 8883`
+* EMQX broker
+** `./examples/mqttclient/mqttclient -h "broker.emqx.io"`
+
+Properties are allocated from a local stack (size `MQTT_MAX_PROPS`) by default. Define `WOLFMQTT_DYN_PROP` to use malloc for property allocation.
+
+### MQTT Sensor Network (MQTT-SN) Specification Support
+
+The wolfMQTT SN Client implementation is based on the OASIS MQTT-SN v1.2 specification. The SN API is configured with the `--enable-sn` option. There is a separate API for the sensor network API, which all begin with the "SN_" prefix. The wolfMQTT SN Client operates over UDP, which is distinct from the wolfMQTT clients that use TCP. The following features are supported by the wolfMQTT SN Client:
+* Register
+* Will topic and message set up
+* Will topic and message update
+* All QoS levels
+* Variable-sized packet length field
+
+Unsupported features:
+* Automatic gateway discovery is not implemented
+* Multiple gateway handling
+
+The SN client was tested using the Eclipse Paho MQTT-SN Gateway (https://github.com/eclipse/paho.mqtt-sn.embedded-c) running locally and on a separate network node. Instructions for building and running the gateway are in the project README.
+
+## Post-Quantum MQTT Support
+
+Recently the OpenQuantumSafe project has integrated their fork of OpenSSL with the mosquito MQTT broker. You can now build wolfMQTT with wolfSSL and liboqs and use that to publish to the mosquito MQTT broker. Currently, wolfMQTT supports the `KYBER_LEVEL1` and `P256_KYBER_LEVEL1` groups and FALCON_LEVEL1 for authentication in TLS 1.3. This works on Linux.
+
+### Getting Started with Post-Quantum Mosquito MQTT Broker and Subscriber
+
+To get started, you can use the code from the following github pull request:
+
+https://github.com/open-quantum-safe/oqs-demos/pull/143
+
+Follow all the instructions in README.md and USAGE.md. This allows you to create a docker image and a docker network. Then you will run a broker, a subscriber and a publisher. At the end the publisher will exit and the broker and subscriber will remain active. You will need to re-activate the publisher docker instance and get the following files onto your local machine:
+
+- /test/cert/CA.crt
+- /test/cert/publisher.crt
+- /test/cert/publisher.key
+
+NOTE: Do not stop the broker and the subscriber instances.
+
+### Building and Running Post-Quantum wolfMQTT Publisher
+
+Follow the instructions for obtaining and building liboqs and building wolfSSL in section 15 of the following document:
+
+https://github.com/wolfSSL/wolfssl/blob/master/INSTALL
+
+No special flags are required for building wolfMQTT. Simply do the following:
+
+```
+./autogen.sh (if obtained from github)
+./configure
+make all
+make check
+```
+
+Since the broker and subscriber are still running, you can use `mqttclient` to publish using post-quantum algorithms in TLS 1.3 by doing the following:
+
+```
+./examples/mqttclient/mqttclient -h 172.18.0.2 -t -A CA.crt -K publisher.key -c publisher.crt -m "Hello from post-quantum wolfMQTT!!" -n test/sensor1 -Q KYBER_LEVEL1
+```
+
+Congratulations! You have just published an MQTT message using TLS 1.3 with the `KYBER_LEVEL1` KEM and `FALCON_LEVEL1` signature scheme. To use the hybrid group, replace `KYBER_LEVEL1` with `P256_KYBER_LEVEL1`.
+

@@ -1,4 +1,4 @@
-This is the Espressif Component Version of wolfSSL 5.6, Release #1 (version ^5.6.0-stable-PRtest)
+This is the Espressif Component Version of wolfMQTT 1.0.3-test, Release #2 (version ^1.0.3-test)
 
 For questions or beta test of this library, please send a message to support@wolfssl.com
 

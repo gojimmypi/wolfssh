@@ -1,29 +1,56 @@
 # Install for ESP Component Manager
 
-This is the documentation for the wolfSSL install / publish to [components.espressif.com](https://components.espressif.com/components/wolfssl/wolfssl).
+This is the documentation for the wolfSSH install / publish to [components.espressif.com](https://components.espressif.com/components/wolfssl/wolfssl).
 
 See the [Espressif idf-component-manager docs](https://docs.espressif.com/projects/idf-component-manager/en/latest/).
 
 Configuration for the component is in the top-level [idf_component.yml](./idf_component.yml) file.
 Note that this is *different* from the same-name files in the example projects.
 
+Edit version in both [idf_component.yml](./idf_component.yml) and [README_REGISTRY_PREPEND.md](./README_REGISTRY_PREPEND.md). 
+Version numbers must match between these two files
+
 See the `wolfssl_component_publish.sh` bash script. Set private `IDF_COMPONENT_API_TOKEN`
 environment variable as appropriate. Optionally set the `IDF_COMPONENT_REGISTRY_URL`.
 Typically there's only one valid option. See [Staging](./INSTALL.md#Staging), below.
+
+```bash
+# set your paths as appropriate:
+export IDF_COMPONENT_API_TOKEN=YOUR_TOKEN_VALUE
+export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.1
+export WOLFSSH_ROOT=/mnt/c/workspace/wolfSSH-gojimmypi/IDE/Espressif/component-manager/
+export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com
+cd "$WOLFSSL_ROOT"
+echo "Run export.sh from ${WRK_IDF_PATH}"
+. ${WRK_IDF_PATH}/export.sh
+
+./wolfssl_component_publish.sh
+```
+
+Set the staging environment from PowerShell:
+```
+$env:IDF_COMPONENT_REGISTRY_URL = "https://components-staging.espressif.com"
+```
 
 The script automates the process of populating a directory with wolfSSL source code and examples to publish.
 The core command for this is:
 
 ```bash
-compote component upload --namespace wolfssl --name wolfssl
+compote component upload --namespace wolfssl --name wolfssh
+```
+
+An alternative manual staging looks like this:
+
+```
+compote component upload --namespace gojimmypi --name mywolfssh
 ```
 
 The output can be found in the `dist` directory, for example a file called `wolfssl_5.6.0-stable.tgz` and
 directory of the contents:
 
 ```text
-wolfssl_5.6.0-stable
-wolfssl_5.6.0-stable.tgz
+mywolfssh_1.0.0-test
+mywolfssh_1.0.0-test.tgz
 ```
 
 Examples are copied into the local [./examples/](./examples/README.md) directory.
@@ -83,8 +110,9 @@ The wolfSSL component must be either managed or non-managed. Not both.
 
 Set `WOLFSSL_ROOT` to the location of the to-be-published wolfSSL directory:
 
-```
+```bash
 export WOLFSSL_ROOT=/mnt/c/workspace/wolfssl-gojimmypi-PR/IDE/Espressif/component-manager/
+cd "$WOLFSSL_ROOT"
 ```
 
 The component files in [./lib/components/wolfssl](./lib/components/wolfssl/README.md) will
@@ -115,4 +143,3 @@ To resolve, either:
 
 * Remove the `idf_component.yml` file and remove wolfssl directory from `projectname/managed__components`
 * Remove the wolfssl directory from `projectname/components`
-
