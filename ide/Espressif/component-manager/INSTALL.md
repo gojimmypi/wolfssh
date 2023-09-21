@@ -1,6 +1,8 @@
 # Install for ESP Component Manager
 
 This is the documentation for the wolfSSH install / publish to [components.espressif.com](https://components.espressif.com/components/wolfssl/wolfssl).
+When using a managed component, all of the respective source code is in the local project `managed_components` directory.
+The wolfssl component `CMakeFiles.txt` from the examples is _not_ used. The managed component is manged entirely by `idf.py`.
 
 See the [Espressif idf-component-manager docs](https://docs.espressif.com/projects/idf-component-manager/en/latest/).
 

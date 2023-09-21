@@ -1,7 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
   gojimmypi/mywolfssl: "^5.6.0-stable"
-  gojimmypi/mywolfssh: "^1.0.2-test"
+  gojimmypi/mywolfssh: "^1.0.1-test"
   ## Required IDF version
   idf:
     version: ">=4.1.0"
