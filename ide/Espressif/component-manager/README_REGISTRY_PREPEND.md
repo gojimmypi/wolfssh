@@ -1,4 +1,4 @@
-This is the Espressif Component Version of wolfSSH 1.0.2-test, Release #2 (version ^1.0.2-test)
+This is the Espressif Component Version of wolfSSH 1.0.3-test, Release #3 (version ^1.0.3-test)
 
 For questions or beta test of this library, please send a message to support@wolfssl.com
 
