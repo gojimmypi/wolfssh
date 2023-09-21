@@ -70,7 +70,7 @@ set(COMPONENT_SRCDIRS
    )
 
 
-set(COMPONENT_REQUIRES lwip wolfssl)
+set(COMPONENT_REQUIRES lwip mywolfssl)
 
 set(COMPONENT_ADD_INCLUDEDIRS
     "."
