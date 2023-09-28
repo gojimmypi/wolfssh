@@ -1,4 +1,4 @@
-/* client.c
+/* wolfssh.c
  *
  * Copyright (C) 2014-2023 wolfSSL Inc.
  *
@@ -31,17 +31,21 @@
 #endif
 
 #include <wolfssh/ssh.h>
-#include <wolfssh/internal.h>
+#include <wolfssh/version.h>
+#include <wolfssl/version.h>
 #include <wolfssh/test.h>
 #ifdef WOLFSSH_AGENT
     #include <wolfssh/agent.h>
 #endif
 #include <wolfssl/wolfcrypt/ecc.h>
 #include "examples/client/client.h"
-#include "examples/client/common.h"
+#include "apps/wolfssh/common.h"
 #if !defined(USE_WINDOWS_API) && !defined(MICROCHIP_PIC32)
     #include <termios.h>
 #endif
+
+#include <sys/param.h>
+#include <libgen.h>
 
 #ifdef WOLFSSH_SHELL
     #ifdef HAVE_PTY_H
@@ -74,49 +78,32 @@
 #endif
 
 
-#ifndef NO_WOLFSSH_CLIENT
+int myoptind = 0;
+char* myoptarg = NULL;
 
-static const char testString[] = "Hello, wolfSSH!";
 
-
-static void ShowUsage(void)
+static void ShowUsage(char* appPath)
 {
-    printf("client %s\n", LIBWOLFSSH_VERSION_STRING);
-    printf(" -?            display this help and exit\n");
-    printf(" -h <host>     host to connect to, default %s\n", wolfSshIp);
-    printf(" -p <num>      port to connect on, default %d\n", wolfSshPort);
-    printf(" -u <username> username to authenticate as (REQUIRED)\n");
-    printf(" -P <password> password for username, prompted if omitted\n");
-    printf(" -i <filename> filename for the user's private key\n");
-    printf(" -j <filename> filename for the user's public key\n");
-    printf(" -x            exit after successful connection without doing\n"
-           "               read/write\n");
-    printf(" -N            use non-blocking sockets\n");
-#ifdef WOLFSSH_TERM
-    printf(" -t            use psuedo terminal\n");
-#endif
-#if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
-    printf(" -c <command>  executes remote command and pipe stdin/stdout\n");
-#ifdef USE_WINDOWS_API
-    printf(" -R            raw untranslated output\n");
-#endif
-#endif
-#ifdef WOLFSSH_AGENT
-    printf(" -a            Attempt to use SSH-AGENT\n");
-#endif
-#ifdef WOLFSSH_CERTS
-    printf(" -J <filename> filename for DER certificate to use\n");
-    printf("               Certificate example : client -u orange \\\n");
-    printf("               -J orange-cert.der -i orange-key.der\n");
-    printf(" -A <filename> filename for DER CA certificate to verify host\n");
-    printf(" -X            Ignore IP checks on peer vs peer certificate\n");
-#endif
+    const char* appName;
+
+    appName = basename(appPath);
+    /* Attempt to use the actual program name from the caller. Otherwise,
+     * default to "wolfssh". */
+    if (appName == NULL) {
+        appName = "wolfssh";
+    }
+
+    printf("%s v%s\n", appName, LIBWOLFSSH_VERSION_STRING);
+    printf("usage: %s [-E logfile] [-G] [-l login_name] [-N] [-p port] "
+            "[-V] destination\n",
+            appName);
 }
 
 
-static const char* pubKeyName = NULL;
+#ifdef WOLFSSH_CERTS
 static const char* certName = NULL;
 static const char* caCert   = NULL;
+#endif
 
 
 #if defined(WOLFSSH_AGENT)
@@ -125,7 +112,6 @@ static inline void ato32(const byte* c, word32* u32)
     *u32 = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3];
 }
 #endif
-
 
 
 static int NonBlockSSH_connect(WOLFSSH* ssh)
@@ -142,11 +128,6 @@ static int NonBlockSSH_connect(WOLFSSH* ssh)
     while (ret != WS_SUCCESS &&
             (error == WS_WANT_READ || error == WS_WANT_WRITE))
     {
-        if (error == WS_WANT_READ)
-            printf("... client would read block\n");
-        else if (error == WS_WANT_WRITE)
-            printf("... client would write block\n");
-
         select_ret = tcp_select(sockfd, 1);
 
         /* Continue in want write cases even if did not select on socket
@@ -168,6 +149,53 @@ static int NonBlockSSH_connect(WOLFSSH* ssh)
 
     return ret;
 }
+
+#if defined(HAVE_TERMIOS_H) && defined(WOLFSSH_TERM)
+WOLFSSH_TERMIOS oldTerm;
+
+static void modes_store(void)
+{
+    tcgetattr(STDIN_FILENO, &oldTerm);
+}
+
+static void modes_clear(void)
+{
+    WOLFSSH_TERMIOS term = oldTerm;
+
+    term.c_lflag &= ~(ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK
+            | ECHONL | ECHOPRT | NOFLSH | TOSTOP | FLUSHO
+            | PENDIN | EXTPROC);
+
+    term.c_iflag &= ~(ISTRIP | INLCR | ICRNL | IGNCR | IXON | IXOFF
+            | IXANY | IGNBRK | INPCK | PARMRK);
+#ifdef IUCLC
+    term.c_iflag &= ~IUCLC;
+#endif
+    term.c_iflag |= IGNPAR;
+
+    term.c_oflag &= ~(OPOST | ONOCR | ONLRET);
+#ifdef OUCLC
+    term.c_oflag &= ~OLCUC;
+#endif
+
+    term.c_cflag &= ~(CSTOPB | PARENB | PARODD | CLOCAL | CRTSCTS);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+}
+
+static void modes_reset(void)
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &oldTerm);
+}
+
+#define MODES_STORE() modes_store()
+#define MODES_CLEAR() modes_clear()
+#define MODES_RESET() modes_reset()
+#else /* HAVE_TERMIOS_H && WOLFSSH_TERM */
+#define MODES_STORE() do {} while(0)
+#define MODES_CLEAR() do {} while(0)
+#define MODES_RESET() do {} while(0)
+#endif /* HAVE_TERMIOS_H && WOLFSSH_TERM */
 
 #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
 
@@ -201,7 +229,8 @@ static int sendCurrentWindowSize(thread_args* args)
     {
         CONSOLE_SCREEN_BUFFER_INFO cs;
 
-        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cs) != 0) {
+        if (GetConsoleScreenBufferInfo(
+                    GetStdHandle(STD_OUTPUT_HANDLE), &cs) != 0) {
             col = cs.srWindow.Right - cs.srWindow.Left + 1;
             row = cs.srWindow.Bottom - cs.srWindow.Top + 1;
         }
@@ -222,10 +251,8 @@ static int sendCurrentWindowSize(thread_args* args)
 
     return ret;
 }
-#endif
 
 
-#ifdef WOLFSSH_TERM
 #ifndef _MSC_VER
 
 #if (defined(__OSX__) || defined(__APPLE__))
@@ -347,7 +374,7 @@ static THREAD_RET readPeer(void* in)
     int  bufSz = sizeof(buf);
     thread_args* args = (thread_args*)in;
     int ret = 0;
-    int fd = (int)wolfSSH_get_fd(args->ssh);
+    int fd = wolfSSH_get_fd(args->ssh);
     word32 bytes;
 #ifdef USE_WINDOWS_API
     HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -368,7 +395,7 @@ static THREAD_RET readPeer(void* in)
 #endif
 
     while (ret >= 0) {
-    #ifdef USE_WINDOWS_API
+    #if defined(WOLFSSH_TERM) && defined(USE_WINDOWS_API)
         (void)windowMonitor(args);
     #endif
 
@@ -398,8 +425,7 @@ static THREAD_RET readPeer(void* in)
                 if (ret == WS_FATAL_ERROR) {
                     ret = wolfSSH_get_error(args->ssh);
                     if (ret == WS_WANT_READ) {
-                        /* If WANT_READ, not an error. */
-                        ret = WS_SUCCESS;
+                        continue;
                     }
                     #ifdef WOLFSSH_AGENT
                     else if (ret == WS_CHAN_RXD) {
@@ -461,10 +487,10 @@ static THREAD_RET readPeer(void* in)
                 if (write(STDOUT_FILENO, buf, ret) < 0) {
                     perror("write to stdout error ");
                 }
-                fflush(stdout);
             #endif
             }
-            if (wolfSSH_stream_peek(args->ssh, buf, bufSz) <= 0) {
+            ret = wolfSSH_stream_peek(args->ssh, buf, bufSz);
+            if (ret <= 0) {
                 bytes = 0; /* read it all */
             }
         }
@@ -479,24 +505,25 @@ static THREAD_RET readPeer(void* in)
 #endif /* !SINGLE_THREADED && !WOLFSSL_NUCLEUS */
 
 
-
 #if defined(WOLFSSL_PTHREADS) && defined(WOLFSSL_TEST_GLOBAL_REQ)
 
-static int callbackGlobalReq(WOLFSSH *ssh, void *buf, word32 sz, int reply, void *ctx)
+static int callbackGlobalReq(WOLFSSH *ssh, void *buf, word32 sz,
+        int reply, void *ctx)
 {
     char reqStr[] = "SampleRequest";
 
-    if ((WOLFSSH *)ssh != *(WOLFSSH **)ctx)
-    {
-        printf("ssh(%x) != ctx(%x)\n", (unsigned int)ssh, (unsigned int)*(WOLFSSH **)ctx);
+    if ((WOLFSSH *)ssh != *(WOLFSSH **)ctx) {
+        printf("ssh(%p) != ctx(%p)\n", ssh, *(WOLFSSH **)ctx);
         return WS_FATAL_ERROR;
     }
 
-    if (strlen(reqStr) == sz && (strncmp((char *)buf, reqStr, sz) == 0)
-        && reply == 1){
+    if (WSTRLEN(reqStr) == sz
+            && (WSTRNCMP((char *)buf, reqStr, sz) == 0)
+            && reply == 1) {
         printf("Global Request\n");
         return WS_SUCCESS;
-    } else {
+    }
+    else {
         return WS_FATAL_ERROR;
     }
 
@@ -529,11 +556,11 @@ static int wolfSSH_AGENT_DefaultActions(WS_AgentCbAction action, void* vCtx)
             ret = WS_AGENT_NOT_AVAILABLE;
 
         if (ret == WS_AGENT_SUCCESS) {
-            memset(name, 0, sizeof(struct sockaddr_un));
+            WMEMSET(name, 0, sizeof(struct sockaddr_un));
             name->sun_family = AF_LOCAL;
-            strncpy(name->sun_path, sockName, sizeof(name->sun_path));
+            WSTRNCPY(name->sun_path, sockName, sizeof(name->sun_path));
             name->sun_path[sizeof(name->sun_path) - 1] = '\0';
-            size = strlen(sockName) +
+            size = WSTRLEN(sockName) +
                     offsetof(struct sockaddr_un, sun_path);
 
             ctx->fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -603,26 +630,250 @@ static int wolfSSH_AGENT_IO_Cb(WS_AgentIoCbAction action,
 #endif /* WOLFSSH_AGENT */
 
 
-THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
+struct config {
+    char* logFile;
+    char* user;
+    char* hostname;
+    char* keyFile;
+    char* pubKeyFile;
+    char* command;
+    word32 printConfig:1;
+    word32 noCommand:1;
+    word16 port;
+};
+
+
+static int config_init_default(struct config* config)
+{
+    char* env;
+    size_t sz;
+
+    WMEMSET(config, 0, sizeof(*config));
+    config->port = 22;
+
+    env = getenv("USER");
+    if (env != NULL) {
+        char* user;
+
+        sz = WSTRLEN(env) + 1;
+        user = (char*)WMALLOC(sz, NULL, 0);
+        if (user != NULL) {
+            strcpy(user, env);
+            config->user = user;
+        }
+    }
+
+    env = getenv("HOME");
+    if (env != NULL) {
+        const char* defaultName = "/.ssh/id_ecdsa";
+        const char* pubSuffix = ".pub";
+        char* keyFile;
+
+        sz = WSTRLEN(env) + WSTRLEN(defaultName) + 1;
+        keyFile = (char*)WMALLOC(sz, NULL, 0);
+        if (keyFile != NULL) {
+            strcpy(keyFile, env);
+            strcat(keyFile, defaultName);
+            config->keyFile = keyFile;
+        }
+
+        sz += WSTRLEN(pubSuffix);
+        keyFile = (char*)WMALLOC(sz, NULL, 0);
+        if (keyFile != NULL) {
+            strcpy(keyFile, env);
+            strcat(keyFile, defaultName);
+            strcat(keyFile, pubSuffix);
+            config->pubKeyFile = keyFile;
+        }
+    }
+
+    return 0;
+}
+
+
+static int config_parse_command_line(struct config* config,
+        int argc, char** argv)
+{
+    int ch;
+
+    while ((ch = mygetopt(argc, argv, "E:Gl:Np:V")) != -1) {
+        switch (ch) {
+            case 'E':
+                config->logFile = myoptarg;
+                break;
+
+            case 'G':
+                config->printConfig = 1;
+                break;
+
+            case 'l':
+                config->user = myoptarg;
+                break;
+
+            case 'N':
+                config->noCommand = 1;
+                break;
+
+            case 'p':
+                config->port = (word16)atoi(myoptarg);
+                break;
+
+            case 'V':
+                fprintf(stderr, "wolfSSH v%s, wolfSSL v%s\n",
+                        LIBWOLFSSH_VERSION_STRING,
+                        LIBWOLFSSL_VERSION_STRING);
+                exit(EXIT_SUCCESS);
+
+            default:
+                ShowUsage(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    /* Parse the destination. Either:
+     *  - [user@]hostname
+     *  - ssh://[user@]hostname[:port] */
+    if (myoptind < argc) {
+        const char* uriPrefix = "ssh://";
+        char* dest;
+        char* cursor;
+        char* found;
+        size_t sz;
+        int checkPort;
+
+        myoptarg = argv[myoptind];
+
+        sz = WSTRLEN(myoptarg) + 1;
+        dest = (char*)WMALLOC(sz, NULL, 0);
+        WMEMCPY(dest, myoptarg, sz);
+        cursor = dest;
+
+        if (WSTRSTR(cursor, uriPrefix)) {
+            checkPort = 1;
+            cursor += WSTRLEN(uriPrefix);
+        }
+        else {
+            checkPort = 0;
+        }
+
+        found = WSTRCHR(cursor, '@');
+        if (found == cursor) {
+            fprintf(stderr, "can't start destination with just an @\n");
+        }
+        if (found != NULL) {
+            *found = '\0';
+            if (config->user) {
+                free(config->user);
+            }
+            sz = WSTRLEN(cursor);
+            config->user = WMALLOC(sz + 1, NULL, 0);
+            strcpy(config->user, cursor);
+            cursor = found + 1;
+        }
+
+        if (checkPort) {
+            found = WSTRCHR(cursor, ':');
+            if (found != NULL) {
+                *found = '\0';
+                sz = WSTRLEN(cursor);
+                config->hostname = (char*)WMALLOC(sz + 1, NULL, 0);
+                strcpy(config->hostname, cursor);
+                cursor = found + 1;
+                if (*cursor != 0) {
+                    config->port = atoi(cursor);
+                }
+            }
+        }
+        else {
+            sz = WSTRLEN(cursor);
+            config->hostname = (char*)WMALLOC(sz + 1, NULL, 0);
+            strcpy(config->hostname, cursor);
+        }
+
+        free(dest);
+        myoptind++;
+    }
+
+    if (myoptind < argc) {
+        int i;
+        size_t commandSz;
+        char* cursor;
+        char* command;
+
+        /* Count the spaces needed. The following will calculate one extra
+         * space but that's for the nul termination. */
+        commandSz = argc - myoptind;
+        for (i = myoptind; i < argc; i++) {
+            commandSz += WSTRLEN(argv[i]);
+        }
+
+        command = (char*)WMALLOC(commandSz, NULL, 0);
+        config->command = command;
+        cursor = command;
+
+        for (i = myoptind; i < argc; i++) {
+            cursor = stpcpy(cursor, argv[i]);
+            *cursor = ' ';
+            cursor++;
+        }
+        *(--cursor) = '\0';
+        myoptind++;
+    }
+
+    return 0;
+}
+
+
+static int config_print(struct config* config)
+{
+    if (config->printConfig) {
+        printf("user %s\n", config->user ? config->user : "none");
+        printf("hostname %s\n", config->hostname ? config->hostname : "none");
+        printf("port %u\n", config->port);
+        printf("keyFile %s\n", config->keyFile ? config->keyFile : "none");
+        printf("pubKeyFile %s\n",
+                config->keyFile ? config->keyFile : "none");
+        printf("noCommand %s\n", config->noCommand ? "true" : "false");
+        printf("logfile %s\n", config->logFile ? config->logFile : "default");
+        printf("command %s\n", config->command ? config->command : "none");
+    }
+
+    return 0;
+}
+
+
+static int config_cleanup(struct config* config)
+{
+    if (config->user) {
+        WFREE(config->user, NULL, 0);
+    }
+    if (config->hostname) {
+        WFREE(config->hostname, NULL, 0);
+    }
+    if (config->keyFile) {
+        WFREE(config->keyFile, NULL, 0);
+    }
+    if (config->pubKeyFile) {
+        WFREE(config->pubKeyFile, NULL, 0);
+    }
+    if (config->command) {
+        WFREE(config->command, NULL, 0);
+    }
+
+    return 0;
+}
+
+
+static THREAD_RETURN WOLFSSH_THREAD wolfSSH_Client(void* args)
 {
     WOLFSSH_CTX* ctx = NULL;
     WOLFSSH* ssh = NULL;
     SOCKET_T sockFd = WOLFSSH_SOCKET_INVALID;
     SOCKADDR_IN_T clientAddr;
     socklen_t clientAddrSz = sizeof(clientAddr);
-    char rxBuf[80];
     int ret = 0;
-    int ch;
-    int userEcc = 0;
-    word16 port = wolfSshPort;
-    char* host = (char*)wolfSshIp;
-    const char* username = NULL;
     const char* password = NULL;
-    const char* cmd      = NULL;
-    const char* privKeyName = NULL;
-    byte imExit = 0;
-    byte nonBlock = 0;
-    byte keepOpen = 0;
+    byte keepOpen = 1;
 #ifdef USE_WINDOWS_API
     byte rawMode = 0;
 #endif
@@ -630,115 +881,18 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     byte useAgent = 0;
     WS_AgentCbActionCtx agentCbCtx;
 #endif
+    struct config config;
 
-    int     argc = ((func_args*)args)->argc;
-    char**  argv = ((func_args*)args)->argv;
+    MODES_STORE();
+
     ((func_args*)args)->return_code = 0;
 
-    while ((ch = mygetopt(argc, argv, "?ac:h:i:j:p:tu:xzNP:RJ:A:Xe")) != -1) {
-        switch (ch) {
-            case 'h':
-                host = myoptarg;
-                break;
+    config_init_default(&config);
+    config_parse_command_line(&config,
+            ((func_args*)args)->argc, ((func_args*)args)->argv);
+    config_print(&config);
 
-            case 'z':
-            #ifdef WOLFSSH_SHOW_SIZES
-                wolfSSH_ShowSizes();
-                exit(EXIT_SUCCESS);
-            #endif
-                break;
-
-            case 'e':
-                userEcc = 1;
-                break;
-
-            case 'p':
-                if (myoptarg == NULL) {
-                    err_sys("port number cannot be NULL");
-                }
-                port = (word16)atoi(myoptarg);
-                #if !defined(NO_MAIN_DRIVER) || defined(USE_WINDOWS_API)
-                    if (port == 0)
-                        err_sys("port number cannot be 0");
-                #endif
-                break;
-
-            case 'u':
-                username = myoptarg;
-                break;
-
-            case 'P':
-                password = myoptarg;
-                break;
-
-            case 'i':
-                privKeyName = myoptarg;
-                break;
-
-            case 'j':
-                pubKeyName = myoptarg;
-                break;
-
-        #ifdef WOLFSSH_CERTS
-            case 'J':
-                certName = myoptarg;
-                break;
-
-            case 'A':
-                caCert = myoptarg;
-                break;
-
-            #if defined(OPENSSL_ALL) || defined(WOLFSSL_IP_ALT_NAME)
-            case 'X':
-                ClientIPOverride(1);
-                break;
-            #endif
-        #endif
-
-            case 'x':
-                /* exit after successful connection without read/write */
-                imExit = 1;
-                break;
-
-            case 'N':
-                nonBlock = 1;
-                break;
-
-        #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
-            case 'c':
-                cmd = myoptarg;
-                break;
-        #ifdef USE_WINDOWS_API
-           case 'R':
-                rawMode = 1;
-                break;
-        #endif /* USE_WINDOWS_API */
-        #endif
-
-        #ifdef WOLFSSH_TERM
-            case 't':
-                keepOpen = 1;
-                break;
-        #endif
-
-        #ifdef WOLFSSH_AGENT
-            case 'a':
-                useAgent = 1;
-                break;
-        #endif
-
-            case '?':
-                ShowUsage();
-                exit(EXIT_SUCCESS);
-
-            default:
-                ShowUsage();
-                exit(MY_EX_USAGE);
-        }
-    }
-    myoptind = 0;      /* reset for test cases */
-
-    if (username == NULL)
+    if (config.user == NULL)
         err_sys("client requires a username parameter.");
 
 #ifdef SINGLE_THREADED
@@ -746,37 +900,27 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
         err_sys("Threading needed for terminal session\n");
 #endif
 
-    if ((pubKeyName == NULL && certName == NULL) && privKeyName != NULL) {
-        err_sys("If setting priv key, need pub key.");
-    }
-
-    ret = ClientSetPrivateKey(privKeyName, userEcc);
-    if (ret != 0) {
-        err_sys("Error setting private key");
-    }
-
-#ifdef WOLFSSH_CERTS
-    /* passed in certificate to use */
-    if (certName) {
-        ret = ClientUseCert(certName);
-    }
-    else
-#endif
-    if (pubKeyName) {
-        ret = ClientUsePubKey(pubKeyName, userEcc);
-    }
-    if (ret != 0) {
-        err_sys("Error setting public key");
+    if (config.keyFile) {
+        ret = ClientSetPrivateKey(config.keyFile);
+        if (ret == 0) {
+        #ifdef WOLFSSH_CERTS
+            /* passed in certificate to use */
+            if (certName) {
+                (void)ClientUseCert(certName);
+            }
+            else
+        #endif
+            if (config.pubKeyFile) {
+                (void)ClientUsePubKey(config.pubKeyFile);
+            }
+        }
     }
 
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_CLIENT, NULL);
     if (ctx == NULL)
         err_sys("Couldn't create wolfSSH client context.");
 
-    if (((func_args*)args)->user_auth == NULL)
-        wolfSSH_SetUserAuth(ctx, ClientUserAuth);
-    else
-        wolfSSH_SetUserAuth(ctx, ((func_args*)args)->user_auth);
+    wolfSSH_SetUserAuth(ctx, ClientUserAuth);
 
 #ifdef WOLFSSH_AGENT
     if (useAgent) {
@@ -788,8 +932,6 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
 
 #ifdef WOLFSSH_CERTS
     ClientLoadCA(ctx, caCert);
-#else
-    (void)caCert;
 #endif /* WOLFSSH_CERTS */
 
     wolfSSH_CTX_SetPublicKeyCheck(ctx, ClientPublicKeyCheck);
@@ -808,33 +950,34 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
 
 #ifdef WOLFSSH_AGENT
     if (useAgent) {
-        memset(&agentCbCtx, 0, sizeof(agentCbCtx));
+        WMEMSET(&agentCbCtx, 0, sizeof(agentCbCtx));
         agentCbCtx.state = AGENT_STATE_INIT;
         wolfSSH_set_agent_cb_ctx(ssh, &agentCbCtx);
     }
 #endif
-    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)host);
 
-    ret = wolfSSH_SetUsername(ssh, username);
+    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)config.hostname);
+
+    ret = wolfSSH_SetUsername(ssh, config.user);
     if (ret != WS_SUCCESS)
         err_sys("Couldn't set the username.");
 
-    build_addr(&clientAddr, host, port);
+    build_addr(&clientAddr, config.hostname, config.port);
     tcp_socket(&sockFd);
     ret = connect(sockFd, (const struct sockaddr *)&clientAddr, clientAddrSz);
     if (ret != 0)
         err_sys("Couldn't connect to server.");
 
-    if (nonBlock)
-        tcp_set_nonblocking(&sockFd);
+    tcp_set_nonblocking(&sockFd);
 
     ret = wolfSSH_set_fd(ssh, (int)sockFd);
     if (ret != WS_SUCCESS)
         err_sys("Couldn't set the session's socket.");
 
-    if (cmd != NULL) {
+    if (config.command != NULL) {
         ret = wolfSSH_SetChannelType(ssh, WOLFSSH_SESSION_EXEC,
-                            (byte*)cmd, (word32)WSTRLEN((char*)cmd));
+                            (byte*)config.command,
+                            (word32)WSTRLEN((char*)config.command));
         if (ret != WS_SUCCESS)
             err_sys("Couldn't set the channel type.");
     }
@@ -847,42 +990,45 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     }
 #endif
 
-    if (!nonBlock)
-        ret = wolfSSH_connect(ssh);
-    else
-        ret = NonBlockSSH_connect(ssh);
+    ret = NonBlockSSH_connect(ssh);
     if (ret != WS_SUCCESS)
         err_sys("Couldn't connect SSH stream.");
 
 #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
+#if 0
     if (keepOpen) /* set up for psuedo-terminal */
         ClientSetEcho(2);
+#endif
 
-    if (cmd != NULL || keepOpen == 1) {
+    MODES_CLEAR();
+
+    if (config.command != NULL || keepOpen == 1) {
     #if defined(_POSIX_THREADS)
         thread_args arg;
         pthread_t   thread[3];
 
-        arg.ssh = ssh;
-        arg.quit = 0;
         wc_InitMutex(&arg.lock);
+        arg.ssh = ssh;
 #ifdef WOLFSSH_TERM
+        arg.quit = 0;
     #if (defined(__OSX__) || defined(__APPLE__))
         windowSem = dispatch_semaphore_create(0);
     #else
         sem_init(&windowSem, 0, 0);
     #endif
 
-        if (cmd) {
+        if (config.command) {
             int err;
 
-            /* exec command does not contain initial terminal size, unlike pty-req.
-             * Send an inital terminal size for recieving the results of the command */
+            /* exec command does not contain initial terminal size,
+             * unlike pty-req. Send an inital terminal size for recieving
+             * the results of the command */
             err = sendCurrentWindowSize(&arg);
             if (err != WS_SUCCESS) {
                 fprintf(stderr, "Issue sending exec initial terminal size\n\r");
             }
         }
+
         signal(SIGWINCH, WindowChangeSignal);
         pthread_create(&thread[0], NULL, windowMonitor, (void*)&arg);
 #endif /* WOLFSSH_TERM */
@@ -916,11 +1062,12 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
         arg.rawMode = rawMode;
         wc_InitMutex(&arg.lock);
 
-        if (cmd) {
+        if (config.command) {
             int err;
 
-            /* exec command does not contain initial terminal size, unlike pty-req.
-             * Send an inital terminal size for recieving the results of the command */
+            /* exec command does not contain initial terminal size,
+             * unlike pty-req. Send an inital terminal size for recieving
+             * the results of the command */
             err = sendCurrentWindowSize(&arg);
             if (err != WS_SUCCESS) {
                 fprintf(stderr, "Issue sending exec initial terminal size\n\r");
@@ -938,44 +1085,21 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
         if (keepOpen)
             ClientSetEcho(1);
     }
-    else
 #endif
 
-#if defined(WOLFSSL_PTHREADS) && defined(WOLFSSL_TEST_GLOBAL_REQ)
-    while (!imExit) {
-#else
-    if (!imExit) {
-#endif
-        ret = wolfSSH_stream_send(ssh, (byte*)testString,
-                                  (word32)strlen(testString));
-        if (ret <= 0)
-            err_sys("Couldn't send test string.");
-
-        do {
-            ret = wolfSSH_stream_read(ssh, (byte*)rxBuf, sizeof(rxBuf) - 1);
-            if (ret <= 0) {
-                ret = wolfSSH_get_error(ssh);
-                if (ret != WS_WANT_READ && ret != WS_WANT_WRITE &&
-                        ret != WS_CHAN_RXD)
-                    err_sys("Stream read failed.");
-            }
-        } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE);
-
-        rxBuf[ret] = '\0';
-        printf("Server said: %s\n", rxBuf);
-
-#if defined(WOLFSSL_PTHREADS) && defined(WOLFSSL_TEST_GLOBAL_REQ)
-        sleep(10);
-#endif
-    }
     ret = wolfSSH_shutdown(ssh);
     /* do not continue on with shutdown process if peer already disconnected */
-    if (ret != WS_SOCKET_ERROR_E && wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E) {
+    if (ret != WS_SOCKET_ERROR_E
+            && wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E) {
         if (ret != WS_SUCCESS) {
             err_sys("Sending the shutdown messages failed.");
         }
         ret = wolfSSH_worker(ssh, NULL);
-        if (ret != WS_SUCCESS) {
+        if (ret == WS_CHANNEL_CLOSED) {
+            /* Shutting down, channel closing isn't a fail. */
+            ret = WS_SUCCESS;
+        }
+        else if (ret != WS_SUCCESS) {
             err_sys("Failed to listen for close messages from the peer.");
         }
     }
@@ -985,47 +1109,38 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     if (ret != WS_SUCCESS && ret != WS_SOCKET_ERROR_E)
         err_sys("Closing client stream failed");
 
-    ClientFreeBuffers(pubKeyName, privKeyName);
+    ClientFreeBuffers();
 #if !defined(WOLFSSH_NO_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free();  /* free per thread cache */
 #endif
 
+    config_cleanup(&config);
+    MODES_RESET();
+
     return 0;
 }
 
-#endif /* NO_WOLFSSH_CLIENT */
 
+int main(int argc, char** argv)
+{
+    func_args args;
 
-#ifndef NO_MAIN_DRIVER
+    args.argc = argc;
+    args.argv = argv;
+    args.return_code = 0;
+    args.user_auth = NULL;
 
-    int main(int argc, char** argv)
-    {
-        func_args args;
+    WSTARTTCP();
 
-        args.argc = argc;
-        args.argv = argv;
-        args.return_code = 0;
-        args.user_auth = NULL;
+    #ifdef DEBUG_WOLFSSH
+        wolfSSH_Debugging_ON();
+    #endif
 
-        WSTARTTCP();
+    wolfSSH_Init();
 
-        #ifdef DEBUG_WOLFSSH
-            wolfSSH_Debugging_ON();
-        #endif
+    wolfSSH_Client(&args);
 
-        wolfSSH_Init();
+    wolfSSH_Cleanup();
 
-        ChangeToWolfSshRoot();
-#ifndef NO_WOLFSSH_CLIENT
-        client_test(&args);
-#endif
-
-        wolfSSH_Cleanup();
-
-        return args.return_code;
-    }
-
-    int myoptind = 0;
-    char* myoptarg = NULL;
-
-#endif /* NO_MAIN_DRIVER */
+    return args.return_code;
+}
