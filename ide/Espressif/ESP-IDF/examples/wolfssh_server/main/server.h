@@ -22,6 +22,7 @@
 #ifndef _WOLFSSH_EXAMPLES_SERVER_H_
 #define _WOLFSSH_EXAMPLES_SERVER_H_
 
+#include <wolfssh/test.h>
 
 THREAD_RETURN WOLFSSH_THREAD server_test(void* args);
 

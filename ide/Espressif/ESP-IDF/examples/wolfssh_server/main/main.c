@@ -33,11 +33,16 @@
 
 /* project */
 #include "main.h"
+#include "server.h"
+#include "wifi_connect.h"
+#include "time_helper.h"
 
 static const char* const TAG = "My Project";
 
 void app_main(void)
 {
+    func_args args = {0};
+
     ESP_LOGI(TAG, "------------ wolfSSL wolfSSH template Example ----------");
     ESP_LOGI(TAG, "--------------------------------------------------------");
     ESP_LOGI(TAG, "--------------------------------------------------------");
@@ -81,6 +86,34 @@ void app_main(void)
 #else
     ESP_LOGW(TAG, "Warning: Could not find wolfMQTT Version");
 #endif
+
+
+    /* Initialize NVS */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    /* Initialize WiFi */
+    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    ret = wifi_init_sta();
+    if (ret != 0) {
+        ESP_LOGV(TAG, "\n\nFailed to connect to WiFi. Halt.\n\n");
+#if defined(SINGLE_THREADED)
+        while (1);
+#else
+        vTaskDelay(60000);
+#endif
+    }
+
+    /* set time for cert validation */
+    set_time();
+
+
+    server_test(&args);
 
     ESP_LOGI(TAG, "\n\nDone!\n\n"
                   "If running from idf.py monitor, press twice: Ctrl+]\n\n"

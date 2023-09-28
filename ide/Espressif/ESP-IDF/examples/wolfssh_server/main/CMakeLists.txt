@@ -20,7 +20,7 @@ endif()
 
 ## register_component()
 idf_component_register(
-                       SRCS main.c server.c
+                       SRCS main.c server.c time_helper.c wifi_connect.c
                        INCLUDE_DIRS "." "./include")
 #
 

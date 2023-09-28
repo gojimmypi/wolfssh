@@ -38,7 +38,7 @@
 #include <wolfssh/internal.h>
 #include <wolfssh/test.h>
 #include <wolfssl/wolfcrypt/ecc.h>
-#include "examples/server/server.h"
+#include "server.h"
 
 #ifdef NO_FILESYSTEM
     #include <wolfssh/certs_test.h>
