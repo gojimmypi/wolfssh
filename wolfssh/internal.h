@@ -920,7 +920,8 @@ WOLFSSH_LOCAL int SendRequestSuccess(WOLFSSH*, int);
 WOLFSSH_LOCAL int SendChannelOpenSession(WOLFSSH*, WOLFSSH_CHANNEL*);
 WOLFSSH_LOCAL int SendChannelOpenForward(WOLFSSH*, WOLFSSH_CHANNEL*);
 WOLFSSH_LOCAL int SendChannelOpenConf(WOLFSSH*, WOLFSSH_CHANNEL*);
-WOLFSSH_LOCAL int SendChannelOpenFail(WOLFSSH*, word32, word32, const char*, const char*);
+WOLFSSH_LOCAL int SendChannelOpenFail(WOLFSSH* ssh, word32 channel,
+        word32 reason, const char* description, const char* language);
 WOLFSSH_LOCAL int SendChannelEof(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelEow(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelClose(WOLFSSH*, word32);
@@ -1217,6 +1218,7 @@ enum TerminalModes {
     WOLFSSH_IXANY,
     WOLFSSH_IXOFF,
     WOLFSSH_IMAXBEL,
+    WOLFSSH_IUTF8 = 42,
     WOLFSSH_ISIG = 50,
     WOLFSSH_ICANON,
     WOLFSSH_XCASE,

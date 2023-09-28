@@ -1315,6 +1315,7 @@ void* wolfSSH_GetPublicKeyCheckCtx(WOLFSSH* ssh)
     return NULL;
 }
 
+#ifdef WOLFSSH_TERM
 
 /* Used to resize terminal window with shell connections
  * returns WS_SUCCESS on success */
@@ -1349,6 +1350,8 @@ void wolfSSH_SetTerminalResizeCtx(WOLFSSH* ssh, void* usrCtx)
 {
     ssh->termCtx = usrCtx;
 }
+
+#endif
 
 
 /* Used to set the channel request type sent in wolfSSH connect. The default
@@ -1479,7 +1482,8 @@ union wolfSSH_key {
 /* Reads a key from the buffer in to out. If the out buffer doesn't exist
    it is created. The type of key is stored in outType. It'll be a pointer
    to a constant string. Format indicates the format of the key, currently
-   either SSH format (a public key) or ASN.1 in DER format (a private key). */
+   either SSH format (a public key) or ASN.1 in DER or PEM format (a
+   private key). */
 int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
         byte** out, word32* outSz, const byte** outType, word32* outTypeSz,
         void* heap)
@@ -1533,8 +1537,10 @@ int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
             ret = Base64_Decode((byte*)key, (word32)WSTRLEN(key), *out, outSz);
         }
 
-        if (ret != 0)
-            ret = WS_ERROR;
+        if (ret != 0) {
+            WLOG(WS_LOG_DEBUG, "Base64 decode of public key failed.");
+            ret = WS_PARSE_E;
+        }
 
         WFREE(c, heap, DYNTYPE_STRING);
     }
@@ -1548,7 +1554,8 @@ int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
         }
         else {
             if (*outSz < inSz) {
-                return WS_ERROR;
+                WLOG(WS_LOG_DEBUG, "DER private key output size too small");
+                return WS_BUFFER_E;
             }
             newKey = *out;
         }
@@ -1562,8 +1569,52 @@ int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
             ret = WS_SUCCESS;
         }
     }
-    else
-        ret = WS_ERROR;
+    else if (format == WOLFSSH_FORMAT_PEM) {
+        word32 newKeySz = inSz; /* binary will be smaller than PEM */
+
+        if (*out == NULL) {
+            newKey = (byte*)WMALLOC(newKeySz, heap, DYNTYPE_PRIVKEY);
+            if (newKey == NULL) {
+                return WS_MEMORY_E;
+            }
+            *out = newKey;
+        }
+        else {
+            if (*outSz < inSz) {
+                WLOG(WS_LOG_DEBUG, "PEM private key output size too small");
+                return WS_BUFFER_E;
+            }
+            newKey = *out;
+        }
+
+        /* If it is PEM, convert to ASN1 then process. */
+        ret = wc_KeyPemToDer(in, inSz, newKey, newKeySz, NULL);
+        if (ret > 0) {
+            newKeySz = (word32)ret;
+            ret = WS_SUCCESS;
+        }
+        else {
+            WLOG(WS_LOG_DEBUG, "Base64 decode of public key failed.");
+            ret = WS_PARSE_E;
+        }
+
+        if (ret == WS_SUCCESS) {
+            ret = IdentifyKey(newKey, newKeySz, 1, heap);
+            if (ret > 0) {
+                *outSz = newKeySz;
+                *outType = (const byte*)IdToName(ret);
+                *outTypeSz = (word32)WSTRLEN((const char*)*outType);
+                ret = WS_SUCCESS;
+            }
+            else {
+                WLOG(WS_LOG_DEBUG, "unable to identify key");
+            }
+        }
+    }
+    else {
+        WLOG(WS_LOG_DEBUG, "Invalid key format");
+        ret = WS_BAD_ARGUMENT;
+    }
 
     return ret;
 }
@@ -1573,8 +1624,9 @@ int wolfSSH_ReadKey_buffer(const byte* in, word32 inSz, int format,
 
 /* Reads a key from the file name into a buffer. If the key starts with the
    string "ssh-rsa" or "ecdsa-sha2-nistp256", it is considered an SSH format
-   public key, otherwise it is considered an ASN.1 private key. The buffer
-   is passed to wolfSSH_ReadKey_buffer() for processing. */
+   public key, if it has "----BEGIN" it is considered PEM formatted,
+   otherwise it is considered an ASN.1 private key. The buffer is passed to
+   wolfSSH_ReadKey_buffer() for processing. */
 int wolfSSH_ReadKey_file(const char* name,
         byte** out, word32* outSz, const byte** outType, word32* outTypeSz,
         byte* isPrivate, void* heap)
@@ -1624,6 +1676,13 @@ int wolfSSH_ReadKey_file(const char* name,
             *isPrivate = 0;
             format = WOLFSSH_FORMAT_SSH;
             in[inSz] = 0;
+        }
+        else if ((WSTRNSTR((const char*)in, "-----BEGIN ", inSz)
+                    == (const char*)in)
+                && (WSTRNSTR((const char*)in, "PRIVATE KEY-----", inSz)
+                    != NULL)) {
+            *isPrivate = 1;
+            format = WOLFSSH_FORMAT_PEM;
         }
         else {
             *isPrivate = 1;
