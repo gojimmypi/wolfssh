@@ -335,6 +335,12 @@ else()
 
 
     set(COMPONENT_SRCEXCLUDE
+        # wolfSSH
+        # TODO: we likely need to check #if !defined(WOLFSSH_MISC_INCLUDED) && !defined(NO_INLINE) && !defined(WOLFSSH_IGNORE_FILE_WARN)
+        #       here in cmake if we actually want to always exclude wolfssh misc.c file. (see source; ok for demo)
+        "\"${WOLFSSH_ROOT}/src/misc.c\"" # misc.c does not need to be compiled when using inline (NO_INLINE not defined))
+
+        # wolfSSL
         "\"${WOLFSSL_ROOT}/src/bio.c\""
         "\"${WOLFSSL_ROOT}/src/conf.c\""
         "\"${WOLFSSL_ROOT}/src/misc.c\""

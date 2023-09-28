@@ -76,7 +76,7 @@ void app_main(void)
 /* the simplest check of the wolfMQTT library presence: */
 #ifdef LIBWOLFSSH_VERSION_STRING
     ESP_LOGI(TAG, "");
-    ESP_LOGI(TAG, "Found wolfMQTT Version %s\n", LIBWOLFMQTT_VERSION_STRING);
+    ESP_LOGI(TAG, "Found wolfSSH Version %s\n", LIBWOLFSSH_VERSION_STRING);
     wolfSSH_Log(WS_LOG_INFO, "[wolfssh] Hello World!");
 #else
     ESP_LOGW(TAG, "Warning: Could not find wolfMQTT Version");
