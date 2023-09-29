@@ -137,17 +137,11 @@
     #define SOCKET_T int
     #define NUM_SOCKETS 5
 #elif defined(WOLFSSL_ESPIDF)
-    #include <esp_log.h>
+    #include "sdkconfig.h"
     #include <esp_idf_version.h>
-    #include <esp_wifi.h>
-
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/task.h"
-    #include "freertos/event_groups.h"
-    #include "lwip/sockets.h"
-    #include "lwip/netdb.h"
-    #include "lwip/apps/sntp.h"
-    #include "nvs_flash.h"
+    #include <esp_log.h>
+    #include <lwip/sockets.h>
+    #include <lwip/netdb.h>
     #define SOCKET_T int
     #define NUM_SOCKETS 5
 #else /* USE_WINDOWS_API */

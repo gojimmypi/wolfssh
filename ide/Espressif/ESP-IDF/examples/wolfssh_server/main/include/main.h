@@ -21,4 +21,8 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+/* Espressif libraries */
+#include <nvs_flash.h>
+#include <esp_log.h>
+
 #endif

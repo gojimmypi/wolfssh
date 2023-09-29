@@ -13,6 +13,13 @@
 #
 cmake_minimum_required(VERSION 3.5)
 
+if( "$ENV{IDF_COMPONENT_REGISTRY_URL}" STREQUAL "https://components-staging.espressif.com" )
+    message(STATUS "Using Staging Component Test for wolfSSL: mywolfssl")
+    set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+else()
+    set(WOLFSSL_COMPONENT_NAME "wolfssl")
+endif()
+
 # These flags apply only to compiling this component independently.
 # be sure to include this like in the root CMakeFiles.txt
 # for proper application-wide use of WOLFSSL_USER_SETTINGS:
@@ -32,7 +39,7 @@ else()
     # wolfSSL settings should have occurred in project makefiles
     #message(WARNING "Component wolfssh: Setting WOLFSSL_USER_SETTINGS \
                      #(should have been a project-wide setting)")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -DWOLFSSL_USER_SETTINGS")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWOLFSSL_USER_SETTINGS")
 endif()
 
@@ -46,18 +53,6 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWOLFSSH_USER_SETTINGS")
 endif()
 
-if(CONFIG_USE_WOLFMQTT_TLS)
-    if (CONFIG_DEBUG_WOLFMQTT)
-        message(STATUS "Config USE_WOLFMQTT_TLS is enabled for components/wolfssh")
-    endif()
-    set(MQTT_TLS_DEFINE "ENABLE_MQTT_TLS")
-    add_compile_definitions("${MQTT_TLS_DEFINE}")
-else()
-    if (CONFIG_DEBUG_WOLFMQTT)
-        message(STATUS "Config USE_WOLFMQTT_TLS is NOT enabled for components/wolfssh")
-    endif()
-    set(MQTT_TLS_DEFINE "")
-endif()
 
 message(STATUS "wolfssh CMAKE_C_FLAGS = ${CMAKE_C_FLAGS}")
 
@@ -66,15 +61,16 @@ set(WOLFSSL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set(INCLUDE_PATH ${WOLFSSL_ROOT})
 
 set(COMPONENT_SRCDIRS
-    "./src/"
+        "./src/"
    )
 
 
-set(COMPONENT_REQUIRES lwip mywolfssl)
+set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
 
 set(COMPONENT_ADD_INCLUDEDIRS
     "."
-   )
+    "./include"
+    )
 
 
 # list(REMOVE_ITEM ASM_FILES  ".*\\.(asm|S)")
@@ -83,6 +79,7 @@ message(STATUS "WOLFSSL_ROOT = ${WOLFSSL_ROOT}")
 message(STATUS "ASM_FILES = ${ASM_FILES}")
 
 
+#TODO remove:
 #idf_component_register(
                         #SRC_DIRS "${COMPONENT_SRCDIRS}"
                         #INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
@@ -101,7 +98,7 @@ else()
                             INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
                             REQUIRES "${COMPONENT_REQUIRES}"
                             EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
-                            PRIV_REQUIRES wolfssl # this will typically only be needed for wolfSSL benchmark
+                            PRIV_REQUIRES "${WOLFSSL_COMPONENT_NAME}" # this will typically only be needed for wolfSSL benchmark
                            )
 endif()
 

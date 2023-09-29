@@ -19,9 +19,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-/* Espressif */
-#include <esp_log.h>
-
 /* wolfSSL  */
 #include "user_settings.h" /* always include wolfSSL user_settings.h first */
 #include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
@@ -112,7 +109,7 @@ void app_main(void)
     /* set time for cert validation */
     set_time();
 
-
+    ESP_LOGI(TAG, "Starting wolfSSH server_test...");
     server_test(&args);
 
     ESP_LOGI(TAG, "\n\nDone!\n\n"

@@ -9,8 +9,22 @@ See the [Espressif idf-component-manager docs](https://docs.espressif.com/projec
 Configuration for the component is in the top-level [idf_component.yml](./idf_component.yml) file.
 Note that this is *different* from the same-name files in the example projects.
 
-Edit version in both [idf_component.yml](./idf_component.yml) and [README_REGISTRY_PREPEND.md](./README_REGISTRY_PREPEND.md). 
-Version numbers must match between these two files
+Edit version in:
+- Component configuration [idf_component.yml](./idf_component.yml) 
+- Example application [lib/idf_component.yml](./lib/idf_component.yml) 
+- [README_REGISTRY_PREPEND.md](./README_REGISTRY_PREPEND.md)
+Version numbers must exactly match between these files.
+
+Note that when using the staging environment, the staging user namespace and component name
+will be used. There should be a `./lib/idf_component-staging-[user name].yml` file.
+For example, for the `gojimmypi` user, the [./lib/idf_component-staging-gojimmypi.yml](./lib/idf_component-staging-gojimmypi.yml)
+should contain the alternate namespace (typically the username) and component name (typically with "my" prefix):
+
+```yml
+## IDF Component Manager Manifest File
+dependencies:
+  gojimmypi/mywolfssl: "^5.6.3-f9082c5.2"
+```
 
 See the `wolfssl_component_publish.sh` bash script. Set private `IDF_COMPONENT_API_TOKEN`
 environment variable as appropriate. Optionally set the `IDF_COMPONENT_REGISTRY_URL`.
@@ -22,6 +36,11 @@ export IDF_COMPONENT_API_TOKEN=YOUR_TOKEN_VALUE
 export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.1
 export WOLFSSH_ROOT=/mnt/c/workspace/wolfSSH-gojimmypi/IDE/Espressif/component-manager/
 export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com
+
+# install looks for wolfssh-master
+cd /mnt/c/workspace/
+git clone https://github.com/wolfSSL/wolfssh.git wolfssh-master
+
 cd "$WOLFSSL_ROOT"
 echo "Run export.sh from ${WRK_IDF_PATH}"
 . ${WRK_IDF_PATH}/export.sh
@@ -55,6 +74,9 @@ mywolfssh_1.0.0-test
 mywolfssh_1.0.0-test.tgz
 ```
 
+Consider disconnecting local network to go through the whole process without actually
+uploading. There's a `dryrun` capability not yet implemented in script.
+
 Examples are copied into the local [./examples/](./examples/README.md) directory.
 
 Each example project needs to have a `main/idf_component.yml` file,
@@ -80,6 +102,8 @@ To use this, set the `IDF_COMPONENT_REGISTRY_URL` environment variable:
 ```
 export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com/ 
 ```
+
+This setting is needed for _both_ deployment and client testing of staging-site components.
 
 The default when not set is the production site at https://components.espressif.com
 
@@ -145,3 +169,38 @@ To resolve, either:
 
 * Remove the `idf_component.yml` file and remove wolfssl directory from `projectname/managed__components`
 * Remove the wolfssl directory from `projectname/components`
+
+Cannot program, _The chip needs to be in download mode_:
+
+```
+Serial port /dev/ttyS9
+Connecting......................................
+
+A fatal error occurred: Failed to connect to ESP32: Wrong boot mode detected (0x13)! The chip needs to be in download mode.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+CMake Error at run_serial_tool.cmake:66 (message):
+
+  /home/gojimmypi/.espressif/python_env/idf5.1_py3.10_env/bin/python;;/mnt/c/SysGCC/esp32/esp-idf/v5.1/components/esptool_py/esptool/esptool.py;--chip;esp32
+  failed.
+
+
+
+FAILED: CMakeFiles/flash
+```
+
+While holding the `boot` button down, tap the `en` button, then release the `boot` button. Try again.
+
+If that didn't work, try the same sequence _after_ you've press `enter` for the `idf.py flash` command
+while the is attempting the upload.
+
+For a robust programing experience that does not depend on bootloader mode, consider a JTAG
+programmer such as the [Tigard](https://github.com/tigard-tools/tigard).
+
+Cannot find source:
+
+```text
+Executing action: create-project-from-example
+ERROR: Version of the component "gojimmypi/mywolfssl" satisfying the spec "^5.6.3-f9082c5.7" was not found.
+```
+
+Check the `IDF_COMPONENT_REGISTRY_URL` setting. Blank defaults to production. See above for staging.

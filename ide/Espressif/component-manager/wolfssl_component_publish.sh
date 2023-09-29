@@ -129,16 +129,16 @@ fi
 
 # check if prior version tgz file already published
 FOUND_LOCAL_DIST=
-if [ -f "./dist/wolfssl_$THIS_VERSION.tgz" ]; then
-    echo "Found file wolfssl_$THIS_VERSION.tgz"
+if [ -f "./dist/$THIS_COMPONENT_$THIS_VERSION.tgz" ]; then
+    echo "Found file $THIS_COMPONENT_$THIS_VERSION.tgz"
     echo "Duplicate versions cannot be published. By proceeding, you will overwrite the local source."
     echo ""
     FOUND_LOCAL_DIST=true
 fi
 
 # check if prior version directory already published
-if [ -d "./dist/wolfssl_$THIS_VERSION" ]; then
-    echo "Found directory: wolfssl_$THIS_VERSION"
+if [ -d "./dist/$THIS_COMPONENT_$THIS_VERSION" ]; then
+    echo "Found directory: $THIS_COMPONENT_$THIS_VERSION"
     echo "Duplicate versions cannot be published. By proceeding, you will overwrite the local source."
     echo ""
     FOUND_LOCAL_DIST=true
@@ -146,7 +146,7 @@ fi
 
 # check if this version distribution already exists, and if so, if it should be overwritten
 if [ -z "$FOUND_LOCAL_DIST" ]; then
-    echo "Confirmed a prior local distribution file set does not exist for wolfssl_$THIS_VERSION."
+    echo "Confirmed a prior local distribution file set does not exist for $THIS_COMPONENT_$THIS_VERSION."
 else
     OK_TO_OVERWRITE_DIST=
     until [ "${OK_TO_OVERWRITE_DIST^}" == "Y" ] || [ "${OK_TO_OVERWRITE_DIST^}" == "N" ]; do
@@ -179,7 +179,8 @@ if [ -z "$IDF_COMPONENT_REGISTRY_URL" ]; then
 fi
 
 if [ "$IDF_COMPONENT_REGISTRY_URL" == "$PRODUCTION_URL" ]; then
-    echo "WARNING: The live wolfSSL will be replaced upon completion."
+    echo "WARNING: The live $THIS_COMPONENT will be replaced upon completion."
+    export THIS_NAMESPACE=wolfssl
 else
     if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
         # check if USER is set
@@ -187,8 +188,11 @@ else
             echo "Could not detect USER environment variable needed for staging"
             exit 1
         fi
+        export THIS_NAMESPACE="$USER"
         echo ""
-        echo "WARNING: The staging wolfSSL component will be replaced upon completion."
+        echo "WARNING: The staging $THIS_COMPONENT component will be replaced upon completion:"
+        echo ""
+        echo "   $IDF_COMPONENT_REGISTRY_URL/components/$THIS_NAMESPACE/mywolfssh"
     else
         echo ""
         echo "WARNING: unexpected IDF_COMPONENT_REGISTRY_URL value = $IDF_COMPONENT_REGISTRY_URL"
@@ -657,9 +661,9 @@ if [ -z "$IDF_COMPONENT_REGISTRY_URL" ]; then
     echo ""
     exit 1
 else
-    echo "Publishing local wolfSSL source to ESP Registry: $IDF_COMPONENT_REGISTRY_URL"
+    echo "Publishing local $THIS_COMPONENT source to ESP Registry: $IDF_COMPONENT_REGISTRY_URL"
     echo ""
-    echo "WARNING: The specified wolfSSL component will be replaced upon completion."
+    echo "WARNING: The specified $THIS_COMPONENT component will be replaced upon completion."
 fi
 
 COMPONENT_MANAGER_PUBLISH=
@@ -692,7 +696,7 @@ if [ "${COMPONENT_MANAGER_PUBLISH}" == "Y" ]; then
         if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
             echo "Running: compote component upload --namespace $USER --name my$THIS_COMPONENT"
             echo ""
-            compote component upload --namespace $USER --name my"$THIS_COMPONENT" || exit 1
+            compote component upload --namespace $THIS_NAMESPACE --name my"$THIS_COMPONENT" || exit 1
         else
             echo ""
             echo "WARNING: unexpected IDF_COMPONENT_REGISTRY_URL value = $IDF_COMPONENT_REGISTRY_URL"
@@ -705,7 +709,7 @@ if [ "${COMPONENT_MANAGER_PUBLISH}" == "Y" ]; then
     if [ -z "$IDF_COMPONENT_REGISTRY_URL" ]; then
         echo "View the new component at https://components.espressif.com/components/wolfssl/wolfssl"
     else
-        echo "View the new component at $IDF_COMPONENT_REGISTRY_URL/wolfssl/wolfssl"
+        echo "View the new component at $IDF_COMPONENT_REGISTRY_URL/$THIS_NAMESPACE/$THIS_COMPONENT"
     fi
     echo ""
     echo "Done!"
