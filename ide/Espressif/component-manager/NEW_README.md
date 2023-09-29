@@ -1,4 +1,4 @@
-This is the Espressif Component Version of wolfSSH 1.0.8-test, Release #8 (version ^1.0.8-test)
+This is the Espressif Component Version of wolfSSH 1.0.9-test, Release #9 (version ^1.0.9-test)
 
 When testing staging components:
 

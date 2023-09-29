@@ -328,18 +328,7 @@ fi
 # copy_wolfssl_source $THIS_WOLFSSL  "include"                           "*.h"
 #
 # See also IDE/Espressif/ESP-IDF/user_settings.h
-
-# Copy C source files
-if [ "wolfssh" == "$THIS_COMPONENT" ]; then
-
-    echo "Copying wolfSSH C Source files... $THIS_WOLFSSL"
-    copy_wolfssl_source  $THIS_WOLFSSL  "src"                                "*.c"
-
-    # Copy C header files
-    echo "Copying wolfSSH C Header files..."
-    copy_wolfssl_source  $THIS_WOLFSSL  "wolfssh"                           "*.h"
-fi
-
+#
 #**************************************************************************************************
 # Copy C source files
 # Reminder: each component must specify a value for EXAMPLE_SOURCE_DIR

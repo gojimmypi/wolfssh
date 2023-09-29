@@ -69,7 +69,6 @@ set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
 
 set(COMPONENT_ADD_INCLUDEDIRS
     "."
-    "./include"
     )
 
 
