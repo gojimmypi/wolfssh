@@ -1,6 +1,17 @@
-# wolfSSL Template Project
+# wolfSSL Server Project
 
-This is an example minimally viable wolfSSL template to get started with your own project.
+This is an example wolfSSH Server based on the minimally viable wolfSSL [template](../wolfssh_template/README.md)
+
+See the [command line example client](https://github.com/wolfSSL/wolfssh/tree/master/examples/client)
+and the instructions in [wolfssh README.md](https://github.com/wolfSSL/wolfssh#readme)
+
+To connect:
+
+```bash
+TODO
+
+ssh -p 22222 jack@192.168.1.32
+```
 
 ### Prerequisites
 
