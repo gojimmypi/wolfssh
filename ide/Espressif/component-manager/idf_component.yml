@@ -1,4 +1,4 @@
-version: "1.0.5-test"
+version: "1.0.7-test"
 description: wolfSSL wolfSSH Library
 url: https://www.wolfssl.com
 repository: https://github.com/wolfSSL/wolfssh.git
@@ -7,6 +7,7 @@ issues: https://github.com/wolfSSL/wolfssh/issues
 discussion: https://www.wolfssl.com/forums
 files:
   exclude:
+  - '**/*'  # exclude everything, so next lines are redundant / reminder only:
   - 'INSTALL.md'
   - '*.py'
   - '**/*.list'
@@ -21,8 +22,13 @@ files:
   - 'README_DIST.md'
   - 'README_REGISTRY_PREPEND.md'
   - 'README_STAGING.md'
-  include:
-  - ./include/
-  - ./src/
-  - ./wolfmqtt/
-  - ./wolfssh/
+  include: # only explicitly include things we actually want to publish:
+  - './README.md'
+  - './LICENSE.txt'
+  - './idf_component.yml'
+  - './CMakeLists.txt'
+  - './Kconfig'
+  - './src/**/*'
+  - './wolfssh/**/*'
+  - './examples/**/*'
+  - './include/**/*'

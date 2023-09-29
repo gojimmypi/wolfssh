@@ -7,13 +7,15 @@
 #
 # TODO: config file settings not yet supported here. See:
 # https://docs.espressif.com/projects/idf-component-manager/en/latest/guides/packaging_components.html#authentication-with-a-config-file
-
+#
 # set our known production and staging links. Trailing "/" expected. Edit with caution:
 export PRODUCTION_URL="https://components.espressif.com"
 export STAGING_URL="https://components-staging.espressif.com"
 export THIS_COMPONENT="wolfssh"
 
 #**************************************************************************************************
+# copy_wolfssl_source()
+#
 # A function to copy a given wolfSSL root: $1
 # for a given subdirectory: $2
 # for a file type specification: $3
@@ -62,7 +64,7 @@ copy_wolfssl_source() {
   else
     echo "ERROR: Not Found: $dst"
   fi
-}
+} # copy_wolfssl_source()
 
 #**************************************************************************************************
 #**************************************************************************************************
@@ -70,10 +72,27 @@ copy_wolfssl_source() {
 #**************************************************************************************************
 #**************************************************************************************************
 
+echo "Searching for component name (this script must run github repo directory)"
+THIS_COMPONENT_CONFIG="$(git config --get remote.origin.url)"
+export THIS_COMPONENT
+THIS_COMPONENT="$(basename -s .git "$THIS_COMPONENT_CONFIG")" || exit 1
+
+# Our component names are all lower case, regardless of repo name:
+THIS_COMPONENT="${THIS_COMPONENT,,}"
+
+# check if IDF_PATH is set
+if [ -z "$THIS_COMPONENT" ]; then
+    echo "Could not find component name."
+    echo "Please run this script from a github repo directory."
+    exit 1
+else
+    echo "Found component to publish: $THIS_COMPONENT"
+fi
+
 if [ -e "./idf_component_manager.yml" ]; then
     # There may be contradictory settings in idf_component_manager.yml vs environment variables,
     # Which takes priority? Check not performed at this time,
-    echo "ERROR: This script does not yet support df_component_manager.yml."
+    echo "ERROR: This script does not yet support idf_component_manager.yml."
     exit 1
 fi
 
@@ -125,6 +144,7 @@ if [ -d "./dist/wolfssl_$THIS_VERSION" ]; then
     FOUND_LOCAL_DIST=true
 fi
 
+# check if this version distribution already exists, and if so, if it should be overwritten
 if [ -z "$FOUND_LOCAL_DIST" ]; then
     echo "Confirmed a prior local distribution file set does not exist for wolfssl_$THIS_VERSION."
 else
@@ -147,7 +167,7 @@ fi
 
 
 #**************************************************************************************************
-# Ready Summary before step that will copy all source files related to the ESP Component Registry
+# Show Ready Summary before step that will copy all source files related to the ESP Component Registry
 #**************************************************************************************************
 echo ""
 
@@ -162,6 +182,11 @@ if [ "$IDF_COMPONENT_REGISTRY_URL" == "$PRODUCTION_URL" ]; then
     echo "WARNING: The live wolfSSL will be replaced upon completion."
 else
     if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
+        # check if USER is set
+        if [ -z "$USER" ]; then
+            echo "Could not detect USER environment variable needed for staging"
+            exit 1
+        fi
         echo ""
         echo "WARNING: The staging wolfSSL component will be replaced upon completion."
     else
@@ -223,6 +248,7 @@ popd || exit 1
 #**************************************************************************************************
 # Confirm we actually want to proceed to copy.
 #**************************************************************************************************
+echo "Existing component-manager/examples files will be deleted and copied from ../ESP-IDF/examples"
 OK_TO_COPY=
 until [ "${OK_TO_COPY^}" == "Y" ] || [ "${OK_TO_COPY^}" == "N" ]; do
     read -r -n1 -p "Proceed? (Y/N) " OK_TO_COPY
@@ -310,7 +336,13 @@ if [ "wolfssh" == "$THIS_COMPONENT" ]; then
     copy_wolfssl_source  $THIS_WOLFSSL  "wolfssh"                           "*.h"
 fi
 
+#**************************************************************************************************
 # Copy C source files
+# Reminder: each component must specify a value for EXAMPLE_SOURCE_DIR
+#**************************************************************************************************
+EXAMPLE_SOURCE_DIR="missing"
+
+# wolfMQTT Files
 if [ "wolfmqtt" == "$THIS_COMPONENT" ]; then
 
     echo "Copying wolfMQTT C Source files... $THIS_WOLFSSL"
@@ -319,8 +351,27 @@ if [ "wolfmqtt" == "$THIS_COMPONENT" ]; then
     # Copy C header files
     echo "Copying wolfMQTT C Header files..."
     copy_wolfssl_source  $THIS_WOLFSSL  "wolfmqtt"                           "*.h"
+
+    # wolfMQTT looks for an options.h file
+    echo "Copying wolfMQTT options.h"
+    cp ./lib/options.h "./wolfmqtt/options.h"
+
+    EXAMPLE_SOURCE_DIR="$THIS_WOLFSSL/IDE/Espressif/ESP-IDF/examples"
 fi
 
+# wolfSSH Files
+if [ "wolfssh" == "$THIS_COMPONENT" ]; then
+    echo "Copying wolfSSH C Source files... $THIS_WOLFSSL"
+    copy_wolfssl_source  $THIS_WOLFSSL  "src"                                "*.c"
+
+    # Copy C header files
+    echo "Copying wolfSSH C Header files..."
+    copy_wolfssl_source  $THIS_WOLFSSL  "wolfssh"                           "*.h"
+
+    EXAMPLE_SOURCE_DIR="$THIS_WOLFSSL/ide/Espressif/ESP-IDF/examples"
+fi
+
+# wolfSSL Files
 if [ "wolfssl" == "$THIS_COMPONENT" ]; then
 
     echo "Copying wolfSSL C Source files... $THIS_WOLFSSL"
@@ -347,13 +398,29 @@ if [ "wolfssl" == "$THIS_COMPONENT" ]; then
     # the main README.md at publish time, and generate anchor text hyperlinks.
     copy_wolfssl_source  $THIS_WOLFSSL  "wolfcrypt/benchmark"                "README.md"  APPEND
     copy_wolfssl_source  $THIS_WOLFSSL  "wolfcrypt/test"                     "README.md"  APPEND
+
+    # Define the source directory and destination directory.
+    # We start in           IDE/Espressif/component-manager
+    # We want examples from IDE/Espressif/ESP-IDF/examples
+    EXAMPLE_SOURCE_DIR="$THIS_WOLFSSL/IDE/Espressif/ESP-IDF/examples"
+
+    # TODO remove
+    # Files known to need attention
+    # The current examples expect user_settings in the root include directory
+    # this can be removed once subsequent PR updates are accepted for examples
+    cp ./lib/user_settings.h ./include/user_settings.h
+
+    # The component registry needs a newer version of esp32-crypt.h
+    # cp ./lib/esp32-crypt.h   ./wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h
+    # End TODO
 fi
+echo ""
 
 #**************************************************************************************************
-# make sure the version found in ./wolfNNNN/version.h matches  that in ./idf_component.yml
+# make sure the version found in ./$THIS_COMPONENT/version.h matches  that in ./idf_component.yml
 #**************************************************************************************************
 if [ -e "./$THIS_COMPONENT/version.h" ]; then
-    WOLFSSL_VERSION=$(grep "LIBWOLFSSL_VERSION_STRING" ./$THIS_COMPONENT/version.h | awk '{print $3}' | tr -d '"')
+    WOLFSSL_VERSION=$(grep "LIBWOLFSSH_VERSION_STRING" ./$THIS_COMPONENT/version.h | awk '{print $3}' | tr -d '"')
     grep "$WOLFSSL_VERSION" ./idf_component.yml
     THIS_ERROR_CODE=$?
     if [ $THIS_ERROR_CODE -ne 0 ]; then
@@ -392,6 +459,17 @@ destination_dir="examples"
 # Check if the destination directory exists, and create it if it doesn't
 if [ ! -d "$destination_dir" ]; then
     mkdir -p "$destination_dir"
+else
+    rm -rf ../component-manager/examples
+    mkdir -p "$destination_dir"
+fi
+
+# Check that we have a manifest for examples.
+if [ -f "component_manifest.txt" ]; then
+    echo "Using manifest file: component_manifest.txt"
+else
+    echo "Error: component_manifest.txt not found and is needed for examples."
+    exit 1
 fi
 
 MISSING_FILES=N
@@ -410,7 +488,7 @@ while IFS= read -r file_path; do
         fi
 
         # Construct the full source and destination paths
-        full_source_path="$source_dir/$file_path"
+        full_source_path="$EXAMPLE_SOURCE_DIR/$file_path"
         full_destination_path="$destination_dir/$file_path"
 
         # Create the directory structure in the destination if it doesn't exist
@@ -419,16 +497,50 @@ while IFS= read -r file_path; do
         # Copy the file to the destination
         cp "$full_source_path" "$full_destination_path"
         THIS_ERROR_CODE=$?
-    if [ $THIS_ERROR_CODE -eq 0 ]; then
-        echo "Copied: $full_source_path -> $full_destination_path"
+        if [ $THIS_ERROR_CODE -eq 0 ]; then
+            echo "Copied: $full_source_path -> $full_destination_path"
+        else
+            MISSING_FILES=Y
+            # echo "WARNING: File not copied:  $full_source_path"
+        fi
+    fi # comment or file check
+done < "component_manifest.txt" # loop through each of the lines in component_manifest.txt
+echo ""
+
+#**************************************************************************************************
+# Each project will be initialized with idf_component.yml in the project directory.
+#**************************************************************************************************
+echo "------------------------------------------------------------------------"
+echo "Initialize projects with idf_component.yml"
+echo "------------------------------------------------------------------------"
+if [ "$IDF_COMPONENT_REGISTRY_URL" == "$PRODUCTION_URL" ]; then
+    export IDF_EXAMPLE_SOURCE="./lib/idf_component.yml"
+else
+    if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
+        export IDF_EXAMPLE_SOURCE="./lib/idf_component-staging-$USER.yml"
     else
-        MISSING_FILES=Y
-        # echo "WARNING: File not copied:  $full_source_path"
+        echo ""
+        echo "WARNING: unexpected IDF_COMPONENT_REGISTRY_URL value = $IDF_COMPONENT_REGISTRY_URL"
+        echo "Expected blank or $STAGING_URL or $PRODUCTION_URL"
+        exit 1
     fi
+fi
+echo ""
 
+#**************************************************************************************************
+# make sure the idf_component.yml (or idf_component-staging-[user name].yml) file exists
+#**************************************************************************************************
+if [ -f "$IDF_EXAMPLE_SOURCE" ]; then
+    echo "Examples will use: $IDF_EXAMPLE_SOURCE"
+else
+    echo "Error: staging environment found, but required example component yml file does not exist: $IDF_EXAMPLE_SOURCE"
+    exit 1
+fi
 
-    fi
-done < "component_manifest.txt"
+#**************************************************************************************************
+# each example needs a idf_component.yml from  ./lib copied into [example]/name/
+#**************************************************************************************************
+find ./examples/ -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 -I {} sh -c "echo 'Copying $IDF_EXAMPLE_SOURCE to {}/main/idf_component.yml ' && cp $IDF_EXAMPLE_SOURCE {}/main/idf_component.yml" || exit 1
 
 #**************************************************************************************************
 # Check if we detected any missing example files that did not successfully copy.
@@ -446,7 +558,7 @@ if [ "${MISSING_FILES^}" == "Y" ]; then
     done
 
     if [ "${COMPONENT_MANAGER_CONTINUE}" == "Y" ]; then
-        echo "Continuing with missing files"
+        echo "Continuing with missing files..."
     else
         echo "Exiting..."
         exit 1
@@ -460,16 +572,6 @@ if [ -e "./build_failed.txt" ]; then
     echo "Removing semaphore file: build_failed.txt"
     rm ./build_failed.txt
 fi
-
-# TODO remove
-# Files known to need attention
-# The current examples expect user_settings in the root include directory
-# this can be removed once subsequent PR updates are accepted for examples
-# cp ./lib/user_settings.h ./include/user_settings.h
-
-# The component registry needs a newer version of esp32-crypt.h
-# cp ./lib/esp32-crypt.h   ./wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h
-# End TODO
 
 
 #**************************************************************************************************
@@ -493,6 +595,7 @@ fi
 # print a progress message for each example being built -|-----------|------------|
 # send each directory found as a parameter to wolfssl_build_example.sh to build the project -------------------------------------------|
 # The build_failed.txt will exist when one or more of the builds has failed -----------------------------------------------------------|------|
+#
 # TODO build disabled
 #find ./examples/ -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 -I {} sh -c 'echo "\n\nBuilding {} " && ./wolfssl_build_example.sh {} || touch ../../build_failed.txt'
 
@@ -515,7 +618,7 @@ find  ./examples/ -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 -I {} rm -r
 find  ./examples/ -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 -I {} rm -r {}/build/
 
 echo ""
-echo "Samples file to publish:"
+echo "Samples files to publish:"
 echo ""
 find ./examples/ -print
 echo ""
@@ -561,7 +664,7 @@ fi
 
 COMPONENT_MANAGER_PUBLISH=
 until [ "${COMPONENT_MANAGER_PUBLISH^}" == "Y" ] || [ "${COMPONENT_MANAGER_PUBLISH^}" == "N" ]; do
-    read -r -n1 -p "Proceed? (Y/N) " COMPONENT_MANAGER_PUBLISH
+    read -r -n1 -p "Proceed to publish $THIS_COMPONENT? (Y/N) " COMPONENT_MANAGER_PUBLISH
     COMPONENT_MANAGER_PUBLISH=${COMPONENT_MANAGER_PUBLISH^};
     echo;
 done
@@ -578,17 +681,18 @@ if [ "${COMPONENT_MANAGER_PUBLISH}" == "Y" ]; then
     # Unfortunately, there is no way to change the build-system name of a dependency installed
     # by the component manager. It's always `namespace__component`.
     #
+    # In the case of staging, the component will be called "[username]__mywolfssl"
+    #
 
     if [ "$IDF_COMPONENT_REGISTRY_URL" == "$PRODUCTION_URL" ]; then
-        echo "DISABLED: "
-        echo "compote component upload --namespace wolfssl --name $THIS_COMPONENT"
-
         # echo "WARNING: The live wolfSSL will be replaced upon completion."
+        echo "DISABLED: "
+        echo "compote component upload --namespace wolfssl --name $THIS_COMPONENT" || exit 1
     else
         if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
-            echo "Running: compote component upload --namespace gojimmypi --name my$THIS_COMPONENT"
+            echo "Running: compote component upload --namespace $USER --name my$THIS_COMPONENT"
             echo ""
-            compote component upload --namespace gojimmypi --name my$THIS_COMPONENT
+            compote component upload --namespace $USER --name my"$THIS_COMPONENT" || exit 1
         else
             echo ""
             echo "WARNING: unexpected IDF_COMPONENT_REGISTRY_URL value = $IDF_COMPONENT_REGISTRY_URL"
@@ -596,8 +700,6 @@ if [ "${COMPONENT_MANAGER_PUBLISH}" == "Y" ]; then
             exit 1
         fi
     fi
-
-
 
     echo ""
     if [ -z "$IDF_COMPONENT_REGISTRY_URL" ]; then

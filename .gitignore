@@ -169,4 +169,4 @@ DLL Release
 
 
 /ide/Espressif/component-manager/wolfssh
-/ide/Espressif/component-manager/examples/wolfssh_template/README.md
+/ide/Espressif/component-manager/examples/**/*
