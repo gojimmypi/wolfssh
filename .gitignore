@@ -41,7 +41,9 @@ Makefile.in
 .dirstamp
 *.libs
 stamp-h*
+src/stamp-h1
 build-aux/
+wolfmqtt-config
 build-test/
 build/
 wolfssh-config
@@ -54,7 +56,7 @@ tags
 diff
 .vimrc
 
-# examples
+# wolfSSL examples
 examples/client/client
 examples/echoserver/echoserver
 examples/server/server
@@ -62,10 +64,25 @@ examples/portfwd/portfwd
 examples/sftpclient/wolfsftp
 examples/scpclient/wolfscp
 
-# applications
+# wolfSSH applications
 apps/wolfssh/wolfssh
 apps/wolfsshd/wolfsshd
 apps/wolfsshd/test/test_configuration
+
+# wolfMQTT examples
+examples/aws/awsiot
+examples/azure/azureiothub
+examples/firmware/fwclient
+examples/firmware/fwpush
+examples/mqttclient/mqttclient
+examples/mqttsimple/mqttsimple
+examples/nbclient/nbclient
+examples/sn-client/sn-client
+examples/sn-client/sn-client_qos-1
+examples/sn-client/sn-multithread
+examples/multithread/multithread
+examples/wiot/wiot
+
 
 # test output
 tests/*.test
@@ -102,7 +119,18 @@ Release
 DLL Debug
 DLL Release
 
-/IDE/Espressif/**/out/
+*.trs
+firmware.bin
+wolfmqtt/options.h
+IDE/ARDUINO/wolfMQTT
+IDE/Microchip-Harmony/wolfmqtt_client/firmware/mqtt_client.X/dist/default/
+build/
+
+# eclipse
+.cproject
+.project
+.settings
+
 
 # auto-created CMake backups
 **/CMakeLists.txt.old
@@ -114,6 +142,7 @@ DLL Release
 
 # Espressif sdk config default should be saved in sdkconfig.defaults
 # we won't track the actual working sdkconfig files
+/IDE/Espressif/**/out/
 /ide/Espressif/**/sdkconfig
 
 # Espressif managed components to exclude:
@@ -142,21 +171,18 @@ DLL Release
 
 # Exclude most of the example files that are copied at install time
 # from https://github.com/wolfSSL/wolfssl/tree/master/ide/Espressif/ESP-IDF/examples
-/ide/Espressif/component-manager/examples/*/CMakeLists.txt
-/ide/Espressif/component-manager/examples/*/partitions_singleapp_large.csv
-/ide/Espressif/component-manager/examples/*/sdkconfig.defaults
-/ide/Espressif/component-manager/examples/*/main/CMakeLists.txt
+/ide/Espressif/component-manager/examples/**/CMakeLists.txt
+/ide/Espressif/component-manager/examples/**/partitions_singleapp_large.csv
+/ide/Espressif/component-manager/examples/**/sdkconfig.defaults
+/ide/Espressif/component-manager/examples/**/main/CMakeLists.txt
 /ide/Espressif/component-manager/examples/**/main/*.c
 /ide/Espressif/component-manager/examples/**/main/*.h
 /ide/Espressif/component-manager/examples/**/main/include/*.h
-/ide/Espressif/component-manager/examples/*/main/component.mk
-/ide/Espressif/component-manager/examples/*/main/Kconfig.projbuild
+/ide/Espressif/component-manager/examples/**/main/component.mk
 /ide/Espressif/component-manager/examples/**/VisualGDB/*.sln
 /ide/Espressif/component-manager/examples/**/VisualGDB/*.vgdbproj
 
 # The only ESP Registry Files specific to this location
-!/ide/Espressif/component-manager/examples/**/main/idf_component.yml
-!/ide/Espressif/component-manager/examples/**/README.md
 /ide/Espressif/ESP-IDF/examples/wolfssl_test/**/components/cryptoauthlib
 
 # Never include the build failure semaphore file
@@ -166,7 +192,6 @@ DLL Release
 /ide/Espressif/ESP-IDF/component-manager/wolfcrypt
 /ide/Espressif/ESP-IDF/component-manager/wolfssl
 /ide/Espressif/ESP-IDF/component-manager/dist
-
 
 /ide/Espressif/component-manager/wolfssh
 /ide/Espressif/component-manager/examples/**/*

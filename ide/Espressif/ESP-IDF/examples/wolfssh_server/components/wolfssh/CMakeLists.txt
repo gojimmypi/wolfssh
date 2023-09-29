@@ -27,9 +27,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
 set(CMAKE_CURRENT_SOURCE_DIR ".")
 set(COMPONENT_REQUIRES lwip wolfssl)
 
-# TODO need cmake function to find wolfssl:
-set(WOLFSSL_ROOT "/workspace/wolfssl-gojimmypi")
-
 # COMPONENT_NAME = wolfssh
 # The component name is the directory name. "No feature to change this".
 # See https://github.com/espressif/esp-idf/issues/8978#issuecomment-1129892685
@@ -173,22 +170,15 @@ else()
 
     set(INCLUDE_PATH ${WOLFSSH_ROOT})
 
-    set(COMPONENT_SRCDIRS "\"${WOLFSSL_ROOT}/src/\""
-                          "\"${WOLFSSL_ROOT}/wolfcrypt/src\""
-                          "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/Espressif\""
-                          "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/atmel\""
-                          "\"${WOLFSSH_ROOT}/src/\""
-       ) # COMPONENT_SRCDIRS
+    set(COMPONENT_SRCDIRS
+            "\"${WOLFSSH_ROOT}/src/\""
+    ) # COMPONENT_SRCDIRS
     message(STATUS "This COMPONENT_SRCDIRS = ${COMPONENT_SRCDIRS}")
 
     set(WOLFSSH_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/wolfssh")
 
     # Espressif may take several passes through this makefile. Check to see if we found IDF
     string(COMPARE EQUAL "${PROJECT_SOURCE_DIR}" "" WOLFSSH_FOUND_IDF)
-
-    # get a list of all wolfcrypt assembly files; we'll exclude them as they don't target Xtensa
-    file(GLOB EXCLUDE_ASM *.S)
-    file(GLOB_RECURSE EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSL_ROOT}/wolfcrypt/src/*.S")
 
     message(STATUS "IDF_PATH = $ENV{IDF_PATH}")
     message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
@@ -319,7 +309,7 @@ else()
 
 
     set(COMPONENT_ADD_INCLUDEDIRS
-        "./include" # this is the location of WOLFSSH user_settings.h
+        # "./include" # not used! See wolfSSL include/user_settings.h
         "\"${WOLFSSH_ROOT}/\""
         "\"${WOLFSSH_ROOT}/wolfssh/\""
         "\"${RTOS_IDF_PATH}/\""
@@ -339,22 +329,7 @@ else()
         # TODO: we likely need to check #if !defined(WOLFSSH_MISC_INCLUDED) && !defined(NO_INLINE) && !defined(WOLFSSH_IGNORE_FILE_WARN)
         #       here in cmake if we actually want to always exclude wolfssh misc.c file. (see source; ok for demo)
         "\"${WOLFSSH_ROOT}/src/misc.c\"" # misc.c does not need to be compiled when using inline (NO_INLINE not defined))
-
-        # wolfSSL
-        "\"${WOLFSSL_ROOT}/src/bio.c\""
-        "\"${WOLFSSL_ROOT}/src/conf.c\""
-        "\"${WOLFSSL_ROOT}/src/misc.c\""
-        "\"${WOLFSSL_ROOT}/src/pk.c\""
-        "\"${WOLFSSL_ROOT}/src/ssl_asn1.c\""    # included by ssl.c
-        "\"${WOLFSSL_ROOT}/src/ssl_certman.c\"" # included by ssl.c
-        "\"${WOLFSSL_ROOT}/src/ssl_bn.c\""      # included by ssl.c
-        "\"${WOLFSSL_ROOT}/src/ssl_misc.c\""    # included by ssl.c
-        "\"${WOLFSSL_ROOT}/src/x509.c\""
-        "\"${WOLFSSL_ROOT}/src/x509_str.c\""
-        "\"${WOLFSSL_ROOT}/wolfcrypt/src/evp.c\""
-        "\"${WOLFSSL_ROOT}/wolfcrypt/src/misc.c\""
-        "\"${EXCLUDE_ASM}\""
-        )
+    )
 
     spaces2list(COMPONENT_REQUIRES)
 

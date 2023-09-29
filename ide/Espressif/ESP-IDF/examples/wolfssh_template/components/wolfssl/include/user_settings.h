@@ -39,7 +39,9 @@
 */
 
 /* wolfSSH */
+#undef  WOLFSSH_TERM /* may be defined in cmake for other examples */
 #define WOLFSSH_TERM
+#undef  DEBUG_WOLFSSH /* may be defined in cmake for other examples */
 #define DEBUG_WOLFSSH
 
 #define WOLFSSL_ESPIDF

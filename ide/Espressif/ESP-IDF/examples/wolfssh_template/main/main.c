@@ -18,21 +18,9 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
-
-/* Espressif */
-#include <esp_log.h>
-
-/* wolfSSL  */
-#include "user_settings.h" /* always include wolfSSL user_settings.h first */
-#include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
-#include <wolfssl/version.h>
-
-/* wolfSSH  */
-#include <wolfssh/ssh.h>
-#include <wolfssh/log.h>
-
-/* project */
 #include "main.h"
+
+/* actual working example would include WiFi & time libraries here */
 
 static const char* const TAG = "My Project";
 
@@ -73,14 +61,16 @@ void app_main(void)
     ESP_LOGW(TAG, "Warning: Could not find wolfSSL Version");
 #endif
 
-/* the simplest check of the wolfMQTT library presence: */
+/* the simplest check of the wolfSSH library presence: */
 #ifdef LIBWOLFSSH_VERSION_STRING
     ESP_LOGI(TAG, "");
     ESP_LOGI(TAG, "Found wolfSSH Version %s\n", LIBWOLFSSH_VERSION_STRING);
     wolfSSH_Log(WS_LOG_INFO, "[wolfssh] Hello World!");
 #else
-    ESP_LOGW(TAG, "Warning: Could not find wolfMQTT Version");
+    ESP_LOGW(TAG, "Warning: Could not find wolfSSH Version");
 #endif
+
+/* actual working example would initialize WiFi & time libraries here */
 
     ESP_LOGI(TAG, "\n\nDone!\n\n"
                   "If running from idf.py monitor, press twice: Ctrl+]\n\n"

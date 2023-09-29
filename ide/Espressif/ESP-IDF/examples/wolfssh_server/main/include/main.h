@@ -22,7 +22,17 @@
 #define _MAIN_H_
 
 /* Espressif libraries */
+#include "sdkconfig.h"
 #include <nvs_flash.h>
 #include <esp_log.h>
+
+/* wolfSSL  */
+#include "user_settings.h" /* always include wolfSSL user_settings.h first */
+#include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
+#include <wolfssl/version.h>
+
+/* wolfSSH  */
+#include <wolfssh/ssh.h>
+#include <wolfssh/log.h>
 
 #endif
