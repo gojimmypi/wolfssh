@@ -1,4 +1,17 @@
-This is the Espressif Component Version of wolfSSH 1.0.9-test, Release #9 (version ^1.0.9-test)
+This is a staging experimental version!
+
+When testing staging components, be sure to set `IDF_COMPONENT_REGISTRY_URL`:
+
+```
+export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com
+```
+
+Clear the value when not testing:
+
+```
+export IDF_COMPONENT_REGISTRY_URL=
+```
+This is the Espressif Component Version of wolfSSH 1.0.10-test, Release #10 (version ^1.0.10-test)
 
 When testing staging components:
 

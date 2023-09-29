@@ -170,7 +170,7 @@ To resolve, either:
 * Remove the `idf_component.yml` file and remove wolfssl directory from `projectname/managed__components`
 * Remove the wolfssl directory from `projectname/components`
 
-Cannot program, _The chip needs to be in download mode_:
+### Cannot program, _The chip needs to be in download mode_:
 
 ```
 Serial port /dev/ttyS9
@@ -191,12 +191,22 @@ FAILED: CMakeFiles/flash
 While holding the `boot` button down, tap the `en` button, then release the `boot` button. Try again.
 
 If that didn't work, try the same sequence _after_ you've press `enter` for the `idf.py flash` command
-while the is attempting the upload.
+while the `esptool.py` is attempting the upload.
+
+If _that_ didn't work, try the same sequence but press `boot` _before_ you've pressed `enter` 
+for the `idf.py flash` command, and press & release `en` _after_ you've pressed `enter` 
+while attempting the upload.
+
+If _still_ reading as none of _those_ options worked, try first erasing the flash:
+
+```
+idf.py erase-flash -p /dev/ttyS9 -b 115200
+```
 
 For a robust programing experience that does not depend on bootloader mode, consider a JTAG
 programmer such as the [Tigard](https://github.com/tigard-tools/tigard).
 
-Cannot find source:
+## Cannot find source
 
 ```text
 Executing action: create-project-from-example
@@ -204,3 +214,5 @@ ERROR: Version of the component "gojimmypi/mywolfssl" satisfying the spec "^5.6.
 ```
 
 Check the `IDF_COMPONENT_REGISTRY_URL` setting. Blank defaults to production. See above for staging.
+
+See also [Espressif ESP32 Troubleshooting](https://docs.espressif.com/projects/esptool/en/latest/esp32/troubleshooting.html)

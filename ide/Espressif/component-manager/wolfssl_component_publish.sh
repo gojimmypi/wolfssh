@@ -2,8 +2,12 @@
 #
 # wolfssl_component_publish.sh
 #
-# Script to publish wolfSSL to Espressif ESP Registry.
-# This file is not needed by end users.
+# Script to publish wolfSSL, wolfMQTT, and wolfSSH to Espressif ESP Registry.
+# This file is duplicated across repositories. It is not needed by end users.
+#
+# Version:  1.0
+#
+# For usage, see INSTALL.md
 #
 # TODO: config file settings not yet supported here. See:
 # https://docs.espressif.com/projects/idf-component-manager/en/latest/guides/packaging_components.html#authentication-with-a-config-file
@@ -65,6 +69,8 @@ copy_wolfssl_source() {
     echo "ERROR: Not Found: $dst"
   fi
 } # copy_wolfssl_source()
+#**************************************************************************************************
+
 
 #**************************************************************************************************
 #**************************************************************************************************
@@ -260,6 +266,8 @@ until [ "${OK_TO_COPY^}" == "Y" ] || [ "${OK_TO_COPY^}" == "N" ]; do
     echo;
 done
 
+echo ""
+
 if [ "${OK_TO_COPY^}" == "Y" ]; then
     echo "Proceeding to copy..."
 else
@@ -268,17 +276,24 @@ else
 fi
 
 #**************************************************************************************************
-# Copy root README.md file, clean it, and prepend README_REGISTRY_PREPEND.md text
+# Copy root README.md file, clean it, and prepend README_REGISTRY_PREPEND.md text.
+# Also prepend a staging note as appropriate.
 #**************************************************************************************************
-cp                  $THIS_WOLFSSL/README.md   ./README.md
+# Copy a fresh repository source README.md
+cp                                       $THIS_WOLFSSL/README.md      ./README.md
 
 # strip any HTML anchor tags, that are irrelevant and don't look pretty
 echo "Removing HTML anchor tags from README..."
 sed -i '/<a href/,/<\/a>/d' ./README.md
 
 if [ -e "./README_REGISTRY_PREPEND.md" ]; then
-    echo "Pre-pending README_REGISTRY_PREPEND to README.md"
-    cat ./README_REGISTRY_PREPEND.md  ./README.md > ./NEW_README.md
+    if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
+        echo "Prepend README_STAGING_PREPEND.md and README_REGISTRY_PREPEND.md to README.md"
+        cat ./README_STAGING_PREPEND.md ./README_REGISTRY_PREPEND.md  ./README.md  >  ./NEW_README.md
+    else
+    echo "Prepend README_REGISTRY_PREPEND.md to README.md"
+        cat                             ./README_REGISTRY_PREPEND.md  ./README.md  >  ./NEW_README.md
+    fi
     THIS_ENCODING=$(file -b --mime-encoding ./NEW_README.md)
     echo "Found encoding: $THIS_ENCODING"
 
@@ -435,10 +450,7 @@ fi
 #**************************************************************************************************
 # All files from the wolfssl/IDE/Espressif/ESP-IDF/examples
 # will be copied to the local ESP Registry ./examples/ directory
-
-
-
-
+#
 # Define the source directory and destination directory.
 # We start in           IDE/Espressif/component-manager
 # We want examples from IDE/Espressif/ESP-IDF/examples
@@ -565,7 +577,7 @@ if [ -e "./build_failed.txt" ]; then
     echo "Removing semaphore file: build_failed.txt"
     rm ./build_failed.txt
 fi
-
+# end of prep
 
 #**************************************************************************************************
 # Build all the projects in ./examples/

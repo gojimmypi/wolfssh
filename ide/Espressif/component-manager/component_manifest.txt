@@ -8,8 +8,8 @@ wolfssh_template/README.md
 wolfssh_template/main/CMakeLists.txt
 wolfssh_template/main/main.c
 wolfssh_template/main/include/main.h
-wolfssh_template/VisualGDB/wolfssl_template_IDF_v5.1_ESP32.sln
-wolfssh_template/VisualGDB/wolfssl_template_IDF_v5.1_ESP32.vgdbproj
+wolfssh_template/VisualGDB/wolfssh_template_IDF_v5.1_ESP32.sln
+wolfssh_template/VisualGDB/wolfssh_template_IDF_v5.1_ESP32.vgdbproj
 
 #
 # Copy Server Project
