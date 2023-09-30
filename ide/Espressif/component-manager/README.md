@@ -6,12 +6,12 @@ When testing staging components, be sure to set `IDF_COMPONENT_REGISTRY_URL`:
 export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com
 ```
 
-Clear the value when not testing:
+Set the value when not testing:
 
 ```
-export IDF_COMPONENT_REGISTRY_URL=
+export IDF_COMPONENT_REGISTRY_URL=https://components.espressif.com
 ```
-This is the Espressif Component Version of wolfSSH 1.0.10-test, Release #10 (version ^1.0.10-test)
+This is the Espressif Component Version of wolfSSH 1.0.11-test, Release #11 (version ^1.0.11-test)
 
 When testing staging components:
 
@@ -24,7 +24,7 @@ For questions or beta test of this library, please send a message to support@wol
 For details on how wolfSSL is published to the ESP Component Registry, see the
 [INSTALL.md](https://github.com/wolfssl/wolfssl/tree/master/IDE/Espressif/component-manager/INSTALL.md) file.
 
-See the [wolfSSH Manual](https://www.wolfssl.com/documentation/manuals/wolfssh/wolfSSH-Manual.pdf).
+See the [wolfSSH Manual](https://www.wolfssl.com/documentation/manuals/wolfssh/index.html).
 
 The [wolfSSL embedded TLS library](https://www.wolfssl.com/products/wolfssl/) is a lightweight, portable, 
 C-language-based SSL/TLS library targeted at IoT, embedded, and RTOS environments primarily because of its size, 
