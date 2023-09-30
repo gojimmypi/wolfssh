@@ -1,9 +1,15 @@
 #!/bin/bash
 #
-# wolfssl_component_publish.sh
+# wolfssl_component_publish.sh [optional directory source to publish]
 #
 # Script to publish wolfSSL, wolfMQTT, and wolfSSH to Espressif ESP Registry.
 # This file is duplicated across repositories. It is not needed by end users.
+#
+#                              NOTICE
+#
+#       ***** PRODUCTION DEPLOYMENT MUST BE MANUALLY ENABLED *****
+#
+#    export $IDF_COMPONENT_REGISTRY_URL=https://components.espressif.com
 #
 # Version:  1.0
 #
@@ -15,7 +21,6 @@
 # set our known production and staging links. Trailing "/" expected. Edit with caution:
 export PRODUCTION_URL="https://components.espressif.com"
 export STAGING_URL="https://components-staging.espressif.com"
-export THIS_COMPONENT="wolfssh"
 
 #**************************************************************************************************
 # copy_wolfssl_source()
@@ -71,14 +76,56 @@ copy_wolfssl_source() {
 } # copy_wolfssl_source()
 #**************************************************************************************************
 
+# The first parameter, when present, is expected to be the path to the component to install:
+#
+#   wolfssl_component_publish.sh  /mnt/c/workspace/wolfssl-master
+#
+# If a parameter is not specified, this script is expected to be in [repo]/IDE/Espressif/component-manager
+#    e.g. wolfssl/IDE/Espressif/component-manager
+#    The root to publish is 3 directories up in `wolfssl`.
+if [ $# -lt 1 ]; then
+    # This script directory, assumed 3 levels down:
+    THIS_DIRECTORY_PARAMETER=$(dirname "$(dirname "$(dirname "$PWD")")")
+else
+    # If a parameter was supplied, we'll use that, instead'
+    THIS_DIRECTORY_PARAMETER="$1"
+fi
+
+# Whether specified or inferred, the directory must exist to proceed.
+if [ ! -d "$THIS_DIRECTORY_PARAMETER" ]; then
+    echo "Directory Parameter doesn't exist.: $THIS_DIRECTORY_PARAMETER"
+    exit 1
+fi
+
+echo "Source to publish:  $THIS_DIRECTORY_PARAMETER"
+# get the directory name, e.g. wolfssl-master
+COMPONENT_NAME_GUESS=$(basename "$THIS_DIRECTORY_PARAMETER")
+
+# Set the in field separator to "-"
+IFS="-"
+
+# Read the string into an array
+read -a COMPONENT_GUESS_PARTS <<< "$COMPONENT_NAME_GUESS"
+
+# get just the wolfssl part if "wolfssl-username"
+export THIS_DIRECTORY_COMPONENT="${COMPONENT_GUESS_PARTS[0]}"
+export THIS_DIRECTORY_COMPONENT="${THIS_DIRECTORY_COMPONENT,,}"
+
+echo "THIS_DIRECTORY_COMPONENT = $THIS_DIRECTORY_COMPONENT"
+
+# Need to set IFS if using it elsewhere:
+IFS=
 
 #**************************************************************************************************
 #**************************************************************************************************
 # Begin script
 #**************************************************************************************************
 #**************************************************************************************************
-
-echo "Searching for component name (this script must run github repo directory)"
+#
+# Reminder this script may be running from a development repo, but publishing source code from a
+# *different* specified directory (see above). However, the GitHub component name must match.
+# For example, if we are in `wolfMQTT-username`, we must only publish the wolfmqtt component.
+echo "Searching for component name (this script must run in a github repo directory)"
 THIS_COMPONENT_CONFIG="$(git config --get remote.origin.url)"
 export THIS_COMPONENT
 THIS_COMPONENT="$(basename -s .git "$THIS_COMPONENT_CONFIG")" || exit 1
@@ -86,7 +133,7 @@ THIS_COMPONENT="$(basename -s .git "$THIS_COMPONENT_CONFIG")" || exit 1
 # Our component names are all lower case, regardless of repo name:
 THIS_COMPONENT="${THIS_COMPONENT,,}"
 
-# check if IDF_PATH is set
+# Check that we actually found a repository component name.
 if [ -z "$THIS_COMPONENT" ]; then
     echo "Could not find component name."
     echo "Please run this script from a github repo directory."
@@ -95,9 +142,38 @@ else
     echo "Found component to publish: $THIS_COMPONENT"
 fi
 
+# Check that this repo and the source directory are for the same component name
+if [ "$THIS_COMPONENT" == "$THIS_DIRECTORY_COMPONENT" ]; then
+    echo "Will publish $THIS_COMPONENT from $THIS_DIRECTORY_PARAMETER"
+else
+    echo "ERROR: Not a $THIS_COMPONENT component in $THIS_DIRECTORY_PARAMETER"
+    exit 1
+fi
+
+case "$THIS_COMPONENT" in
+    "wolfssl")
+        export COMPONENT_VERSION_STRING="LIBWOLFSSL_VERSION_STRING"
+        ;;
+    "wolfssh")
+        export COMPONENT_VERSION_STRING="LIBWOLFSSH_VERSION_STRING"
+        ;;
+    "wolfmqtt")
+        export COMPONENT_VERSION_STRING="LIBWOLFMQTT_VERSION_STRING"
+        ;;
+    *)
+    export COMPONENT_VERSION_STRING=""
+    echo "Not a supported component: $THIS_COMPONENT"
+    exit 1
+    ;;
+esac
+
+echo "easrly test exit"
+exit 0
+
+# check if there's an unsupported idf_component_manager.yml file.
 if [ -e "./idf_component_manager.yml" ]; then
     # There may be contradictory settings in idf_component_manager.yml vs environment variables,
-    # Which takes priority? Check not performed at this time,
+    # Which takes priority? Check not performed at this time.
     echo "ERROR: This script does not yet support idf_component_manager.yml."
     exit 1
 fi
@@ -135,16 +211,16 @@ fi
 
 # check if prior version tgz file already published
 FOUND_LOCAL_DIST=
-if [ -f "./dist/$THIS_COMPONENT_$THIS_VERSION.tgz" ]; then
-    echo "Found file $THIS_COMPONENT_$THIS_VERSION.tgz"
+if [ -f "./dist/${THIS_COMPONENT}_${THIS_VERSION}.tgz" ]; then
+    echo "Found file ${THIS_COMPONENT}_${THIS_VERSION}.tgz"
     echo "Duplicate versions cannot be published. By proceeding, you will overwrite the local source."
     echo ""
     FOUND_LOCAL_DIST=true
 fi
 
 # check if prior version directory already published
-if [ -d "./dist/$THIS_COMPONENT_$THIS_VERSION" ]; then
-    echo "Found directory: $THIS_COMPONENT_$THIS_VERSION"
+if [ -d "./dist/${THIS_COMPONENT}_${THIS_VERSION}" ]; then
+    echo "Found directory: ${THIS_COMPONENT}_${THIS_VERSION}"
     echo "Duplicate versions cannot be published. By proceeding, you will overwrite the local source."
     echo ""
     FOUND_LOCAL_DIST=true
@@ -152,7 +228,7 @@ fi
 
 # check if this version distribution already exists, and if so, if it should be overwritten
 if [ -z "$FOUND_LOCAL_DIST" ]; then
-    echo "Confirmed a prior local distribution file set does not exist for $THIS_COMPONENT_$THIS_VERSION."
+    echo "Confirmed a prior local distribution file set does not exist for ${THIS_COMPONENT}_${THIS_VERSION}."
 else
     OK_TO_OVERWRITE_DIST=
     until [ "${OK_TO_OVERWRITE_DIST^}" == "Y" ] || [ "${OK_TO_OVERWRITE_DIST^}" == "N" ]; do
@@ -177,6 +253,8 @@ fi
 #**************************************************************************************************
 echo ""
 
+# Unlike the default operation, is not explicitly set to production
+# we assume the publish is staging.
 echo "--------------------------------------------------------------------------------------------"
 if [ -z "$IDF_COMPONENT_REGISTRY_URL" ]; then
     export IDF_COMPONENT_REGISTRY_URL="$STAGING_URL"
@@ -222,13 +300,10 @@ echo ""
 # copy all source files related to the ESP Component Registry
 #**************************************************************************************************
 
-# This script is expecting to be in wolfssl/IDE/Espressif/component-manager
-# The root of wolfssl is 3 directories up:
-THIS_WOLFSSL=$(dirname "$(dirname "$(dirname "$PWD")")")
-
 # Optionally specify an alternative source of wolfSSL to publish:
 
 # TODO REMOVE this line if not using /test/wolfssl-master
+
 if [ "wolfmqtt" == "$THIS_COMPONENT" ]; then
     THIS_WOLFSSL=/mnt/c/workspace/wolfMQTT-master
 else
@@ -428,7 +503,7 @@ echo ""
 # make sure the version found in ./$THIS_COMPONENT/version.h matches  that in ./idf_component.yml
 #**************************************************************************************************
 if [ -e "./$THIS_COMPONENT/version.h" ]; then
-    WOLFSSL_VERSION=$(grep "LIBWOLFSSH_VERSION_STRING" ./$THIS_COMPONENT/version.h | awk '{print $3}' | tr -d '"')
+    WOLFSSL_VERSION=$(grep "${COMPONENT_VERSION_STRING}" ./"${THIS_COMPONENT}"/version.h | awk '{print $3}' | tr -d '"')
     grep "$WOLFSSL_VERSION" ./idf_component.yml
     THIS_ERROR_CODE=$?
     if [ $THIS_ERROR_CODE -ne 0 ]; then
@@ -454,8 +529,7 @@ fi
 # Define the source directory and destination directory.
 # We start in           IDE/Espressif/component-manager
 # We want examples from IDE/Espressif/ESP-IDF/examples
-source_dir="../ESP-IDF/examples"
-
+#
 # We'll copy examples to publish into our local examples
 # We start in           IDE/Espressif/component-manager
 # Copy example files to IDE/Espressif/component-manager/examples
@@ -697,7 +771,7 @@ if [ "${COMPONENT_MANAGER_PUBLISH}" == "Y" ]; then
         if [ "$IDF_COMPONENT_REGISTRY_URL" == "$STAGING_URL" ]; then
             echo "Running: compote component upload --namespace $USER --name my$THIS_COMPONENT"
             echo ""
-            compote component upload --namespace $THIS_NAMESPACE --name my"$THIS_COMPONENT" || exit 1
+            compote component upload --namespace "$THIS_NAMESPACE" --name my"$THIS_COMPONENT" || exit 1
         else
             echo ""
             echo "WARNING: unexpected IDF_COMPONENT_REGISTRY_URL value = $IDF_COMPONENT_REGISTRY_URL"

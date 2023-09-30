@@ -34,7 +34,7 @@ Typically there's only one valid option. See [Staging](./INSTALL.md#Staging), be
 # set your paths as appropriate:
 export IDF_COMPONENT_API_TOKEN=YOUR_TOKEN_VALUE
 export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.1
-export WOLFSSH_ROOT=/mnt/c/workspace/wolfSSH-gojimmypi/IDE/Espressif/component-manager/
+export WOLFSSH_ROOT=/mnt/c/workspace/wolfSSH-$USER/IDE/Espressif/component-manager/
 export IDF_COMPONENT_REGISTRY_URL=https://components-staging.espressif.com
 
 # install looks for wolfssh-master
@@ -121,6 +121,22 @@ to where the wolfSSL library is located.
 Managed components are distinguished by the `idf_component.yml` file in the `projectname/main` directory.
 
 The wolfSSL component must be either managed or non-managed. Not both.
+
+```
+idf.py create-project-from-example "gojimmypi/mywolfssl^5.6.3-f9082c5.5:wolfssl_benchmark"
+cd wolfssl_benchmark
+idf.py -b 115200 flash monitor
+```
+
+## Coponent Configuration
+
+Examples such as the wolfssl_server and wolfssl_client need specific parameters set, in particular
+the target server IP address, SSID, and SSID password. The `idf.py menuconfig` command is needed.
+Set values in `Example Configuration` and `Example Connection Configuration`:
+
+```bash
+idf.py menuconfig
+```
 
 ## Non-ESP Component Example
 
