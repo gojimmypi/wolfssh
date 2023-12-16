@@ -174,8 +174,8 @@ else()
                           "\"${WOLFSSL_ROOT}/wolfcrypt/src\""
                           "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/Espressif\""
                           "\"${WOLFSSL_ROOT}/wolfcrypt/src/port/atmel\""
-                          "\"${WOLFSSL_ROOT}/wolfcrypt/benchmark\"" # the benchmark application
-                          "\"${WOLFSSL_ROOT}/wolfcrypt/test\"" # the test application
+                          # "\"${WOLFSSL_ROOT}/wolfcrypt/benchmark\"" # the benchmark application
+                          # "\"${WOLFSSL_ROOT}/wolfcrypt/test\"" # the test application
        ) # COMPONENT_SRCDIRS
     message(STATUS "This COMPONENT_SRCDIRS = ${COMPONENT_SRCDIRS}")
 
