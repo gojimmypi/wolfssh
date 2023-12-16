@@ -39,7 +39,8 @@
 #include <wolfssl/wolfcrypt/coding.h>
 #include "examples/sftpclient/sftpclient.h"
 #include "examples/client/common.h"
-#ifndef USE_WINDOWS_API
+#if !defined(USE_WINDOWS_API) && !defined(MICROCHIP_PIC32) && \
+    !defined(WOLFSSH_ZEPHYR)
     #include <termios.h>
 #endif
 
@@ -379,7 +380,7 @@ static int doCmds(func_args* args)
             err_msg("fputs error");
             return -1;
         }
-        fflush(stdout);
+        WFFLUSH(stdout);
 
         WMEMSET(msg, 0, sizeof(msg));
         if (SFTP_FGETS(args, msg, sizeof(msg) - 1) == NULL) {
@@ -503,24 +504,31 @@ static int doCmds(func_args* args)
             }
 
             do {
-                ret = wolfSSH_SFTP_Get(ssh, pt, to, resume, &myStatusCb);
-                if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
-                    ret = wolfSSH_get_error(ssh);
-                }
                 while (ret == WS_REKEYING || ssh->error == WS_REKEYING) {
                     ret = wolfSSH_worker(ssh, NULL);
                     if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
                         ret = wolfSSH_get_error(ssh);
                     }
                 }
+
+                ret = wolfSSH_SFTP_Get(ssh, pt, to, resume, &myStatusCb);
+                if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                    ret = wolfSSH_get_error(ssh);
+                }
             } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
-                    ret == WS_CHAN_RXD);
+                    ret == WS_CHAN_RXD || ret == WS_REKEYING);
 
 #ifndef WOLFSSH_NO_TIMESTAMP
             WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
 #endif
 
             if (ret != WS_SUCCESS) {
+                if (wolfSSH_get_error(ssh) == WS_SFTP_NOT_FILE_E) {
+                    if (SFTP_FPUTS(args, "Not a regular file\n")  < 0) {
+                         err_msg("fputs error");
+                         return -1;
+                    }
+                }
                 if (SFTP_FPUTS(args, "Error getting file\n")  < 0) {
                      err_msg("fputs error");
                      return -1;
@@ -607,17 +615,31 @@ static int doCmds(func_args* args)
             }
 
             do {
+                while (ret == WS_REKEYING || ssh->error == WS_REKEYING) {
+                    ret = wolfSSH_worker(ssh, NULL);
+                    if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                        ret = wolfSSH_get_error(ssh);
+                    }
+                }
+
                 ret = wolfSSH_SFTP_Put(ssh, pt, to, resume, &myStatusCb);
-                err = wolfSSH_get_error(ssh);
-            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE ||
-                        err == WS_CHAN_RXD || err == WS_REKEYING) &&
-                    ret == WS_FATAL_ERROR);
+                if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                    ret = wolfSSH_get_error(ssh);
+                }
+            } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
+                    ret == WS_CHAN_RXD || ret == WS_REKEYING);
 
 #ifndef WOLFSSH_NO_TIMESTAMP
             WMEMSET(currentFile, 0, WOLFSSH_MAX_FILENAME);
 #endif
 
             if (ret != WS_SUCCESS) {
+                if (wolfSSH_get_error(ssh) == WS_SFTP_NOT_FILE_E) {
+                    if (SFTP_FPUTS(args, "Not a regular file\n")  < 0) {
+                         err_msg("fputs error");
+                         return -1;
+                    }
+                }
                 if (SFTP_FPUTS(args, "Error pushing file\n") < 0) {
                     err_msg("fputs error");
                     return -1;
@@ -921,10 +943,19 @@ static int doCmds(func_args* args)
             }
 
             do {
+                while (ret == WS_REKEYING || ssh->error == WS_REKEYING) {
+                    ret = wolfSSH_worker(ssh, NULL);
+                    if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                        ret = wolfSSH_get_error(ssh);
+                    }
+                }
+
                 ret = wolfSSH_SFTP_Rename(ssh, pt, to);
-                err = wolfSSH_get_error(ssh);
-            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE)
-                        && ret != WS_SUCCESS);
+                if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                    ret = wolfSSH_get_error(ssh);
+                }
+            } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
+                    ret == WS_CHAN_RXD || ret == WS_REKEYING);
             if (ret != WS_SUCCESS) {
                 if (SFTP_FPUTS(args, "Error with rename\n") < 0) {
                     err_msg("fputs error");
@@ -942,10 +973,18 @@ static int doCmds(func_args* args)
             WS_SFTPNAME* current;
 
             do {
+                while (ret == WS_REKEYING || ssh->error == WS_REKEYING) {
+                    ret = wolfSSH_worker(ssh, NULL);
+                    if (ret != WS_SUCCESS && ret == WS_FATAL_ERROR) {
+                        ret = wolfSSH_get_error(ssh);
+                    }
+                }
+
                 current = wolfSSH_SFTP_LS(ssh, workingDir);
                 err = wolfSSH_get_error(ssh);
-            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE)
-                        && current == NULL && err != WS_SUCCESS);
+            } while ((err == WS_WANT_READ || err == WS_WANT_WRITE ||
+                    err == WS_REKEYING) &&
+                    (current == NULL && err != WS_SUCCESS));
 
             if (WSTRNSTR(msg, "-s", MAX_CMD_SZ) != NULL) {
                 char tmpStr[WOLFSSH_MAX_FILENAME];
@@ -1359,7 +1398,7 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
     wc_ecc_fp_free();  /* free per thread cache */
 #endif
 
-    return 0;
+    WOLFSSL_RETURN_FROM_THREAD(0);
 }
 
 #else
@@ -1373,7 +1412,7 @@ THREAD_RETURN WOLFSSH_THREAD sftpclient_test(void* args)
            "Please recompile with WOLFSSH_SFTP or --enable-sftp\n");
 #endif
     (void)args;
-    return 0;
+    WOLFSSL_RETURN_FROM_THREAD(0);
 }
 #endif /* WOLFSSH_SFTP */
 

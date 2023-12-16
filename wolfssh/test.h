@@ -126,6 +126,35 @@
     #endif
     #define SOCKET_T int
     #define NUM_SOCKETS 5
+#elif defined(WOLFSSH_ZEPHYR)
+    #include <zephyr/kernel.h>
+    #include <zephyr/posix/posix_types.h>
+    #include <zephyr/posix/pthread.h>
+    #include <zephyr/posix/fcntl.h>
+    #include <zephyr/net/socket.h>
+    #include <zephyr/sys/printk.h>
+    #include <zephyr/sys/util.h>
+    #include <stdlib.h>
+    #define SOCKET_T int
+    #define NUM_SOCKETS 5
+#if (defined(WOLFSSH_TEST_CLIENT) || defined(WOLFSSH_TEST_SERVER)) && \
+    !defined(TEST_IPV6)
+    static unsigned long inet_addr(const char *cp)
+    {
+        unsigned int a[4]; unsigned long ret;
+        int i, j;
+        for (i=0, j=0; i<4; i++) {
+            a[i] = 0;
+            while (cp[j] != '.' && cp[j] != '\0') {
+                a[i] *= 10;
+                a[i] += cp[j] - '0';
+                j++;
+            }
+        }
+        ret = ((a[3]<<24) + (a[2]<<16) + (a[1]<<8) + a[0]) ;
+        return(ret) ;
+    }
+#endif
 #elif defined(WOLFSSH_USER_IO)
     #include <unistd.h>
     #include <pthread.h>
@@ -147,6 +176,7 @@
 #else /* USE_WINDOWS_API */
     #include <unistd.h>
     #include <sys/socket.h>
+    #include <sys/select.h>
     #include <pthread.h>
     #include <netdb.h>
     #include <netinet/in.h>
@@ -169,7 +199,7 @@
 #elif defined(WOLFSSH_TIRTOS)
     #define WOLFSSH_SOCKET_INVALID  ((SOCKET_T)-1)
 #else
-    #define WOLFSSH_SOCKET_INVALID  (SOCKET_T)(0)
+    #define WOLFSSH_SOCKET_INVALID  (SOCKET_T)(-1)
 #endif
 #endif /* WOLFSSH_SOCKET_INVALID */
 
@@ -222,7 +252,9 @@
 #define serverKeyRsaPemFile "./keys/server-key-rsa.pem"
 
 
-#ifndef TEST_IPV6
+#ifdef WOLFSSH_ZEPHYR
+    static const char* const wolfSshIp = "192.0.2.1";
+#elif !defined(TEST_IPV6)
     static const char* const wolfSshIp = "127.0.0.1";
 #else /* TEST_IPV6 */
     static const char* const wolfSshIp = "::1";
@@ -251,6 +283,12 @@ static INLINE void err_sys(const char* msg)
 static INLINE void err_sys(const char* msg)
 {
     printf("wolfSSH error: %s\n", msg);
+}
+#elif defined(WOLFSSH_ZEPHYR)
+static INLINE void err_sys(const char* msg)
+{
+    printf("wolfSSH error: %s errno: %d\n", msg, errno);
+    exit(EXIT_FAILURE);
 }
 #else
 static INLINE WS_NORETURN void err_sys(const char* msg)
@@ -397,7 +435,21 @@ static INLINE void build_addr(SOCKADDR_IN_T* addr, const char* peer,
 
 #ifndef TEST_IPV6
     /* peer could be in human readable form */
-    if ( ((size_t)peer != INADDR_ANY) && isalpha((int)peer[0])) {
+    if ( ((size_t)peer != INADDR_ANY) && isalnum((int)peer[0])) {
+    #ifdef WOLFSSH_ZEPHYR
+        struct zsock_addrinfo hints, *addrInfo;
+        char portStr[6];
+        XSNPRINTF(portStr, sizeof(portStr), "%d", port);
+        XMEMSET(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_protocol = IPPROTO_TCP;
+        if (getaddrinfo((char*)peer, portStr, &hints, &addrInfo) == 0) {
+            XMEMCPY(addr, addrInfo->ai_addr, sizeof(*addr));
+            freeaddrinfo(addrInfo);
+            useLookup = 1;
+        }
+    #else
         #ifdef CYASSL_MDK_ARM
             int err;
             struct hostent* entry = gethostbyname(peer, &err);
@@ -408,6 +460,7 @@ static INLINE void build_addr(SOCKADDR_IN_T* addr, const char* peer,
             NU_HOSTENT h;
             entry = &h;
             NU_Get_Host_By_Name((char*)peer, entry);
+        #elif defined(WOLFSSH_ZEPHYR)
         #else
             struct hostent* entry = gethostbyname(peer);
         #endif
@@ -424,6 +477,7 @@ static INLINE void build_addr(SOCKADDR_IN_T* addr, const char* peer,
         }
         else
             err_sys("no entry for host");
+    #endif
     }
 #endif
 
@@ -499,6 +553,8 @@ static INLINE void tcp_socket(WS_SOCKET_T* sockFd)
     *sockFd = 0;
 #elif defined(MICROCHIP_TCPIP)
     *sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#elif defined(WOLFSSH_ZEPHYR)
+    *sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 #elif defined(WOLFSSL_NUCLEUS)
     *sockFd = NU_Socket(NU_FAMILY_IP, NU_TYPE_STREAM, 0);
 #else
@@ -529,6 +585,8 @@ static INLINE void tcp_socket(WS_SOCKET_T* sockFd)
 #elif defined(WOLFSSL_NUCLEUS)
     /* nothing to define */
 #elif defined(WOLFSSL_ESPIDF)
+    /* nothing to define */
+#elif defined(WOLFSSL_ZEPHYR)
     /* nothing to define */
 #else  /* no S_NOSIGPIPE */
     signal(SIGPIPE, SIG_IGN);
@@ -581,9 +639,10 @@ static INLINE void tcp_listen(WS_SOCKET_T* sockfd, word16* port, int useAnyAddr)
     build_addr(&addr, (useAnyAddr ? INADDR_ANY : wolfSshIp), *port);
     tcp_socket(sockfd);
 
-#if !defined(USE_WINDOWS_API) && !defined(WOLFSSL_MDK_ARM)\
-                              && !defined(WOLFSSL_KEIL_TCP_NET)\
-                              && !defined(WOLFSSL_NUCLEUS)
+#if !defined(USE_WINDOWS_API) && !defined(WOLFSSL_MDK_ARM) \
+                              && !defined(WOLFSSL_KEIL_TCP_NET) \
+                              && !defined(WOLFSSL_NUCLEUS) \
+                              && !defined(WOLFSSH_ZEPHYR)
     {
         int res;
     #ifdef MICROCHIP_TCPIP
@@ -839,11 +898,14 @@ static INLINE void WaitTcpReady(func_args* args)
  * The tag WOLFSSL_THREAD is defined as a part of this compatibility, and
  * will also be checked for. Note that the following types and defines are
  * used by the examples to define themselves for use as threads by the test
- * tools, but they themselves do not use threading.
+ * tools, but they themselves do not use threading. Before v5.6.4, a new
+ * macro for return from threads was added.
  */
-#define WOLFSSL_V5_5_1 0x05005001
+#define WOLFSSL_V5_5_2 0x05005002
+#define WOLFSSL_V5_6_4 0x05006004
 
-#if (LIBWOLFSSL_VERSION_HEX < WOLFSSL_V5_5_1) && !defined(WOLFSSL_THREAD)
+#if (LIBWOLFSSL_VERSION_HEX < WOLFSSL_V5_5_2) && !defined(WOLFSSL_THREAD)
+    #define WOLFSSH_OLDER_THREADING
     #ifdef SINGLE_THREADED
         typedef unsigned int  THREAD_RETURN;
         typedef void*         THREAD_TYPE;
@@ -868,9 +930,36 @@ static INLINE void WaitTcpReady(func_args* args)
     #define WOLFSSH_THREAD WOLFSSL_THREAD
 #endif
 
+#if (LIBWOLFSSL_VERSION_HEX < WOLFSSL_V5_6_4) \
+        && !defined(WOLFSSL_RETURN_FROM_THREAD)
+    #define WOLFSSL_RETURN_FROM_THREAD(x) return (THREAD_RETURN)(x)
+    #define WOLFSSH_OLD_THREADING
+#endif
+
 
 #ifdef WOLFSSH_TEST_THREADING
 
+
+#if !defined(WOLFSSH_OLD_THREADING) && !defined(WOLFSSH_OLDER_THREADING)
+
+static INLINE void ThreadStart(THREAD_CB fun, void* args, THREAD_TYPE* thread)
+{
+    (void)wolfSSL_NewThread(thread, fun, args);
+}
+
+static INLINE void ThreadJoin(THREAD_TYPE thread)
+{
+    (void)wolfSSL_JoinThread(thread);
+}
+
+#ifdef WOLFSSL_THREAD_NO_JOIN
+static INLINE void ThreadStartNoJoin(THREAD_CB fun, void* args)
+{
+    (void)wolfSSL_NewThreadNoJoin(fun, args);
+}
+#endif
+
+#else
 typedef THREAD_RETURN (WOLFSSH_THREAD *THREAD_FUNC)(void*);
 
 
@@ -968,6 +1057,15 @@ static INLINE void ThreadDetach(THREAD_TYPE thread)
     (void)thread;
 #endif
 }
+
+static INLINE void ThreadStartNoJoin(THREAD_FUNC fun, void* args)
+{
+    THREAD_TYPE thread;
+    ThreadStart(fun, args, &thread);
+    ThreadDetach(thread);
+}
+
+#endif /* !WOLFSSH_OLD_THREADING && !WOLFSSH_OLDER_THREADING */
 
 #endif /* WOLFSSH_TEST_THREADING */
 
