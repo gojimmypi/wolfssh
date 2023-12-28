@@ -236,6 +236,9 @@
     #define USE_CERT_BUFFERS_2048
 #endif
 
+/* The default SSH Windows size is massive for an embedded target. Limit it: */
+#define DEFAULT_WINDOW_SZ 2000
+
 /* Default is HW enabled unless turned off.
 ** Uncomment these lines for SW: */
 #if defined(CONFIG_IDF_TARGET_ESP32)
