@@ -151,6 +151,8 @@
 
 // #define RSA_LOW_MEM
 #define WOLFSSH_NO_RSA
+/* The default SSH Windows size is massive for an embedded target. Limit it: */
+#define DEFAULT_WINDOW_SZ 2000
 
 /* debug options */
 /* #define DEBUG_WOLFSSL */
