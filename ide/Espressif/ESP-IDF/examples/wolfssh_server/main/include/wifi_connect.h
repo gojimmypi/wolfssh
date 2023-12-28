@@ -18,20 +18,26 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
-#ifndef _WIFI_CONNECT_H
-#define _WIFI_CONNECT_H
+#ifndef _WIFI_CONNECT_H_
+#define _WIFI_CONNECT_H_
 
-#include "esp_idf_version.h"
-#include "esp_log.h"
-#include "esp_wifi.h"
-#if ESP_IDF_VERSION_MAJOR >= 4
-    #include "esp_event.h"
-#else
-    #include "esp_event_loop.h"
-#endif
+#include <esp_idf_version.h>
+#include <esp_log.h>
 
 /* ESP lwip */
 #define EXAMPLE_ESP_MAXIMUM_RETRY       CONFIG_ESP_MAXIMUM_RETRY
+
+#define TLS_SMP_SERVER_TASK_NAME         "tls_sever_example"
+#define TLS_SMP_SERVER_TASK_WORDS        22240
+#define TLS_SMP_SERVER_TASK_PRIORITY     8
+
+#define TLS_SMP_WIFI_SSID                CONFIG_WIFI_SSID
+#define TLS_SMP_WIFI_PASS                CONFIG_WIFI_PASSWORD
+
+#define USE_WIFI_EXAMPLE
+#ifdef USE_WIFI_EXAMPLE
+    #include <protocol_examples_common.h> /* see project CMakeLists.txt */
+#endif
 
 /**
  ******************************************************************************
@@ -41,8 +47,9 @@
  ******************************************************************************
  **/
 
-/* when using a private config with plain text passwords, not my_private_config.h should be excluded from git updates */
-#define  USE_MY_PRIVATE_CONFIG
+/* when using a private config with plain text passwords,
+ * file my_private_config.h should be excluded from git updates */
+/* #define  USE_MY_PRIVATE_CONFIG */
 
 #ifdef  USE_MY_PRIVATE_CONFIG
     #if defined(WOLFSSL_CMAKE_SYSTEM_NAME_WINDOWS)
@@ -56,7 +63,7 @@
     #else
         #warning "did not detect environment. using ~/my_private_config.h"
         #include "~/my_private_config.h"
-    #endif
+	#endif
 #else
 
     /*
@@ -66,9 +73,21 @@
     ** If you'd rather not, just change the below entries to strings with
     ** the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
     */
-    #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-    #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
+    #ifdef CONFIG_ESP_WIFI_SSID
+        #define EXAMPLE_ESP_WIFI_SSID CONFIG_ESP_WIFI_SSID
+    #else
+        #define EXAMPLE_ESP_WIFI_SSID "MYSSID_WIFI_CONNECT"
+    #endif
+
+    #ifdef CONFIG_ESP_WIFI_PASSWORD
+        #define EXAMPLE_ESP_WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
+    #else
+        #define EXAMPLE_ESP_WIFI_PASS "MYPASSWORD_WIFI_CONNECT"
+    #endif
 #endif
+
+/* ESP lwip */
+#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 
 int wifi_init_sta(void);
 

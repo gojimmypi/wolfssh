@@ -23,7 +23,7 @@
 #endif
 
 #define WOLFSSH_TEST_SERVER
-#define WOLFSSH_TEST_THREADING
+// #define WOLFSSH_TEST_THREADING
 
 
 #ifdef WOLFSSL_USER_SETTINGS
@@ -663,7 +663,10 @@ THREAD_RETURN WOLFSSH_THREAD server_test(void* args)
                 exit(MY_EX_USAGE);
         }
     }
+
+#ifndef NO_MAIN_DRIVER
     myoptind = 0;      /* reset for test cases */
+#endif
 
 #ifdef WOLFSSH_NO_RSA
     /* If wolfCrypt isn't built with RSA, force ECC on. */
@@ -789,7 +792,6 @@ THREAD_RETURN WOLFSSH_THREAD server_test(void* args)
 
 #endif /* NO_WOLFSSH_SERVER */
 
-
 #ifndef NO_MAIN_DRIVER
 
     int main(int argc, char** argv)
@@ -819,9 +821,5 @@ THREAD_RETURN WOLFSSH_THREAD server_test(void* args)
 
         return args.return_code;
     }
-
-
-    int myoptind = 0;
-    char* myoptarg = NULL;
 
 #endif /* NO_MAIN_DRIVER */

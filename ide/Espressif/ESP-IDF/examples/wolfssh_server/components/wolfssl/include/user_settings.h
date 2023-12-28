@@ -82,13 +82,15 @@
 #define USE_CERT_BUFFERS_2048
 
 /* TLS 1.3                                 */
-#define WOLFSSL_TLS13
-#define HAVE_TLS_EXTENSIONS
-#define WC_RSA_PSS
+// #define WOLFSSL_TLS13
+// #define HAVE_TLS_EXTENSIONS
+// #define WC_RSA_PSS
 #define HAVE_HKDF
 #define HAVE_AEAD
-#define HAVE_SUPPORTED_CURVES
+// #define HAVE_SUPPORTED_CURVES
 
+#ifdef HAVE_TLS_EXTENSIONS
+#endif
 #define WOLFSSL_BENCHMARK_FIXED_UNITS_KB
 
 
@@ -146,7 +148,9 @@
     /* X and Y of X * Y mod P greater than                         */
     #define ESP_RSA_MULM_BITS            9
 #endif
-#define RSA_LOW_MEM
+
+// #define RSA_LOW_MEM
+#define WOLFSSH_NO_RSA
 
 /* debug options */
 /* #define DEBUG_WOLFSSL */
