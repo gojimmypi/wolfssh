@@ -118,8 +118,8 @@
 
 #define WOLFSSL_SHA512
 
-#define MY_USE_ECC 0
-#define MY_USE_RSA 1
+#define MY_USE_ECC 1
+#define MY_USE_RSA 0
 
 /* We can use either or both ECC and RSA, but must use at least one. */
 #if MY_USE_ECC || MY_USE_RSA
