@@ -117,10 +117,42 @@
 /* #define WOLFSSL_SHA3 */
 
 #define WOLFSSL_SHA512
-#define HAVE_ECC
-#define HAVE_CURVE25519
-#define CURVE25519_SMALL
-#define HAVE_ED25519
+
+#define MY_USE_ECC 0
+#define MY_USE_RSA 1
+
+/* We can use either or both ECC and RSA, but must use at least one. */
+#if MY_USE_ECC || MY_USE_RSA
+    #if MY_USE_ECC
+        /* ---- ECDSA / ECC ---- */
+        #define HAVE_ECC
+        #define HAVE_CURVE25519
+        #define HAVE_ED25519
+
+        /*
+        #define HAVE_ECC384
+        #define CURVE25519_SMALL
+        */
+    #else
+        #define WOLFSSH_NO_ECC
+        /* WOLFSSH_NO_ECDSA is typically defined automatically,
+         * here for clarity: */
+        #define WOLFSSH_NO_ECDSA
+    #endif
+
+    #if MY_USE_RSA
+        /* ---- RSA ----- */
+        /* #define RSA_LOW_MEM */
+
+        /* DH disabled by default, needed if ECDSA/ECC also turned off */
+        #define HAVE_DH
+    #else
+        #define WOLFSSH_NO_RSA
+    #endif
+#else
+    #error "Either RSA or ECC must be enabled"
+#endif
+
 
 /* when you want to use pkcs7 */
 /* #define HAVE_PKCS7 */
@@ -134,9 +166,6 @@
 /* when you want to use aes counter mode */
 /* #define WOLFSSL_AES_DIRECT */
 /* #define WOLFSSL_AES_COUNTER */
-
-/* #define RSA_LOW_MEM */
-#define WOLFSSH_NO_RSA
 
 /* debug options */
 /* #define DEBUG_WOLFSSL */
