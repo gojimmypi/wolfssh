@@ -1,3 +1,4 @@
+#  Espressif component/wolfssh/CMakeLists.txt
 #
 #  Copyright (C) 2006-2023 WOLFSSL Inc.
 #
@@ -25,7 +26,52 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
 set(CMAKE_CURRENT_SOURCE_DIR ".")
-set(COMPONENT_REQUIRES lwip wolfssl)
+
+# Attention!
+#
+# When editing component CMake files, consider the following :
+#
+# NO Managed Componenets: Normal stand-alone app, "as cloned" from github.
+#   There's no notion of staging names (e.g. mywolfmqtt) regardless of environment settings.
+#   All of the component source is locall. See settings such s WOLFSSL_ROOT=[your path]
+#
+# Partially Managed Components. This one is tricky. When publishing a component with examples,
+#    those examples will have a chicken-and-egg problem: the required component is not yet published.
+#    Adding to the complexity is the notion of staging components, that are purposely prefixed with
+#    "my" (e.g. mywolfmqtt) to distinguish from production, live components (e.g. wolfmqtt)
+#
+#    Partially Managed Component Examples are typically only encountered by the component publisher
+#    and only at publish time, such as when performing the pre-publish build check.
+#
+#    A partially managed component may also be manually created, when adding a managed component to
+#    and existing project. For example:
+#
+#       idf.py add-dependency "wolfssl/wolfssh^1.4.15-stable"
+#
+# Fully Managaged Componenets. This is the typical example as created from the Component Registry:
+#    For example:
+#
+#       idf.py create-project-from-example "wolfssl/wolfssh^1.4.15-stable:wolfssh_server"
+#
+# In all cases, keep in mind that components other than wolfssl will depend on the wolfssl component.
+#
+
+# Component naming is only adjusted when using Managed Components, and only when using staging site.
+if( "$ENV{IDF_COMPONENT_REGISTRY_URL}" STREQUAL "https://components-staging.espressif.com" )
+    # TODO: Is checking these two variables really the best way to detect an active Component Manager?
+    message(STATUS "component_manager_interface_version = ${component_manager_interface_version}")
+    message(STATUS "managed_components = ${managed_components}")
+    if( ("${managed_components}" STREQUAL "") AND ("${component_manager_interface_version}" STREQUAL "") )
+        # We've found a staging component, but did not detect the component manager
+        set(WOLFSSL_COMPONENT_NAME "wolfssl")
+    else()
+        set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+    endif()
+else()
+    set(WOLFSSL_COMPONENT_NAME "wolfssl")
+endif()
+
+set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
 
 # COMPONENT_NAME = wolfssh
 # The component name is the directory name. "No feature to change this".
@@ -45,7 +91,10 @@ if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "WOLFSSH component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
                             REQUIRES "${COMPONENT_REQUIRES}"
-                            PRIV_REQUIRES esp_timer driver wolfssl # this will typically only be needed for WOLFSSH benchmark
+                            PRIV_REQUIRES
+                                esp_timer
+                                driver
+                                "${WOLFSSL_COMPONENT_NAME}" # either wolfssl or mywolfssl as a staging component
                            )
 
 else()
@@ -354,7 +403,10 @@ else()
                             INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
                             REQUIRES "${COMPONENT_REQUIRES}"
                             EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
-                            PRIV_REQUIRES esp_timer driver wolfssl # this will typically only be needed for WOLFSSH benchmark
+                            PRIV_REQUIRES
+                            esp_timer
+                            driver
+                            "${WOLFSSL_COMPONENT_NAME}"  # either wolfssl or mywolfssl as a staging component
                            )
     # some optional diagnostics
     if (1)
