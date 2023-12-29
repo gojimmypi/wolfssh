@@ -248,16 +248,12 @@ int set_time(void)
 
     ESP_LOGI(TAG, "Setting the time. Startup time:");
     esp_show_current_datetime();
-//    ESP_LOGI(TAG, "return.");
-//    return ESP_OK; /* TODO */
 
 #ifdef LIBWOLFSSL_VERSION_GIT_HASH_DATE
     /* initialy set a default approximate time from recent git commit */
     ESP_LOGI(TAG, "Found git hash date, attempting to set system date.");
     set_time_from_string(LIBWOLFSSL_VERSION_GIT_HASH_DATE);
-    ESP_LOGI(TAG, "esp_show_current_datetime.");
     esp_show_current_datetime();
-
 
     ret = -4;
 #else
