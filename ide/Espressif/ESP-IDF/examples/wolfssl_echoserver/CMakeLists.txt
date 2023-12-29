@@ -13,13 +13,12 @@ set(WOLFSSL_USER_SETTINGS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_TERM")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEBUG_WOLFSSH")
 
-set(WOLFSSL_ROOT "C:/workspace/wolfssl-master")
-
 # The wolfSSL CMake file should be able to find the source code.
 # Otherwise, assign an environment variable or set it here:
 #
 # set(WOLFSSL_ROOT "~/workspace/wolfssl-other-source")
 # set(WOLFSSH_ROOT "~/workspace/wolfssh-other-source")
+# set(WOLFSSL_ROOT "C:/workspace/wolfssl-master")
 
 # Optional WOLFSSL_CMAKE_SYSTEM_NAME detection to find
 # USE_MY_PRIVATE_CONFIG path for my_private_config.h
