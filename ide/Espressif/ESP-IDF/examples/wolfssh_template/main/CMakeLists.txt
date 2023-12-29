@@ -1,11 +1,34 @@
-# This tag is used to include this file in the ESP Component Registry:
-# __ESP_COMPONENT_SOURCE__
-
+# wolfSSL wolfSSH Espressif Example Project/main/CMakeLists.txt
+#   v1.0
 #
-# wolfssl client test
-#
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+message(STATUS "main cmake found WOLFSSL_COMPONENT_NAME = ${WOLFSSL_COMPONENT_NAME}")
 
+if(WIN32)
+    # Windows-specific configuration here
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_WINDOWS")
+    message("Detected Windows")
+endif()
+if(CMAKE_HOST_UNIX)
+    message("Detected UNIX")
+endif()
+if(APPLE)
+    message("Detected APPLE")
+endif()
+if(CMAKE_HOST_UNIX AND (NOT APPLE) AND EXISTS "/proc/sys/fs/binfmt_misc/WSLInterop")
+    # Windows-specific configuration here
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_WSL")
+    message("Detected WSL")
+endif()
+if(CMAKE_HOST_UNIX AND (NOT APPLE) AND (NOT WIN32))
+    # Windows-specific configuration here
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_LINUX")
+    message("Detected Linux")
+endif()
+if(APPLE)
+    # Windows-specific configuration here
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_APPLE")
+    message("Detected Apple")
+endif()
 set (git_cmd "git")
 
 if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/" AND EXISTS "$ENV{IDF_PATH}/components/wolfssl/" )
@@ -16,6 +39,37 @@ if( EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl/" AND EXISTS "$ENV{IDF_PA
     message(STATUS "WARNING: Found components/wolfssl in both local project and IDF_PATH")
     message(STATUS "")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_MULTI_INSTALL_WARNING")
+endif()
+
+if( "$ENV{IDF_COMPONENT_REGISTRY_URL}" STREQUAL "https://components-staging.espressif.com" )
+    if( ("${managed_components}" STREQUAL "") AND ("${component_manager_interface_version}" STREQUAL "") )
+        # We've found a staging component, but did not detect the component manager
+        if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/../components/mywolfssh/CMakeLists.txt)
+            # This is typically during publish-time build test
+            message(STATUS "Set name mywolfssh (1)")
+            set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+            set(WOLFSSH_COMPONENT_NAME "mywolfssh")
+        else()
+            if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/../managed_components/gojimmypi__mywolfmqtt/CMakeLists.txt)
+                # This is typically upon creating a project from managed component examples
+                message(STATUS "Set name mywolfssh (2)")
+                set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+                set(WOLFSSH_COMPONENT_NAME "mywolfssh")
+            else()
+                message(STATUS "Set name wolfmqtt (1) CMAKE_CURRENT_LIST_DIR = ${CMAKE_CURRENT_LIST_DIR}")
+                set(WOLFSSL_COMPONENT_NAME "wolfssl")
+                set(WOLFSSH_COMPONENT_NAME "wolfssh")
+            endif()
+        endif()
+    else()
+        message(STATUS "Set name mywolfssh (3)")
+        set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+        set(WOLFSSH_COMPONENT_NAME "mywolfssh")
+    endif()
+else()
+    message(STATUS "Set name wolfssh (2)")
+    set(WOLFSSL_COMPONENT_NAME "wolfssl")
+    set(WOLFSSH_COMPONENT_NAME "wolfssh")
 endif()
 
 ## register_component()
