@@ -41,6 +41,22 @@ set(COMPONENT_REQUIRES lwip wolfssl)
 # We are typically in [root]/IDE/Espressif/ESP-IDF/examples/WOLFSSH_test/components/WOLFSSH
 # The root of WOLFSSH is 7 directories up from here:
 
+# find the user name to search for possible "WOLFSSH-username"
+message(STATUS "USERNAME = $ENV{USERNAME}")
+if(  "$ENV{USER}" STREQUAL "" ) # the bash user
+    if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
+        message(STATUS "could not find USER or USERNAME")
+    else()
+        # the bash user is not blank, so we'll use it.
+        set(THIS_USER "$ENV{USERNAME}")
+    endif()
+else()
+    # the bash user is not blank, so we'll use it.
+    set(THIS_USER "$ENV{USER}")
+endif()
+message(STATUS "THIS_USER = ${THIS_USER}")
+
+
 if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "WOLFSSH component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
@@ -92,21 +108,6 @@ else()
             message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
             get_filename_component(THIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
             message(STATUS "THIS_DIR = ${THIS_DIR}")
-
-            # find the user name to search for possible "WOLFSSH-username"
-            message(STATUS "USERNAME = $ENV{USERNAME}")
-            if(  "$ENV{USER}" STREQUAL "" ) # the bash user
-                if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
-                    message(STATUS "could not find USER or USERNAME")
-                else()
-                    # the bash user is not blank, so we'll use it.
-                    set(THIS_USER "$ENV{USERNAME}")
-                endif()
-            else()
-                # the bash user is not blank, so we'll use it.
-               set(THIS_USER "$ENV{USER}")
-            endif()
-            message(STATUS "THIS_USER = ${THIS_USER}")
 
             # This same makefile is used for both the WOLFSSH component, and other
             # components that may depend on WOLFSSH, such as wolfssh. Therefore
