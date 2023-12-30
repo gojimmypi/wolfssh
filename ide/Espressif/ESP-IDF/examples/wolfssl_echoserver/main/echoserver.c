@@ -44,7 +44,7 @@
 #include <wolfssh/test.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 
-#include "examples/echoserver/echoserver.h"
+#include "echoserver.h"
 
 #if defined(WOLFSSL_PTHREADS) && defined(WOLFSSL_TEST_GLOBAL_REQ)
     #include <pthread.h>
