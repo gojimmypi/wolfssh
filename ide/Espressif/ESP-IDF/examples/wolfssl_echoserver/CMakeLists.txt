@@ -33,9 +33,8 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 set(WOLFSSL_USER_SETTINGS ON)
 
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_TERM")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEBUG_WOLFSSH")
+# Assume we have a ESP_ENABLE_WOLFSSH section in user_settings.h
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DESP_ENABLE_WOLFSSH")
 
 # The wolfSSL CMake file should be able to find the source code.
 # Otherwise, assign an environment variable or set it here:

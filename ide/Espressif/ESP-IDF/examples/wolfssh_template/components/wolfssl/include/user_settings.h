@@ -41,8 +41,7 @@
 */
 
 /* Optionally enable some wolfSSH settings */
-#define ESP_ENABLE_WOLFSSH
-#ifdef  ESP_ENABLE_WOLFSSH
+#ifdef ESP_ENABLE_WOLFSSH
     /* The default SSH Windows size is massive for an embedded target. Limit it: */
     #define DEFAULT_WINDOW_SZ 2000
 
