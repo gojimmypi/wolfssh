@@ -19,18 +19,87 @@
 #
 # cmake for wolfssl Espressif projects
 #
-# Version 5.6.0.012 for improved manual setting of WOLFSSL_ROOT
+# Version 5.6.4.016 for improved manual setting of WOLFSSL_ROOT + ESP8266 support; optional esp-timer / driver components
 #
 # See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html
 #
 
 cmake_minimum_required(VERSION 3.16)
+
+set(VERBOSE_COMPONENT_MESSAGES 1)
+
+# The scope of this CMAKE_C_FLAGS is just this component:
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+
 set(CMAKE_CURRENT_SOURCE_DIR ".")
-set(COMPONENT_REQUIRES lwip) # we typically don't need lwip directly in wolfssl component
+# set(COMPONENT_REQUIRES lwip) # we typically don't need lwip directly in wolfssl component
+
+# Optionally set your source to wolfSSL in your project CMakeLists.txt like this:
+# set(WOLFSSL_ROOT "c:/test/blogtest/wolfssl" )
 
 if ( "${WOLFSSL_ROOT}" STREQUAL "")
     set(WOLFSSL_ROOT "$ENV{WOLFSSL_ROOT}" )
+endif()
+# Optional compiler definitions to help with system name detection (typically printed by app diagnostics)
+if(VERBOSE_COMPONENT_MESSAGES)
+    if(WIN32)
+        # Windows-specific configuration here
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_WINDOWS")
+        message("Detected Windows")
+    endif()
+    if(CMAKE_HOST_UNIX)
+        message("Detected UNIX")
+    endif()
+    if(APPLE)
+        message("Detected APPLE")
+    endif()
+    if(CMAKE_HOST_UNIX AND (NOT APPLE) AND EXISTS "/proc/sys/fs/binfmt_misc/WSLInterop")
+        # Windows-specific configuration here
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_WSL")
+        message("Detected WSL")
+    endif()
+    if(CMAKE_HOST_UNIX AND (NOT APPLE) AND (NOT WIN32))
+        # Windows-specific configuration here
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_LINUX")
+        message("Detected Linux")
+    endif()
+    if(APPLE)
+        # Windows-specific configuration here
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_CMAKE_SYSTEM_NAME_APPLE")
+        message("Detected Apple")
+    endif()
+endif() # End optional WOLFSSL_CMAKE_SYSTEM_NAME
+
+message(STATUS "CONFIG_TARGET_PLATFORM = ${CONFIG_TARGET_PLATFORM}")
+
+# Check that there are not conflicting wolfSSL components
+# The ESP Registry Component will be in ./managed_components/wolfssl__wolfssl
+# The local component wolfSSL directory will be in ./components/wolfssl
+if( EXISTS "${CMAKE_HOME_DIRECTORY}/managed_components/wolfssl__wolfssl" AND EXISTS "${CMAKE_HOME_DIRECTORY}/components/wolfssl" )
+    # These exclude statements don't seem to be honored by the $ENV{IDF_PATH}/tools/cmake/project.cmake'
+    # add_subdirectory("${CMAKE_HOME_DIRECTORY}/managed_components/wolfssl__wolfssl" EXCLUDE_FROM_ALL)
+    # add_subdirectory("${CMAKE_HOME_DIRECTORY}/managed_components/wolfssl__wolfssl/include" EXCLUDE_FROM_ALL)
+    # So we'll error out and let the user decide how to proceed:
+    message(WARNING "\nFound wolfSSL components in\n"
+                    "./managed_components/wolfssl__wolfssl\n"
+                    "and\n"
+                    "./components/wolfssl\n"
+                    "in project directory: \n"
+                    "${CMAKE_HOME_DIRECTORY}")
+    message(FATAL_ERROR "\nPlease use either the ESP Registry Managed Component or the wolfSSL component directory but not both.\n"
+                        "If removing the ./managed_components/wolfssl__wolfssl directory, remember to also remove "
+                        "or rename the idf_component.yml file typically found in ./main/")
+else()
+    message(STATUS "No conflicting wolfSSL components found.")
+endif()
+
+
+# Don't include lwip requirement for benchmark and test apps.
+if( ("${CMAKE_PROJECT_NAME}" STREQUAL "wolfssl_benchmark") OR ("${CMAKE_PROJECT_NAME}" STREQUAL "wolfssl_test") )
+    message(STATUS "Not including lwip for ${CMAKE_PROJECT_NAME}")
+else()
+    # benchmark and test do not need wifi, everything else probably does:
+    set(COMPONENT_REQUIRES lwip) # we typically don't need lwip directly in wolfssl component
 endif()
 
 # find the user name to search for possible "wolfssl-username"
@@ -74,9 +143,13 @@ function(IS_WOLFSSL_SOURCE DIRECTORY_PARAMETER RESULT)
     endif()
 endfunction()
 
+# *********************************************************************************************
 # function: FIND_WOLFSSL_DIRECTORY
 #  parameter: OUTPUT_FOUND_WOLFSSL_DIRECTORY contains root of source code, otherwise blank
 #
+# Example usage:
+#   FIND_WOLFSSL_DIRECTORY(WOLFSSL_ROOT)
+# *********************************************************************************************
 function(FIND_WOLFSSL_DIRECTORY OUTPUT_FOUND_WOLFSSL_DIRECTORY)
     message(STATUS "Starting FIND_WOLFSSL_DIRECTORY: ${${OUTPUT_FOUND_WOLFSSL_DIRECTORY}}")
 
@@ -162,17 +235,18 @@ endfunction()
 
 
 # Example usage:
-
-
-
+#
+# Simply find the WOLFSSL_DIRECTORY by searching parent directories:
+#   FIND_WOLFSSL_DIRECTORY(WOLFSSL_ROOT)
+#
 
 if(CMAKE_BUILD_EARLY_EXPANSION)
     message(STATUS "wolfssl component CMAKE_BUILD_EARLY_EXPANSION:")
     idf_component_register(
                             REQUIRES "${COMPONENT_REQUIRES}"
                             PRIV_REQUIRES # esp_hw_support
-                                          esp_timer
-                                          driver # this will typically only be needed for wolfSSL benchmark
+                                          "${THIS_INCLUDE_TIMER}"
+                                          "${THIS_INCLUDE_DRIVER}" # this will typically only be needed for wolfSSL benchmark
                            )
 
 else()
@@ -181,27 +255,65 @@ else()
     message(STATUS "wolfssl component config:")
     message(STATUS "************************************************************************************************")
 
-    # search for wolfSSL
-    FIND_WOLFSSL_DIRECTORY(WOLFSSL_ROOT)
-    if(WOLFSSL_ROOT)
-        message(STATUS "NEW Found wolfssl directory at: ${WOLFSSL_ROOT}")
+    if ( "${CONFIG_TARGET_PLATFORM}" STREQUAL "esp8266")
+        # There's no esp_timer, no driver components for the ESP8266
+        set(THIS_INCLUDE_TIMER "")
+        set(THIS_INCLUDE_DRIVER "")
     else()
-        message(STATUS "NEW wolfssl directory not found.")
+        set(THIS_INCLUDE_TIMER "esp_timer")
+        set(THIS_INCLUDE_DRIVER "driver")
+    endif()
+
+    # search for wolfSSL
+    # TODO allow for cmake prior def
+
+    if(WOLFSSL_ROOT)
+        IS_WOLFSSL_SOURCE("${WOLFSSL_ROOT}" FOUND_WOLFSSL)
+        if(FOUND_WOLFSSL)
+            message(STATUS "Found WOLFSSL_ROOT via CMake specification.")
+        else()
+            # WOLFSSL_ROOT Path specified in CMakeLists.txt is not a valid path
+            message(FATAL_ERROR "WOLFSSL_ROOT CMake Variable defined, but path not found: ${WOLFSSL_ROOT}\n"
+                                "Try correcting WOLFSSL_ROOT in your project CMakeFile.txt or setting environment variable.")
+            # Abort CMake after fatal error.
+        endif()
+    else()
+        message(STATUS "Searching for wolfSL source code...")
+        FIND_WOLFSSL_DIRECTORY(WOLFSSL_ROOT)
+    endif()
+
+
+    if(WOLFSSL_ROOT)
+        message(STATUS "Confirmed wolfssl directory at: ${WOLFSSL_ROOT}")
+    else()
+        message(STATUS "Failed: wolfssl directory not found.")
         # Abort. We need wolfssl _somewhere_.
         message(FATAL_ERROR "Could not find wolfssl in ${WOLFSSL_ROOT}.\n"
                             "Try setting WOLFSSL_ROOT environment variable or git clone.")
+        # Abort CMake after fatal error.
     endif()
 
     set(INCLUDE_PATH ${WOLFSSL_ROOT})
 
     set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/src/")
 
-    if( ${CMAKE_PROJECT_NAME} STREQUAL "wolfssl_benchmark" )
-        set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/wolfcrypt/benchmark")
-    endif()
+    # During regression tests, optionally copy source locally and use: set(USE_LOCAL_TEST_BENCH 1)
+    set(USE_LOCAL_TEST_BENCH 0)
+    if(NOT USE_LOCAL_TEST_BENCH)
+        if( "${CMAKE_PROJECT_NAME}" STREQUAL "hello-world" )
+            message(STATUS "Include ${WOLFSSL_ROOT}/wolfcrypt/benchmark")
+            set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/wolfcrypt/benchmark")
+        endif()
 
-    if( ${CMAKE_PROJECT_NAME} STREQUAL "wolfssl_test" )
-        set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/wolfcrypt/test")
+        if( "${CMAKE_PROJECT_NAME}" STREQUAL "wolfssl_benchmark" )
+            message(STATUS "Include ${WOLFSSL_ROOT}/wolfcrypt/benchmark")
+            set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/wolfcrypt/benchmark")
+        endif()
+
+        if( "${CMAKE_PROJECT_NAME}" STREQUAL "wolfssl_test" )
+            message(STATUS "Include ${WOLFSSL_ROOT}/wolfcrypt/test")
+            set(WOLFSSL_EXTRA_PROJECT_DIR "${WOLFSSL_ROOT}/wolfcrypt/test")
+        endif()
     endif()
 
     set(COMPONENT_SRCDIRS "\"${WOLFSSL_ROOT}/src/\""
@@ -213,16 +325,18 @@ else()
 
     message(STATUS "This COMPONENT_SRCDIRS = ${COMPONENT_SRCDIRS}")
 
+    # wolfSSL user_settings.h is in the local project.
     set(WOLFSSL_PROJECT_DIR "${CMAKE_HOME_DIRECTORY}/components/wolfssl")
-    add_definitions(-DWOLFSSL_USER_SETTINGS_DIR="${WOLFSSL_PROJECT_DIR}/include/user_settings.h")
 
+    string(REPLACE "/" "//" STR_WOLFSSL_PROJECT_DIR "${WOLFSSL_PROJECT_DIR}")
+    add_definitions(-DWOLFSSL_USER_SETTINGS_DIR="${STR_WOLFSSL_PROJECT_DIR}//include//user_settings.h")
 
     # Espressif may take several passes through this makefile. Check to see if we found IDF
     string(COMPARE EQUAL "${PROJECT_SOURCE_DIR}" "" WOLFSSL_FOUND_IDF)
 
     # get a list of all wolfcrypt assembly files; we'll exclude them as they don't target Xtensa
     file(GLOB EXCLUDE_ASM *.S)
-    file(GLOB_RECURSE EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSL_ROOT}/wolfcrypt/src/*.S")
+    file(GLOB EXCLUDE_ASM ${CMAKE_SOURCE_DIR} "${WOLFSSL_ROOT}/wolfcrypt/src/*.S")
 
     message(STATUS "IDF_PATH = $ENV{IDF_PATH}")
     message(STATUS "PROJECT_SOURCE_DIR = ${PROJECT_SOURCE_DIR}")
@@ -245,10 +359,12 @@ else()
         message(STATUS "Remove either the local project component: ${WOLFSSL_PROJECT_DIR} ")
         message(STATUS "or the Espressif shared component installed at: $ENV{IDF_PATH}/components/wolfssl/ ")
         message(STATUS "")
-        message(FATAL_ERROR "Please use wolfSSL in either local project or Espressif components, but not both.")
         message(STATUS "")
         message(STATUS "**************************************************************************************")
         message(STATUS "")
+
+        message(FATAL_ERROR "Please use wolfSSL in either local project or Espressif components, but not both.")
+        # Abort CMake after fatal error.
 
         # Optional: if you change the above FATAL_ERROR to STATUS you can warn at runtime with this macro definition:
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_MULTI_INSTALL_WARNING")
@@ -299,6 +415,7 @@ else()
                         message(FATAL_ERROR "Found stray wolfSSL user_settings.h in "
                                             "${WOLFSSL_ROOT}/include/user_settings.h "
                                             " (please move it to ${WOLFSSL_PROJECT_DIR}/include/user_settings.h )")
+                        # Abort CMake after fatal error.
                     else()
                         # we won't overwrite an existing user settings file, just note that we already have one:
                         if( EXISTS "${WOLFSSL_PROJECT_DIR}/include/user_settings.h" )
@@ -369,16 +486,17 @@ else()
         endif()
     endif()
 
-
+    # wolfSSL-specific include directories
     set(COMPONENT_ADD_INCLUDEDIRS
-        "./include" # this is the location of wolfssl user_settings.h
+        "./include" # this is the location of local project wolfssl user_settings.h
         "\"${WOLFSSL_ROOT}/\""
         "\"${WOLFSSL_ROOT}/wolfssl/\""
         "\"${WOLFSSL_ROOT}/wolfssl/wolfcrypt/\""
+        "\"${WOLFSSL_ROOT}/wolfssl/wolfcrypt/port/Espressif\""
         "\"${RTOS_IDF_PATH}/\""
         )
 
-
+    # Optionally include cryptoauthlib if present
     if(IS_DIRECTORY ${IDF_PATH}/components/cryptoauthlib)
         list(APPEND COMPONENT_ADD_INCLUDEDIRS "../cryptoauthlib/lib")
     endif()
@@ -387,7 +505,7 @@ else()
     list(APPEND COMPONENT_ADD_INCLUDEDIRS "\"${WOLFSSL_ROOT}/wolfssl/wolfcrypt/\"")
 
 
-
+    # Some files are known to be included elsewhere, or not used for Espressif
     set(COMPONENT_SRCEXCLUDE
         "\"${WOLFSSL_ROOT}/src/bio.c\""
         "\"${WOLFSSL_ROOT}/src/conf.c\""
@@ -436,17 +554,34 @@ else()
                             INCLUDE_DIRS "${COMPONENT_ADD_INCLUDEDIRS}"
                             REQUIRES "${COMPONENT_REQUIRES}"
                             EXCLUDE_SRCS "${COMPONENT_SRCEXCLUDE}"
-                            PRIV_REQUIRES esp_timer driver # this will typically only be needed for wolfSSL benchmark
+                            PRIV_REQUIRES
+                              "${THIS_INCLUDE_TIMER}"
+                              "${THIS_INCLUDE_DRIVER}" # this will typically only be needed for wolfSSL benchmark
                            )
-    # some optional diagnostics
-    if (1)
+
+    # Some optional diagnostics. Verbose ones are truncated.
+    if (VERBOSE_COMPONENT_MESSAGES)
         get_cmake_property(_variableNames VARIABLES)
         list (SORT _variableNames)
         message(STATUS "")
         message(STATUS "ALL VARIABLES BEGIN")
         message(STATUS "")
         foreach (_variableName ${_variableNames})
-            message(STATUS "${_variableName}=${${_variableName}}")
+            if (      ("${_variableName}" STREQUAL "bootloader_binary_files")
+                    OR ("${_variableName}" STREQUAL "Component paths")
+                    OR ("${_variableName}" STREQUAL "component_targets")
+                    OR ("${_variableName}" STREQUAL "__COMPONENT_TARGETS")
+                    OR ("${_variableName}" STREQUAL "CONFIGS_LIST")
+                    OR ("${_variableName}" STREQUAL "__CONFIG_VARIABLES")
+                    OR ("${_variableName}" STREQUAL "val")
+                    OR ("${_variableName}" MATCHES "^__idf_")
+               )
+                # Truncate the displayed value:
+                string(SUBSTRING "${${_variableName}}" 0 70 truncatedValue)
+                message(STATUS "${_variableName} = ${truncatedValue} ... (truncated)")
+            else()
+                message(STATUS "${_variableName}=${${_variableName}}")
+            endif()
         endforeach()
         message(STATUS "")
         message(STATUS "ALL VARIABLES END")
@@ -532,6 +667,8 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     # LIBWOLFSSL_VERSION_GIT_HASH_DATE git show --no-patch --no-notes --pretty=\'\%cd\'
     execute_process(WORKING_DIRECTORY ${WOLFSSL_ROOT} COMMAND ${git_cmd} "show" "--no-patch" "--no-notes" "--pretty=\'\%cd\'" OUTPUT_VARIABLE TMP_OUT RESULT_VARIABLE TMP_RES  )
     LIBWOLFSSL_SAVE_INFO(LIBWOLFSSL_VERSION_GIT_HASH_DATE "${TMP_OUT}" "${TMP_RES}")
+
+    LIBWOLFSSL_SAVE_INFO(LIBWOLFSSL_VERSION_WOLFSSL_ROOT "${WOLFSSL_ROOT}" "${TMP_RES}")
 
     message(STATUS "************************************************************************************************")
     message(STATUS "wolfssl component config complete!")

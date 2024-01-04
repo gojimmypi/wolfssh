@@ -1,4 +1,4 @@
-/* server.h
+/* echoserver.h
  *
  * Copyright (C) 2014-2023 wolfSSL Inc.
  *
@@ -19,12 +19,17 @@
  */
 
 
-#ifndef _WOLFSSH_EXAMPLES_SERVER_H_
-#define _WOLFSSH_EXAMPLES_SERVER_H_
+#ifndef _WOLFSSH_EXAMPLES_ECHOSERVER_H_
+#define _WOLFSSH_EXAMPLES_ECHOSERVER_H_
 
-#include <wolfssh/test.h>
+#include <types.h>
 
-THREAD_RETURN WOLFSSH_THREAD server_test(void* args);
+#ifndef WOLFSSH_THREAD
+    #define WOLFSSH_THREAD
+#endif
+
+THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args);
+int wolfSSH_Echoserver(int argc, char** argv);
 
 
-#endif /* _WOLFSSH_EXAMPLES_SERVER_H_ */
+#endif /* _WOLFSSH_EXAMPLES_ECHOSERVER_H_ */

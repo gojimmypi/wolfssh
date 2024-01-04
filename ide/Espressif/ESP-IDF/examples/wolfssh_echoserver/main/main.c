@@ -20,7 +20,8 @@
  */
 #include "sdkconfig.h"
 #include "main.h"
-#include "server.h"
+#include "echoserver.h"
+
 /* ESP specific */
 #include <nvs_flash.h>
 #include <esp_log.h>
@@ -39,13 +40,11 @@
 #include "time_helper.h"
 
 static const char* const TAG = "My Project";
-int myoptind = 0;
-char* myoptarg = NULL;
 
 
 void app_main(void)
 {
-    func_args args = {0};
+    void*  args = {0};
     int ret = ESP_OK;
 
     ESP_LOGI(TAG, "------------ wolfSSL wolfSSH template Example ----------");
@@ -159,7 +158,7 @@ void app_main(void)
     /* TODO: Consider pulling in wolfSSH server.c example source automatically:
      * Keep in mind the nature of this example as an Espressif Component.
      * See https://github.com/wolfSSL/wolfssh/tree/master/examples/server */
-    server_test(&args);
+    echoserver_test(&args);
 
     ESP_LOGI(TAG, "\n\nDone!"
                   "If running from idf.py monitor, press twice: Ctrl+]");

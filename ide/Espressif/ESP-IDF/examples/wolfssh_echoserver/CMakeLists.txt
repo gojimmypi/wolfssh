@@ -1,3 +1,27 @@
+#  [wolfSSL Project]/CMakeLists.txt
+#
+#  Copyright (C) 2006-2023 WOLFSSL Inc.
+#
+#  This file is part of WOLFSSH.
+#
+#  WOLFSSH is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  WOLFSSH is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
+#
+# cmake for WOLFSSH Espressif projects
+#
+# See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html
+
 # wolfSSL Espressif Example Project CMakeLists.txt
 #   v1.0
 #
@@ -9,9 +33,8 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 set(WOLFSSL_USER_SETTINGS ON)
 
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_TERM")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEBUG_WOLFSSH")
+# Assume we have a ESP_ENABLE_WOLFSSH section in user_settings.h
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DESP_ENABLE_WOLFSSH")
 
 # The wolfSSL CMake file should be able to find the source code.
 # Otherwise, assign an environment variable or set it here:
@@ -103,4 +126,4 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project(wolfssh_server)
+project(wolfssh_echoserver)
