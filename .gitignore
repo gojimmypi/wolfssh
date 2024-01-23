@@ -135,3 +135,6 @@ DLL Release
 /ide/Espressif/**/dependencies.lock
 
 
+/ide/Espressif/component-manager
+/wolfssl_bin
+/wolfssl_install

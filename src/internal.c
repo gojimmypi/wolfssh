@@ -1799,11 +1799,23 @@ int GenerateKey(byte hashId, byte keyId,
 
     if (ret == WS_SUCCESS) {
         if (blocks == 0) {
+            #ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("sha_int", "remainder = %d", remainder);
+            #else
+            #endif
             if (remainder > 0) {
                 byte lastBlock[WC_MAX_DIGEST_SIZE];
-                ret = wc_HashFinal(&hash, enmhashId, lastBlock);
+                ret = wc_HashFinal(&hash, enmhashId, lastBlock); /* lastBlock gets final hash */
                 if (ret == WS_SUCCESS)
-                    WMEMCPY(key, lastBlock, remainder);
+                    WMEMCPY(key, lastBlock, remainder); /* move remainder bytes (0x10) to key */
+            }
+            else {
+            #ifdef WOLFSSL_ESPIDF
+                ESP_LOGW("sha_int", "GenerateKey() remainder = 0");
+            #else
+                printf("GenerateKey() remainder = 0\n");
+            #endif
+
             }
         }
         else {
@@ -9071,7 +9083,19 @@ int SendKexInit(WOLFSSH* ssh)
 
         output[idx++] = MSGID_KEXINIT;
 
+    #define FIXED_SSH_COOKIE
+    #ifdef FIXED_SSH_COOKIE
         ret = wc_RNG_GenerateBlock(ssh->rng, output + idx, COOKIE_SZ);
+        // memset(ssh->rng, 0, COOKIE_SZ);
+        memset(output + idx, 0, COOKIE_SZ);
+        #ifdef WOLFSSL_ESPIDF
+            ESP_LOGE("ssh", "ssh->rng cookie zeroed!");
+        #else
+            printf("ssh->rng cookie zeroed!");
+        #endif
+    #else
+        ret = wc_RNG_GenerateBlock(ssh->rng, output + idx, COOKIE_SZ);
+    #endif
     }
 
     if (ret == WS_SUCCESS) {
