@@ -153,6 +153,15 @@ static const char sshProtoIdStr[] = "SSH-2.0-wolfSSHv"
                                     "\r\n";
 static const char OpenSSH[] = "SSH-2.0-OpenSSH";
 
+static int show_binary(byte* theVar, size_t dataSz) {
+    printf("*****************************************************\n");
+    word32 i;
+    for (i = 0; i < dataSz; i++)
+        printf("%02X", theVar[i]);
+    printf("\n");
+    printf("******************************************************\n");
+    return 0;
+}
 
 static int hexToBinary(byte* toVar, const char* fromHexString, size_t szHexString ) {
     int ret = 0;
@@ -1895,6 +1904,8 @@ int GenerateKey(byte hashId, byte keyId,
             if (remainder > 0) {
                 byte lastBlock[WC_MAX_DIGEST_SIZE];
                 ret = wc_HashFinal(&hash, enmhashId, lastBlock); /* lastBlock gets final hash */
+                ESP_LOGI(TAG, "wc_HashFinal lastBlock");
+                show_binary(lastBlock, WC_MAX_DIGEST_SIZE);
                 if (ret == WS_SUCCESS)
                     WMEMCPY(key, lastBlock, remainder); /* move remainder bytes (0x10) to key */
             }
@@ -1912,6 +1923,8 @@ int GenerateKey(byte hashId, byte keyId,
 
             runningKeySz = digestSz;
             ret = wc_HashFinal(&hash, enmhashId, key);
+                ESP_LOGI(TAG, "wc_HashFinal key");
+                show_binary(key, WC_MAX_DIGEST_SIZE);
 
             for (curBlock = 1; curBlock < blocks; curBlock++) {
                 ret = wc_HashInit(&hash, enmhashId);
@@ -1928,6 +1941,9 @@ int GenerateKey(byte hashId, byte keyId,
                 ret = HashUpdate(&hash, enmhashId, key, runningKeySz);
                 if (ret != WS_SUCCESS) break;
                 ret = wc_HashFinal(&hash, enmhashId, key + runningKeySz);
+                ESP_LOGI(TAG, "wc_HashFinal key + runningKeySz");
+                show_binary(key + runningKeySz, WC_MAX_DIGEST_SIZE);
+
                 if (ret != WS_SUCCESS) break;
                 runningKeySz += digestSz;
             }
@@ -1948,6 +1964,9 @@ int GenerateKey(byte hashId, byte keyId,
                     ret = HashUpdate(&hash, enmhashId, key, runningKeySz);
                 if (ret == WS_SUCCESS)
                     ret = wc_HashFinal(&hash, enmhashId, lastBlock);
+                ESP_LOGI(TAG, "wc_HashFinal lastBlock GenerateKey");
+                show_binary(lastBlock, WC_MAX_DIGEST_SIZE);
+
                 if (ret == WS_SUCCESS)
                     WMEMCPY(key + runningKeySz, lastBlock, remainder);
             }
@@ -4642,9 +4661,10 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
     /* Hash in the client's DH e-value (ECDH Q-value). */
     if (ret == 0) {
 #ifdef MY_FIXED_VALUES
-                newval = "3132333435";
-                ESP_LOGI(TAG, "skip Need value 12:");
-             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+                newval = "04F75B18439C1960153A88853A7A23401E6F5E7FB13C223DED975BF29BEE55FF66257C782FF8D2EBBF3B\
+4F00C3F2FED52DC3406721213536C2CC985BCDD977A1F7";
+                ESP_LOGI(TAG, "HashUpdate ssh->handshake->e (4666):");
+                hexToBinary((byte*)ssh->handshake->e, newval, WSTRLEN(newval));
 #endif
         ret = HashUpdate(hash,
             hashId,
@@ -4904,6 +4924,9 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
         /* Save the exchange hash value H, and session ID. */
         if (ret == 0) {
             ret = wc_HashFinal(hash, hashId, ssh->h);
+                ESP_LOGI(TAG, "wc_HashFinalssh->h");
+                show_binary(ssh->h, ssh->hSz);
+
             wc_HashFree(hash, hashId);
             ssh->handshake->kexHashId = WC_HASH_TYPE_NONE;
         }
@@ -6631,6 +6654,8 @@ static int DoUserAuthRequestPublicKey(WOLFSSH* ssh, WS_UserAuthData* authData,
             }
             if (ret == 0) {
                 ret = wc_HashFinal(&hash, hashId, digest);
+                ESP_LOGI(TAG, "wc_HashFinal digest");
+                show_binary(digest, WC_MAX_DIGEST_SIZE);
 
                 if (ret != 0)
                     ret = WS_CRYPTO_FAILED;
@@ -9915,12 +9940,20 @@ static int SendKexGetSigningKey(WOLFSSH* ssh,
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
 #ifdef WOLFSSL_ESPIDF
-        ESP_LOGI("ssh", "Hash in the client's DH e-value (ECDH Q-value) A1,"
+        ESP_LOGI("ssh", "Hash in the client's DH e-value (ECDH Q-value) 9943,"
                         "set to zero. Size = %d ", ssh->handshake->eSz);
     #ifdef MY_ZERO_FORCE
         oops
         memset(ssh->handshake->e, 0, ssh->handshake->eSz);
     #endif
+
+#ifdef MY_FIXED_VALUES
+                newval = "041746C7BC77DDD85F4FD608A4356B029007E4A88A12E555B6026DAD51B24B0632D3D60DB96DBEF018E5\
+84FB4CA6713C7278FE9757719129802CBC819F0BCE4E37";
+                ESP_LOGI(TAG, "ssh->handshake->e: (9953)");
+                hexToBinary((byte*)ssh->handshake->e, newval, WSTRLEN(newval));
+#endif
+
 #endif
         /* Hash in the client's DH e-value (ECDH Q-value). */
         if (ret == 0)
@@ -10441,6 +10474,12 @@ int SendKexDhReply(WOLFSSH* ssh)
 #ifdef WOLFSSL_ESPIDF
         ESP_LOGI("ssh", "SendKexDhReply f_ptr = %d", fSz);
 #endif
+#ifdef MY_FIXED_VALUES
+                newval = "04B085637C93DA9045A1380A43E0A71504B0261CA504371733DF85F648C9984CF4947E76DC738D659562\
+7EEFB2934AE0E80934EB4A0397E8B246142199A7E3CFB9";
+                ESP_LOGI(TAG, "f_ptr:");
+                hexToBinary((byte*)f_ptr, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, f_ptr, fSz);
         }
         else {
@@ -10497,6 +10536,11 @@ int SendKexDhReply(WOLFSSH* ssh)
 #ifdef WOLFSSL_ESPIDF
         ESP_LOGI("ssh", "SendKexDhReply ssh->k = %d",ssh->kSz );
 #endif
+#ifdef MY_FIXED_VALUES
+            newval = "946AA60C06B0769708779B0C50E2E24605A306683A57B75C85EA02CFE302BC47";
+            ESP_LOGI(TAG, "ssh->k:");
+            hexToBinary((byte*)ssh->k, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, ssh->k, ssh->kSz);
         }
 
@@ -10514,6 +10558,8 @@ int SendKexDhReply(WOLFSSH* ssh)
 #endif
 
             ret = wc_HashFinal(hash, hashId, ssh->h);
+            show_binary(ssh->h, ssh->hSz);
+
             wc_HashFree(hash, hashId);
             ssh->handshake->kexHashId = WC_HASH_TYPE_NONE;
         }
