@@ -492,7 +492,7 @@ int wolfSSH_accept(WOLFSSH* ssh)
                     if (DoReceive(ssh) < WS_SUCCESS) {
                         WLOG(WS_LOG_DEBUG, acceptError,
                              "SERVER_KEXINIT_SENT", ssh->error);
-                        return WS_FATAL_ERROR;
+                        return WS_FATAL_ERROR; /* sig invalid when we set KEX to zero */
                     }
                 }
                 ssh->acceptState = ACCEPT_KEYED;

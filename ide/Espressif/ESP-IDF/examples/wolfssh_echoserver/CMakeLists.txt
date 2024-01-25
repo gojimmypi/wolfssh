@@ -1,4 +1,4 @@
-#  [wolfSSL Project]/CMakeLists.txt
+#  [wolfSSH Project]/CMakeLists.txt
 #
 #  Copyright (C) 2006-2023 WOLFSSL Inc.
 #

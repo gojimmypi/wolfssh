@@ -146,6 +146,7 @@
         /* DH disabled by default, needed if ECDSA/ECC also turned off */
         #define HAVE_DH
     #else
+        #undef  WOLFSSH_NO_RSA
         #define WOLFSSH_NO_RSA
     #endif
 #else

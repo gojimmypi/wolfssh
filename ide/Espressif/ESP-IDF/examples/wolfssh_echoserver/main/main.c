@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2006-2023 wolfSSL Inc.
  *
- * This file is part of wolfSSL.
+ * This file is part of wolfSSH.
  *
  * wolfSSL is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

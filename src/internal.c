@@ -24,7 +24,10 @@
  * API calls into this module to do the work of processing the connections.
  */
 
-
+// #define MY_ZERO_FORCE
+#define MY_FIXED_VALUES
+const char* newval = "";
+const char* TAG = "ssh";
 #ifdef HAVE_CONFIG_H
     #include <config.h>
 #endif
@@ -150,6 +153,36 @@ static const char sshProtoIdStr[] = "SSH-2.0-wolfSSHv"
                                     "\r\n";
 static const char OpenSSH[] = "SSH-2.0-OpenSSH";
 
+
+static int hexToBinary(byte* toVar, const char* fromHexString, size_t szHexString ) {
+    int ret = 0;
+    // Calculate the actual binary length of the hex string
+    size_t byteLen = szHexString / 2;
+
+    if (toVar == NULL || fromHexString == NULL) {
+        ESP_LOGE("ssh", " error");
+        return -1;
+    }
+    if ((szHexString % 2 != 0)) {
+        ESP_LOGE("ssh", "fromHexString length not even!");
+    }
+
+    ESP_LOGW(TAG, "Replacing %d bytes at %x", byteLen, (word32)toVar);
+    WMEMSET(toVar, 0, byteLen);
+    // Iterate through the hex string and convert to binary
+    for (size_t i = 0; i < szHexString; i += 2) {
+        // Convert hex character to decimal
+        int decimalValue;
+        sscanf(&fromHexString[i], "%2x", &decimalValue);
+        size_t index = i / 2;
+     //  byte new_val =  (decimalValue & 0x0F) << ((i % 2) * 4);
+     //  ESP_LOGI("hex", "Current char = %d", toVar[index]);
+     //   ESP_LOGI("hex", "New val = %d", decimalValue);
+        toVar[index]  = decimalValue;
+    }
+
+    return ret;
+}
 
 const char* GetErrorString(int err)
 {
@@ -469,12 +502,16 @@ static int wsHighwater(byte dir, void* ctx)
 static int HashUpdate(wc_HashAlg* hash, enum wc_HashType type,
     const byte* data, word32 dataSz)
 {
-#if 0
+#if 1
     word32 i;
     printf("Hashing In :");
     for (i = 0; i < dataSz; i++)
         printf("%02X", data[i]);
     printf("\n");
+#endif
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "dataSz = %d", dataSz);
+#else
 #endif
     return wc_HashUpdate(hash, type, data, dataSz);
 }
@@ -1783,20 +1820,72 @@ int GenerateKey(byte hashId, byte keyId,
     blocks = keySz / digestSz;
     remainder = keySz % digestSz;
 
+    // %04X
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "item");
+#else
+    printf("hash init\n");
+#endif
     ret = wc_HashInit(&hash, enmhashId);
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "kSzFlat");
+#else
+    printf("hash kSzFlat\n");
+#endif
     if (ret == WS_SUCCESS)
         ret = HashUpdate(&hash, enmhashId, kSzFlat, LENGTH_SZ);
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "pad");
+#else
+    printf("hash pad\n");
+#endif
     if (ret == WS_SUCCESS && kPad)
         ret = HashUpdate(&hash, enmhashId, &pad, 1);
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "k");
+#else
+    printf("hash k\n");
+#endif
+
+#ifdef MY_ZERO_FORCE
+    memset( k, 0, kSz);
+#endif
     if (ret == WS_SUCCESS)
         ret = HashUpdate(&hash, enmhashId, k, kSz);
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "h");
+#else
+    printf("hash h\n");
+#endif
     if (ret == WS_SUCCESS)
         ret = HashUpdate(&hash, enmhashId, h, hSz);
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "keyId");
+#else
+    printf("hash keyId\n");
+#endif
     if (ret == WS_SUCCESS)
         ret = HashUpdate(&hash, enmhashId, &keyId, sizeof(keyId));
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "Session size = %d", sessionIdSz);
+#else
+    printf("hash sessionId\n");
+#endif
     if (ret == WS_SUCCESS)
         ret = HashUpdate(&hash, enmhashId, sessionId, sessionIdSz);
 
+
+#ifdef WOLFSSL_ESPIDF
+    ESP_LOGI("ssh", "hash final");
+#else
+    printf("hash final\n");
+#endif
     if (ret == WS_SUCCESS) {
         if (blocks == 0) {
             #ifdef WOLFSSL_ESPIDF
@@ -3669,7 +3758,12 @@ static int DoKexInit(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
 
         if (ret == WS_SUCCESS) {
             if (ssh->ctx->side == WOLFSSH_ENDPOINT_SERVER) {
-                ret = HashUpdate(hash, hashId,
+#ifdef MY_FIXED_VALUES
+                newval = "0000001A5353482D322E302D50755454595F52656C656173655F302E3738";
+                ESP_LOGI(TAG, "skip Need value 01:");
+                hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
+                ret = HashUpdate(hash, hashId, /* bc 1*/
                         ssh->peerProtoId, ssh->peerProtoIdSz);
             }
         }
@@ -3679,18 +3773,38 @@ static int DoKexInit(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
 
             strSz = (word32)WSTRLEN(ssh->ctx->sshProtoIdStr) - SSH_PROTO_EOL_SZ;
             c32toa(strSz, scratchLen);
+#ifdef MY_FIXED_VALUES
+            newval = "00000016";
+            ESP_LOGI(TAG, "Need value 02:");
+            hexToBinary((byte*)scratchLen, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
 
         if (ret == WS_SUCCESS) {
+#ifdef MY_FIXED_VALUES
+   //         newval = "5353482D322E302D776F6C6653534876312E342E3135";
+              ESP_LOGI(TAG, "skip Need value 03:");
+   //         hexToBinary((byte*)ssh->ctx->sshProtoIdStr, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, (const byte*)ssh->ctx->sshProtoIdStr, strSz);
         }
 
         if (ret == WS_SUCCESS) {
             if (ssh->ctx->side == WOLFSSH_ENDPOINT_CLIENT) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 04:");
+                hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(hash, hashId,
                         ssh->peerProtoId, ssh->peerProtoIdSz);
                 if (ret == WS_SUCCESS) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 05:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                     ret = HashUpdate(hash, hashId,
                             ssh->handshake->kexInit, ssh->handshake->kexInitSz);
                 }
@@ -3699,21 +3813,82 @@ static int DoKexInit(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
 
         if (ret == WS_SUCCESS) {
             c32toa(len + 1, scratchLen);
+#ifdef MY_FIXED_VALUES
+                newval = "000005CF";
+                ESP_LOGI(TAG, "Need value 06:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
 
         if (ret == WS_SUCCESS) {
             scratchLen[0] = MSGID_KEXINIT;
+#ifdef MY_FIXED_VALUES
+                newval = "14";
+                ESP_LOGI(TAG, "Need value 07:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, MSG_ID_SZ);
         }
 
-        if (ret == WS_SUCCESS)
+        if (ret == WS_SUCCESS) {
+#ifdef MY_FIXED_VALUES
+                newval = "A776A09AF8476ED3042D6FBE671799C2000001D6736E747275703736317832353531392D736861353132\
+406F70656E7373682E636F6D2C63757276653434382D7368613531322C637572766532353531392D7368613235362C63\
+7572766532353531392D736861323536406C69627373682E6F72672C656364682D736861322D6E697374703235362C65\
+6364682D736861322D6E697374703338342C656364682D736861322D6E697374703532312C6469666669652D68656C6C\
+6D616E2D67726F75702D65786368616E67652D7368613235362C6469666669652D68656C6C6D616E2D67726F75702D65\
+786368616E67652D736861312C6469666669652D68656C6C6D616E2D67726F757031382D7368613531322C6469666669\
+652D68656C6C6D616E2D67726F757031372D7368613531322C6469666669652D68656C6C6D616E2D67726F757031362D\
+7368613531322C6469666669652D68656C6C6D616E2D67726F757031352D7368613531322C6469666669652D68656C6C\
+6D616E2D67726F757031342D7368613235362C6469666669652D68656C6C6D616E2D67726F757031342D736861312C72\
+7361323034382D7368613235362C727361313032342D736861312C6469666669652D68656C6C6D616E2D67726F757031\
+2D736861312C6578742D696E666F2D630000007B7373682D65643434382C7373682D656432353531392C65636473612D\
+736861322D6E697374703235362C65636473612D736861322D6E697374703338342C65636473612D736861322D6E6973\
+74703532312C7273612D736861322D3531322C7273612D736861322D3235362C7373682D7273612C7373682D64737300\
+0000EB6165733235362D6374722C6165733235362D6362632C72696A6E6461656C2D636263406C797361746F722E6C69\
+752E73652C6165733139322D6374722C6165733139322D6362632C6165733132382D6374722C6165733132382D636263\
+2C63686163686132302D706F6C7931333035406F70656E7373682E636F6D2C6165733132382D67636D406F70656E7373\
+682E636F6D2C6165733235362D67636D406F70656E7373682E636F6D2C336465732D6374722C336465732D6362632C62\
+6C6F77666973682D6374722C626C6F77666973682D6362632C617263666F75723235362C617263666F75723132380000\
+00EB6165733235362D6374722C6165733235362D6362632C72696A6E6461656C2D636263406C797361746F722E6C6975\
+2E73652C6165733139322D6374722C6165733139322D6362632C6165733132382D6374722C6165733132382D6362632C\
+63686163686132302D706F6C7931333035406F70656E7373682E636F6D2C6165733132382D67636D406F70656E737368\
+2E636F6D2C6165733235362D67636D406F70656E7373682E636F6D2C336465732D6374722C336465732D6362632C626C\
+6F77666973682D6374722C626C6F77666973682D6362632C617263666F75723235362C617263666F7572313238000000\
+9B686D61632D736861322D3235362C686D61632D736861312C686D61632D736861312D39362C686D61632D6D64352C68\
+6D61632D736861322D3235362D65746D406F70656E7373682E636F6D2C686D61632D736861312D65746D406F70656E73\
+73682E636F6D2C686D61632D736861312D39362D65746D406F70656E7373682E636F6D2C686D61632D6D64352D65746D\
+406F70656E7373682E636F6D0000009B686D61632D736861322D3235362C686D61632D736861312C686D61632D736861\
+312D39362C686D61632D6D64352C686D61632D736861322D3235362D65746D406F70656E7373682E636F6D2C686D6163\
+2D736861312D65746D406F70656E7373682E636F6D2C686D61632D736861312D39362D65746D406F70656E7373682E63\
+6F6D2C686D61632D6D64352D65746D406F70656E7373682E636F6D0000001A6E6F6E652C7A6C69622C7A6C6962406F70\
+656E7373682E636F6D0000001A6E6F6E652C7A6C69622C7A6C6962406F70656E7373682E636F6D000000000000000000\
+00000000";
+                ESP_LOGI(TAG, "Need value 08:");
+                hexToBinary((byte*)buf, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, buf, len);
+        }
 
         if (ret == WS_SUCCESS) {
-            if (ssh->ctx->side == WOLFSSH_ENDPOINT_SERVER)
+            if (ssh->ctx->side == WOLFSSH_ENDPOINT_SERVER) {
+#ifdef MY_FIXED_VALUES
+                newval = "0000017D14A5141F65D7A5CF7366398874A9188E3700000012656364682D736861322D6E697374703235\
+360000001365636473612D736861322D6E69737470323536000000656165733235362D67636D406F70656E7373682E63\
+6F6D2C6165733139322D67636D406F70656E7373682E636F6D2C6165733132382D67636D406F70656E7373682E636F6D\
+2C6165733235362D6362632C6165733139322D6362632C6165733132382D636263000000656165733235362D67636D40\
+6F70656E7373682E636F6D2C6165733139322D67636D406F70656E7373682E636F6D2C6165733132382D67636D406F70\
+656E7373682E636F6D2C6165733235362D6362632C6165733139322D6362632C6165733132382D63626300000024686D\
+61632D736861322D3235362C686D61632D736861312D39362C686D61632D7368613100000024686D61632D736861322D\
+3235362C686D61632D736861312D39362C686D61632D73686131000000046E6F6E65000000046E6F6E65000000000000\
+00000000000000";
+                ESP_LOGI(TAG, "Need value 09:");
+                hexToBinary((byte*)ssh->handshake->kexInit, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(hash, hashId,
                         ssh->handshake->kexInit, ssh->handshake->kexInitSz);
+            }
         }
 
         if (ret == WS_SUCCESS) {
@@ -4370,6 +4545,11 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
     if (ret == WS_SUCCESS) {
         /* Hash in the raw public key blob from the server including its
          * length which is at LENGTH_SZ offset ahead of pubKey. */
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 10:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
         ret = HashUpdate(hash, hashId,
                 pubKey - LENGTH_SZ, pubKeySz + LENGTH_SZ);
     }
@@ -4452,12 +4632,25 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
     /* Hash in the size of the client's DH e-value (ECDH Q-value). */
     if (ret == 0) {
         c32toa(ssh->handshake->eSz, scratchLen);
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 11:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
         ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
     }
     /* Hash in the client's DH e-value (ECDH Q-value). */
-    if (ret == 0)
-        ret = HashUpdate(hash, hashId,
-                ssh->handshake->e, ssh->handshake->eSz);
+    if (ret == 0) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 12:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
+        ret = HashUpdate(hash,
+            hashId,
+            ssh->handshake->e,
+            ssh->handshake->eSz);
+    }
 
     /* Get and hash in the server's DH f-value (ECDH Q-value) */
     if (ret == WS_SUCCESS) {
@@ -4473,6 +4666,11 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
     }
 
     if (ret == WS_SUCCESS) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "Need value 13:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
         ret = HashUpdate(hash, hashId, f, fSz + LENGTH_SZ);
     }
 
@@ -4606,6 +4804,12 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
                     ret = wc_ecc_shared_secret(&ssh->handshake->privKey.ecc,
                                key_ptr, ssh->k + kem->length_shared_secret,
                                &ssh->kSz);
+                    printf("&ssh->kSz = %04X\n", &ssh->kSz);
+                    printf("ssh->kSz = %04X\n", ssh->kSz);
+                    printf("kem->length_shared_secret = %04X\n", kem->length_shared_secret);
+                    #ifdef FIXED_SSH_KEY
+                    memset(ssh->k, 0, ssh->kSz);
+                    #endif
                     PRIVATE_KEY_LOCK();
                 }
                 wc_ecc_free(key_ptr);
@@ -4670,15 +4874,30 @@ static int DoKexDhReply(WOLFSSH* ssh, byte* buf, word32 len, word32* idx)
 
         if (ret == 0) {
             c32toa(ssh->kSz + kPad, scratchLen);
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "Need value 14:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
 
         if ((ret == 0) && (kPad)) {
             scratchLen[0] = 0;
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "Need value 15:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, 1);
         }
 
         if (ret == 0) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "Need value 16:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
             ret = HashUpdate(hash, hashId, ssh->k, ssh->kSz);
         }
 
@@ -6368,15 +6587,31 @@ static int DoUserAuthRequestPublicKey(WOLFSSH* ssh, WS_UserAuthData* authData,
 
             if (ret == 0) {
                 c32toa(ssh->sessionIdSz, digest);
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 17:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(&hash, hashId, digest, UINT32_SZ);
             }
 
-            if (ret == 0)
+            if (ret == 0) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 18:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(&hash, hashId,
                                     ssh->sessionId, ssh->sessionIdSz);
+            }
 
             if (ret == 0) {
                 digest[0] = MSGID_USERAUTH_REQUEST;
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 19:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(&hash, hashId, digest, MSG_ID_SZ);
             }
 
@@ -6385,6 +6620,11 @@ static int DoUserAuthRequestPublicKey(WOLFSSH* ssh, WS_UserAuthData* authData,
              * the length of the buffer minus the signature and size of
              * signature. */
             if (ret == 0) {
+#ifdef MY_FIXED_VALUES
+                newval = "3132333435";
+                ESP_LOGI(TAG, "skip Need value 20:");
+             // hexToBinary((byte*)ssh->peerProtoId, newval, WSTRLEN(newval));
+#endif
                 ret = HashUpdate(&hash, hashId,
                         authData->sf.publicKey.dataToSign,
                         len - sigSz - LENGTH_SZ);
@@ -8431,6 +8671,12 @@ int DoReceive(WOLFSSH* ssh)
         case PROCESS_PACKET_FINISH:
             /* readSz is the full packet size */
             readSz = UINT32_SZ + ssh->curSz + peerMacSz;
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("ssh", "UINT32_SZ = %d ssh->curSz %d peerMacSz %d",
+                            UINT32_SZ,      ssh->curSz,    peerMacSz
+                    );
+#endif
+
             WLOG(WS_LOG_DEBUG, "PR2: size = %u", readSz);
             if (readSz > 0) {
                 if ((ret = GetInputData(ssh, readSz)) < 0) {
@@ -8674,7 +8920,11 @@ static int BundlePacket(WOLFSSH* ssh)
             paddingSz += ssh->blockSz;
 
         packetSz = PAD_LENGTH_SZ + payloadSz + paddingSz;
-
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("ssh", "PAD_LENGTH_SZ = %d payloadSz %d paddingSz %d",
+                            PAD_LENGTH_SZ,      payloadSz,   paddingSz
+                    );
+#endif
         /* fill in the packetSz, paddingSz */
         c32toa(packetSz, output + ssh->packetStartIdx);
         output[ssh->packetStartIdx + LENGTH_SZ] = paddingSz;
@@ -9083,11 +9333,11 @@ int SendKexInit(WOLFSSH* ssh)
 
         output[idx++] = MSGID_KEXINIT;
 
-    #define FIXED_SSH_COOKIE
+//    #define FIXED_SSH_COOKIE
     #ifdef FIXED_SSH_COOKIE
         ret = wc_RNG_GenerateBlock(ssh->rng, output + idx, COOKIE_SZ);
         // memset(ssh->rng, 0, COOKIE_SZ);
-        memset(output + idx, 0, COOKIE_SZ);
+        // memset(output + idx, 0, COOKIE_SZ);
         #ifdef WOLFSSL_ESPIDF
             ESP_LOGE("ssh", "ssh->rng cookie zeroed!");
         #else
@@ -9543,6 +9793,9 @@ static int SendKexGetSigningKey(WOLFSSH* ssh,
                     ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
                 }
                 /* Hash in the public key. */
+#ifdef WOLFSSL_ESPIDF
+                ESP_LOGI("ssh", "Hash in the public key.");
+#endif
                 if (ret == 0)
                     ret = HashUpdate(hash, hashId,
                             sigKeyBlock_ptr->sk.ecc.q,
@@ -9653,11 +9906,22 @@ static int SendKexGetSigningKey(WOLFSSH* ssh,
         }
 #endif
 
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "Hash in the size of the client's DH e-value (ECDH Q-value).");
+#endif
         /* Hash in the size of the client's DH e-value (ECDH Q-value). */
         if (ret == 0) {
             c32toa(ssh->handshake->eSz, scratchLen);
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "Hash in the client's DH e-value (ECDH Q-value) A1,"
+                        "set to zero. Size = %d ", ssh->handshake->eSz);
+    #ifdef MY_ZERO_FORCE
+        oops
+        memset(ssh->handshake->e, 0, ssh->handshake->eSz);
+    #endif
+#endif
         /* Hash in the client's DH e-value (ECDH Q-value). */
         if (ret == 0)
             ret = HashUpdate(hash, hashId,
@@ -10102,6 +10366,9 @@ int SendKexDhReply(WOLFSSH* ssh)
                     PRIVATE_KEY_UNLOCK();
                     ret = wc_ecc_shared_secret(privKey, pubKey,
                               ssh->k + kem->length_shared_secret, &tmp_kSz);
+                    printf("&ssh->kSz = %04X\n", &ssh->kSz);
+                    printf("ssh->kSz = %04X\n", ssh->kSz);
+                    printf("kem->length_shared_secret = %04X\n", kem->length_shared_secret);
                     PRIVATE_KEY_LOCK();
                     ssh->kSz = (word32)kem->length_shared_secret + tmp_kSz;
                 }
@@ -10157,15 +10424,31 @@ int SendKexDhReply(WOLFSSH* ssh)
         }
         if (ret == 0) {
             c32toa(fSz + fPad, scratchLen);
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "SendKexDhReply scratchLen = %d", LENGTH_SZ);
+#endif
+
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
         if ((ret == 0) && (fPad)) {
             scratchLen[0] = 0;
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "SendKexDhReply scratchLen 1");
+#endif
             ret = HashUpdate(hash, hashId, scratchLen, 1);
         }
         if (ret == 0) {
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "SendKexDhReply f_ptr = %d", fSz);
+#endif
             ret = HashUpdate(hash, hashId, f_ptr, fSz);
         }
+        else {
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGE("ssh", "SendKexDhReply f_ptr ERROR %d", ret);
+#endif
+        }
+
 
         /* Hash in the shared secret K. */
         if (ret == 0
@@ -10175,15 +10458,45 @@ int SendKexDhReply(WOLFSSH* ssh)
            ) {
             ret = CreateMpint(ssh->k, &ssh->kSz, &kPad);
         }
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "****************");
+        ESP_LOGI("ssh", "CreateMpint(ssh->k = %d, &ssh->kSz = %d, &kPad = %d); ret = %d ",
+                        (word32)ssh->k, (word32)&ssh->kSz, kPad, ret );
+        ESP_LOGI("ssh", "****************");
+#endif
         if (ret == 0) {
             c32toa(ssh->kSz + kPad, scratchLen);
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("ssh", "SendKexDhReply scratchLen(2) = %d", LENGTH_SZ);
+#endif
+
             ret = HashUpdate(hash, hashId, scratchLen, LENGTH_SZ);
         }
+        else {
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGE("ssh", "SendKexDhReply ERROR %d", ret);
+#endif
+        }
+
+
         if ((ret == 0) && (kPad)) {
             scratchLen[0] = 0;
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("ssh", "SendKexDhReply kPad scratchLen 1");
+            #endif
             ret = HashUpdate(hash, hashId, scratchLen, 1);
         }
+        else {
+#ifdef WOLFSSL_ESPIDF
+            ESP_LOGI("ssh", "SendKexDhReply !((ret == 0) && (kPad))");
+#endif
+
+        }
+
         if (ret == 0) {
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "SendKexDhReply ssh->k = %d",ssh->kSz );
+#endif
             ret = HashUpdate(hash, hashId, ssh->k, ssh->kSz);
         }
 
@@ -10196,6 +10509,10 @@ int SendKexDhReply(WOLFSSH* ssh)
             }
         }
         if (ret == 0) {
+#ifdef WOLFSSL_ESPIDF
+        ESP_LOGI("ssh", "SendKexDhReply wc_HashFinal ssh->h" );
+#endif
+
             ret = wc_HashFinal(hash, hashId, ssh->h);
             wc_HashFree(hash, hashId);
             ssh->handshake->kexHashId = WC_HASH_TYPE_NONE;

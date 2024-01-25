@@ -248,9 +248,9 @@
     #define AF_INET_V AF_INET
 #endif
 
-
-#define serverKeyRsaPemFile "./keys/server-key-rsa.pem"
-
+#ifndef WOLFSSH_NO_FILESYSTEM
+    #define serverKeyRsaPemFile "./keys/server-key-rsa.pem"
+#endif
 
 #ifdef WOLFSSH_ZEPHYR
     static const char* const wolfSshIp = "192.0.2.1";

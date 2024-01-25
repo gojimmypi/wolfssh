@@ -1,4 +1,4 @@
-#  Espressif component/wolfssh/CMakeLists.txt
+#  [wolfSSL Project]/components/wolfssh/CMakeLists.txt
 #
 #  Copyright (C) 2006-2023 WOLFSSL Inc.
 #
@@ -18,27 +18,41 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
 #
-# cmake for WOLFSSH Espressif projects
+# cmake for WOLFSSH Espressif projects v5.6.6 r1
 #
 # See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html
 #
 
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
-set(CMAKE_CURRENT_SOURCE_DIR ".")
+
+# find the user name to search for possible "wolfssh-username"
+message(STATUS "USERNAME = $ENV{USERNAME}")
+if(  "$ENV{USER}" STREQUAL "" ) # the bash user
+    if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
+        message(STATUS "could not find USER or USERNAME")
+    else()
+        # the bash user is not blank, so we'll use it.
+        set(THIS_USER "$ENV{USERNAME}")
+    endif()
+else()
+    # the bash user is not blank, so we'll use it.
+    set(THIS_USER "$ENV{USER}")
+endif()
+message(STATUS "THIS_USER = ${THIS_USER}")
 
 # Attention!
 #
 # When editing component CMake files, consider the following :
 #
 # NO Managed Componenets: Normal stand-alone app, "as cloned" from github.
-#   There's no notion of staging names (e.g. mywolfmqtt) regardless of environment settings.
+#   There's no notion of staging names (e.g. mywolfssh) regardless of environment settings.
 #   All of the component source is locall. See settings such s WOLFSSL_ROOT=[your path]
 #
 # Partially Managed Components. This one is tricky. When publishing a component with examples,
 #    those examples will have a chicken-and-egg problem: the required component is not yet published.
 #    Adding to the complexity is the notion of staging components, that are purposely prefixed with
-#    "my" (e.g. mywolfmqtt) to distinguish from production, live components (e.g. wolfmqtt)
+#    "my" (e.g. mywolfssh) to distinguish from production, live components (e.g. wolfssh)
 #
 #    Partially Managed Component Examples are typically only encountered by the component publisher
 #    and only at publish time, such as when performing the pre-publish build check.
@@ -55,23 +69,139 @@ set(CMAKE_CURRENT_SOURCE_DIR ".")
 #
 # In all cases, keep in mind that components other than wolfssl will depend on the wolfssl component.
 #
+message(STATUS "CMAKE_CURRENT_LIST_DIR = ${CMAKE_CURRENT_LIST_DIR}")
+
+get_filename_component(THIS_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
+message(STATUS "THIS_DIR = ${THIS_DIR}")
+
+# The root of the project is two directories up from here. (we are typically in [project name]components/mywolfssh)
+get_filename_component(PROJECT_ROOT "${THIS_DIR}" DIRECTORY)      # Up one directory from here is "components"
+get_filename_component(PROJECT_ROOT "${PROJECT_ROOT}" DIRECTORY)  # up one more directory should be the root of our project
+message(STATUS "PROJECT_ROOT = ${PROJECT_ROOT}")
+
 
 # Component naming is only adjusted when using Managed Components, and only when using staging site.
 if( "$ENV{IDF_COMPONENT_REGISTRY_URL}" STREQUAL "https://components-staging.espressif.com" )
     # TODO: Is checking these two variables really the best way to detect an active Component Manager?
     message(STATUS "component_manager_interface_version = ${component_manager_interface_version}")
     message(STATUS "managed_components = ${managed_components}")
-    if( ("${managed_components}" STREQUAL "") AND ("${component_manager_interface_version}" STREQUAL "") )
+    message(STATUS "Checking if wolfssl is in ${PROJECT_ROOT}/managed_components/${THIS_USER}__mywolfssl")
+
+    if(EXISTS "${PROJECT_ROOT}/managed_components/${THIS_USER}__mywolfssl/CMakeLists.txt")
+        message(STATUS "Found user-specific, managed, staging component. The wolfssl component will be named mywolfssl.")
+        set(WOLFSSL_COMPONENT_NAME "mywolfssl")
+    elseif( ("${managed_components}" STREQUAL "") AND ("${component_manager_interface_version}" STREQUAL "") )
         # We've found a staging component, but did not detect the component manager
+        message(STATUS "No component manager interface component wolfssl ${CMAKE_HOME_DIRECTORY}")
         set(WOLFSSL_COMPONENT_NAME "wolfssl")
     else()
+        message(STATUS "else mywolfssl")
         set(WOLFSSL_COMPONENT_NAME "mywolfssl")
     endif()
+elseif(EXISTS "${CMAKE_HOME_DIRECTORY}/managed_components/${THIS_USER}__mywolfssl/CMakeLists.txt")
+    message(STATUS "Found managed_components mywolfssl")
+    set(WOLFSSL_COMPONENT_NAME "mywolfssl")
 else()
+    message(STATUS "Not staging environment, no managed_components wolfssl")
     set(WOLFSSL_COMPONENT_NAME "wolfssl")
 endif()
 
 set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
+
+# function: IS_WOLFSSH_SOURCE
+#  parameter: DIRECTORY_PARAMETER - the directory to test
+#  output:    RESULT = contains contents of DIRECTORY_PARAMETER for wolfssh directory, otherwise blank.
+function(IS_WOLFSSH_SOURCE DIRECTORY_PARAMETER RESULT)
+    if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh/ssh.h")
+        if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh")
+            message(STATUS "1")
+        endif()
+        if (EXISTS "${DIRECTORY_PARAMETER}")
+            message(STATUS "2")
+        endif()
+        if (EXISTS "${DIRECTORY_PARAMETER}/src")
+            message(STATUS "3")
+        endif()
+        set(${RESULT} "${DIRECTORY_PARAMETER}" PARENT_SCOPE)
+    else()
+        set(${RESULT} "" PARENT_SCOPE)
+    endif()
+endfunction()
+
+# function: FIND_WOLFSSH_DIRECTORY
+#  parameter: OUTPUT_FOUND_WOLFSSH_DIRECTORY contains root of source code, otherwise blank
+#
+function(FIND_WOLFSSH_DIRECTORY OUTPUT_FOUND_WOLFSSH_DIRECTORY)
+    message(STATUS "Starting FIND_WOLFSSH_DIRECTORY")
+    set(CURRENT_SEARCH_DIR "$ENV{WOLFSSH_ROOT}")
+    if( "${CURRENT_SEARCH_DIR}" STREQUAL "" )
+        message(STATUS "The WOLFSSH_ROOT environment variable is not set. Searching...")
+    else()
+        # There's a non-blank WOLFSSH_ROOT environment variable. Is it a valid wolfssh directory?
+        get_filename_component(CURRENT_SEARCH_DIR "$ENV{WOLFSSH_ROOT}" ABSOLUTE)
+        IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR}" FOUND_WOLFSSH)
+        if("${FOUND_WOLFSSH}")
+            message(STATUS "Found WOLFSSH_ROOT via Environment Variable:")
+        else()
+            message(FATAL_ERROR "WOLFSSH_ROOT Environment Variable defined, but path not found: $ENV{WOLFSSH_ROOT}")
+            message(STATUS "Exit CMake")
+        endif()
+    endif()
+
+    # we'll start in the THIS_CMAKE_CURRENT_SOURCE_DIR, typically [something]/projectname/components/WOLFSSH
+    message(STATUS "THIS_CMAKE_CURRENT_SOURCE_DIR = ${THIS_CMAKE_CURRENT_SOURCE_DIR}")
+    get_filename_component(CURRENT_SEARCH_DIR "${THIS_CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
+    message(STATUS "CURRENT_SEARCH_DIR = ${CURRENT_SEARCH_DIR}")
+    string(LENGTH ${CURRENT_SEARCH_DIR} CURRENT_SEARCH_DIR_LENGTH)
+
+    # loop through all the parents, looking for wolfssh
+    while(NOT CURRENT_SEARCH_DIR STREQUAL "/" AND NOT CURRENT_SEARCH_DIR STREQUAL "" )
+        string(LENGTH ${CURRENT_SEARCH_DIR} CURRENT_SEARCH_DIR_LENGTH)
+        # wolfssh may simply be in a parent directory, such as for local examples in WOLFSSH repo
+        IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR}" FOUND_WOLFSSH)
+        if( FOUND_WOLFSSH )
+            message(STATUS "Found wolfssh in CURRENT_SEARCH_DIR = ${CURRENT_SEARCH_DIR}")
+            set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} ${CURRENT_SEARCH_DIR} PARENT_SCOPE)
+            return()
+        endif()
+
+        if( THIS_USER )
+            # Check for "wolfssh-[username]" subdirectory as we recurse up the directory tree
+            set(CURRENT_SEARCH_DIR_ALT "${CURRENT_SEARCH_DIR}/wolfssh-${THIS_USER}")
+            message(STATUS "Looking in ${CURRENT_SEARCH_DIR}")
+
+            #if(EXISTS ${CURRENT_SEARCH_DIR_ALT} AND IS_DIRECTORY ${CURRENT_SEARCH_DIR_ALT} AND EXISTS "${CURRENT_SEARCH_DIR_ALT}/wolfcrypt/src")
+            IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR_ALT}" FOUND_WOLFSSH )
+            if ( FOUND_WOLFSSH )
+               message(STATUS "Found wolfssh in user-suffix CURRENT_SEARCH_DIR_ALT = ${CURRENT_SEARCH_DIR_ALT}")
+                set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} ${CURRENT_SEARCH_DIR_ALT} PARENT_SCOPE)
+                return()
+            endif()
+        endif()
+
+        # Next check for no user suffix "WOLFSSH" subdirectory as we recurse up the directory tree
+        set(CURRENT_SEARCH_DIR_ALT ${CURRENT_SEARCH_DIR}/wolfssh)
+        # if(EXISTS ${CURRENT_SEARCH_DIR} AND IS_DIRECTORY ${CURRENT_SEARCH_DIR} AND EXISTS "${CURRENT_SEARCH_DIR}/wolfcrypt/src")
+        IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR_ALT}" FOUND_WOLFSSH )
+        if ( FOUND_WOLFSSH )
+            message(STATUS "Found wolfssh in CURRENT_SEARCH_DIR = ${CURRENT_SEARCH_DIR}")
+            set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} ${CURRENT_SEARCH_DIR} PARENT_SCOPE)
+            return()
+        endif()
+
+        # Move up one directory level
+        set(PRIOR_SEARCH_DIR "${CURRENT_SEARCH_DIR}")
+        get_filename_component(CURRENT_SEARCH_DIR "${CURRENT_SEARCH_DIR}" DIRECTORY)
+        message(STATUS "Next CURRENT_SEARCH_DIR = ${CURRENT_SEARCH_DIR}")
+        if( "${PRIOR_SEARCH_DIR}" STREQUAL "${CURRENT_SEARCH_DIR}" )
+            # when the search directory is empty, we'll give up
+            set(CURRENT_SEARCH_DIR "")
+        endif()
+    endwhile()
+
+    # If not found, set the output variable to empty before exiting
+    set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} "" PARENT_SCOPE)
+endfunction()
 
 # COMPONENT_NAME = wolfssh
 # The component name is the directory name. "No feature to change this".
@@ -102,111 +232,18 @@ else()
     message(STATUS "************************************************************************************************")
     message(STATUS "wolfssh component config:")
     message(STATUS "************************************************************************************************")
+    FIND_WOLFSSH_DIRECTORY(WOLFSSH_ROOT)
 
-    # Check to see if we're already in WOLFSSH, and only if WOLFSSH_ROOT not specified
-    if ("${WOLFSSH_ROOT}" STREQUAL "")
-        # WOLFSSH examples are 7 directories deep from WOLFSSH repo root
-        #                        1  2  3  4  5  6  7
-        set(THIS_RELATIVE_PATH "../../../../../../..")
-        get_filename_component(THIS_SEARCH_PATH  "${THIS_RELATIVE_PATH}" ABSOLUTE)
-        message(STATUS "Searching in path = ${THIS_SEARCH_PATH}")
-
-        if (EXISTS "${THIS_SEARCH_PATH}/wolfcrypt/src")
-            # we're already in WOLFSSH examples!
-            get_filename_component(WOLFSSH_ROOT  "${THIS_SEARCH_PATH}" ABSOLUTE)
-            message(STATUS "Using WOLFSSH example with root ${WOLFSSH_ROOT}")
-        else()
-            # We're in some other repo such as wolfssh, so we'll search for an
-            # adjacent-level directory for WOLFSSH. (8 directories up, then down one)
-            #
-            # For example WOLFSSH examples:
-            #   C:\workspace\WOLFSSH-gojimmypi\IDE\Espressif\ESP-IDF\examples\WOLFSSH_benchmark\components\WOLFSSH
-            #
-            # For example wolfSSH examples:
-            #   C:\workspace\wolfssh-gojimmypi\ide\Espressif\ESP-IDF\examples\wolfssh_benchmark\components\WOLFSSH
-            #
-            #                        1  2  3  4  5  6  7  8
-            set(THIS_RELATIVE_PATH "../../../../../../../..")
-            get_filename_component(THIS_SEARCH_PATH  "${THIS_RELATIVE_PATH}" ABSOLUTE)
-            message(STATUS "Searching next in path = ${THIS_SEARCH_PATH}")
-        endif()
+    set(WOLFSSH_ROOT "${WOLFSSH_ROOT}" CACHE STRING "WOLFSSH_ROOT")
+    if(WOLFSSH_ROOT)
+        message(STATUS "Found wolfssh directory at: ${WOLFSSH_ROOT}")
+    else()
+        message(STATUS "wolfssh directory not found.")
+        # Abort. We need wolfmqtt _somewhere_.
+        message(FATAL_ERROR "Could not find wolfssh in ${WOLFSSH_ROOT}.\n"
+                            "Try setting WOLFSSH_ROOT environment variable or git clone.")
     endif()
 
-    # search other possible locations
-    if ("${WOLFSSH_ROOT}" STREQUAL "")
-        # there's not a hard-coded WOLFSSH_ROOT value above, so let's see if we can find it.
-        if( "$ENV{WOLFSSH_ROOT}" STREQUAL "" )
-            message(STATUS "Environment Variable WOLFSSH_ROOT not set. Will search common locations.")
-
-            message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
-            get_filename_component(THIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
-            message(STATUS "THIS_DIR = ${THIS_DIR}")
-
-            # find the user name to search for possible "WOLFSSH-username"
-            message(STATUS "USERNAME = $ENV{USERNAME}")
-            if(  "$ENV{USER}" STREQUAL "" ) # the bash user
-                if(  "$ENV{USERNAME}" STREQUAL "" ) # the Windows user
-                    message(STATUS "could not find USER or USERNAME")
-                else()
-                    # the bash user is not blank, so we'll use it.
-                    set(THIS_USER "$ENV{USERNAME}")
-                endif()
-            else()
-                # the bash user is not blank, so we'll use it.
-               set(THIS_USER "$ENV{USER}")
-            endif()
-            message(STATUS "THIS_USER = ${THIS_USER}")
-
-            # This same makefile is used for both the WOLFSSH component, and other
-            # components that may depend on WOLFSSH, such as wolfssh. Therefore
-            # we need to determine if this makefile is in the WOLFSSH repo, or
-            # some other repo.
-
-            if(  "{THIS_USER}" STREQUAL "" )
-                # This is highly unusual to not find a user name.
-                # In this case, we'll just search for a "WOLFSSH" directory:
-                message(STATUS "No username found!")
-                get_filename_component(WOLFSSH_ROOT  "${THIS_RELATIVE_PATH}/WOLFSSH" ABSOLUTE)
-            else()
-                # We found an environment USER name!
-                # The first place to look for WOLFSSH will be in a user-clone called "WOLFSSH-[username]"
-                message(STATUS "Using [THIS_USER = ${THIS_USER}] to see if there's a [relative path]/WOLFSSH-${THIS_USER} directory.")
-                get_filename_component(WOLFSSH_ROOT  "${THIS_RELATIVE_PATH}/WOLFSSH-${THIS_USER}" ABSOLUTE)
-
-                if( EXISTS "${WOLFSSH_ROOT}" )
-                    message(STATUS "Found WOLFSSH in user-suffix ${WOLFSSH_ROOT}")
-                else()
-                    # If there's not a user-clone called "WOLFSSH-[username]",
-                    # perhaps there's simply a git clone called "WOLFSSH"?
-                    message(STATUS "Did not find WOLFSSH-${THIS_USER}; continuing search...")
-                    get_filename_component(WOLFSSH_ROOT  "${THIS_RELATIVE_PATH}/WOLFSSH" ABSOLUTE)
-
-                    if( EXISTS "${WOLFSSH_ROOT}" )
-                        message(STATUS "Found WOLFSSH in standard ${WOLFSSH_ROOT}")
-                    else()
-                        # Things are looking pretty bleak. We'll likely not be able to compile.
-                        message(STATUS "Did not find WOLFSSH in ${WOLFSSH_ROOT}")
-                    endif()
-                endif()
-            endif()
-
-        else()
-            # there's an environment variable, so use it.
-            set(WOLFSSH_ROOT "$ENV{WOLFSSH_ROOT}")
-
-            if( EXISTS "${WOLFSSH_ROOT}" )
-                get_filename_component(WOLFSSH_ROOT  "$ENV{WOLFSSH_ROOT}" ABSOLUTE)
-                message(STATUS "Found WOLFSSH_ROOT via Environment Variable:")
-            else()
-                message(FATAL_ERROR "WOLFSSH_ROOT Environment Variable defined, but path not found:")
-                message(STATUS "$ENV{WOLFSSH_ROOT}")
-            endif()
-        endif()
-        # end of search for WOLFSSH component root
-    else()
-        # There's already a value assigned; we won't search for anything else.
-        message(STATUS "Found user-specified WOLFSSH_ROOT value.")
-    endif() # WOLFSSH_ROOT user defined
 
     # After all the logic above, does our WOLFSSH_ROOT actually exist?
     if( EXISTS "${WOLFSSH_ROOT}" )
