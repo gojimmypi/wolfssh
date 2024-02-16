@@ -1091,6 +1091,7 @@ int IdentifyAsn1Key(const byte* in, word32 inSz, int isPrivate, void* heap)
 }
 
 
+#ifndef WOLFSSH_NO_RSA
 /*
  * Utility function to read an Mpint from the stream directly into a mp_int.
  */
@@ -1109,7 +1110,6 @@ static INLINE int GetMpintToMp(mp_int* mp,
 }
 
 
-#ifndef WOLFSSH_NO_RSA
 /*
  * For the given RSA key, calculate p^-1 and q^-1. wolfCrypt's RSA
  * code expects them, but the OpenSSH format key doesn't store them.
@@ -7117,7 +7117,7 @@ static int DoChannelOpen(WOLFSSH* ssh,
     word32 typeSz;
     char type[32];
     byte typeId = ID_UNKNOWN;
-    word32 peerChannelId;
+    word32 peerChannelId = 0;
     word32 peerInitialWindowSz;
     word32 peerMaxPacketSz;
 #ifdef WOLFSSH_FWD
@@ -7830,6 +7830,40 @@ static int DoChannelRequest(WOLFSSH* ssh,
             }
         }
 #endif /* WOLFSSH_SHELL && WOLFSSH_TERM */
+#if defined(WOLFSSH_TERM) || defined(WOLFSSH_SHELL)
+        else if (WSTRNCMP(type, "exit-status", typeSz) == 0) {
+            ret = GetUint32(&ssh->exitStatus, buf, len, &begin);
+            WLOG(WS_LOG_AGENT, "Got exit status %u.", ssh->exitStatus);
+        }
+        else if (WSTRNCMP(type, "exit-signal", typeSz) == 0) {
+            char sig[WOLFSSH_MAX_NAMESZ];
+            word32 sigSz;
+            byte coreDumped;
+
+            WLOG(WS_LOG_AGENT, "Got exit signal, remote command terminated");
+
+            sigSz = WOLFSSH_MAX_NAMESZ;
+            ret = GetString(sig, &sigSz, buf, len, &begin);
+            if (ret == WS_SUCCESS) {
+                WLOG(WS_LOG_AGENT, "SIGNAL      : %s", sig);
+                ret = GetBoolean(&coreDumped, buf, len, &begin);
+            }
+
+            if (ret == WS_SUCCESS) {
+                WLOG(WS_LOG_AGENT, "Core Dumped?: %d", coreDumped);
+                sigSz = WOLFSSH_MAX_NAMESZ;
+                ret = GetString(sig, &sigSz, buf, len, &begin);
+            }
+
+            if (ret == WS_SUCCESS) {
+                WLOG(WS_LOG_AGENT, "Error Msg  : %s", sig);
+                sigSz = WOLFSSH_MAX_NAMESZ;
+
+                /* getting language tag */
+                ret = GetString(sig, &sigSz, buf, len, &begin);
+            }
+        }
+#endif
     }
 
     if (ret == WS_SUCCESS)
@@ -10024,25 +10058,25 @@ int wolfSSH_RsaVerify(byte *sig, word32 sigSz,
         const byte* digest, word32 digestSz,
         RsaKey* key, void* heap, const char* loc)
 {
-    byte* checkSig;
+    byte* check;
     int ret = WS_SUCCESS;
 
-    checkSig = (byte*)WMALLOC(sigSz, heap, DYNTYPE_TEMP);
-    if (checkSig == NULL) {
+    check = (byte*)WMALLOC(digestSz, heap, DYNTYPE_TEMP);
+    if (check == NULL) {
         ret = WS_MEMORY_E;
     }
     else {
         int checkSz;
 
-        checkSz = wc_RsaSSL_VerifyInline(sig, sigSz, &checkSig, key);
+        checkSz = wc_RsaSSL_Verify(sig, sigSz, check, digestSz, key);
         if (checkSz < 0
                 || (word32)checkSz != digestSz
-                || WMEMCMP(digest, checkSig, digestSz) != 0) {
+                || WMEMCMP(digest, check, digestSz) != 0) {
             WLOG(WS_LOG_DEBUG, "%s: %s", loc, "Bad RSA Sign Verify");
             ret = WS_RSA_E;
         }
-        ForceZero(checkSig, sigSz);
-        WFREE(checkSig, heap, DYNTYPE_TEMP);
+        ForceZero(check, digestSz);
+        WFREE(check, heap, DYNTYPE_TEMP);
     }
 
     return ret;
@@ -13792,6 +13826,115 @@ int SendChannelData(WOLFSSH* ssh, word32 channelId,
 }
 
 
+int SendChannelExtendedData(WOLFSSH* ssh, word32 channelId,
+                    byte* data, word32 dataSz)
+{
+    byte* output;
+    word32 idx;
+    int ret = WS_SUCCESS;
+    WOLFSSH_CHANNEL* channel = NULL;
+
+    WLOG(WS_LOG_DEBUG, "Entering SendChannelData()");
+
+    if (ssh == NULL)
+        ret = WS_BAD_ARGUMENT;
+
+    if (ret == WS_SUCCESS) {
+        if (ssh->isKeying)
+            ret = WS_REKEYING;
+    }
+
+    /* if already having data pending try to flush it first and do not continue
+     * to que more on fail */
+    if (ret == WS_SUCCESS && ssh->outputBuffer.plainSz > 0) {
+        WLOG(WS_LOG_DEBUG, "Flushing out want write data");
+        ret = wolfSSH_SendPacket(ssh);
+        if (ret != WS_SUCCESS) {
+            WLOG(WS_LOG_DEBUG, "Leaving SendChannelData(), ret = %d", ret);
+            return ret;
+        }
+
+    }
+
+    if (ret == WS_SUCCESS) {
+        if (ssh->outputBuffer.length != 0)
+            ret = wolfSSH_SendPacket(ssh);
+    }
+
+    if (ret == WS_SUCCESS) {
+        channel = ChannelFind(ssh, channelId, WS_CHANNEL_ID_SELF);
+        if (channel == NULL) {
+            WLOG(WS_LOG_DEBUG, "Invalid channel");
+            ret = WS_INVALID_CHANID;
+        }
+    }
+
+    if (ret == WS_SUCCESS) {
+        if (channel->peerWindowSz == 0) {
+            WLOG(WS_LOG_DEBUG, "channel window is full");
+            ssh->error = WS_WINDOW_FULL;
+            ret = WS_WINDOW_FULL;
+        }
+    }
+
+    if (ret == WS_SUCCESS) {
+        word32 bound = min(channel->peerWindowSz, channel->peerMaxPacketSz);
+        bound = min(bound, channel->maxPacketSz);
+
+        if (dataSz > bound) {
+            WLOG(WS_LOG_DEBUG,
+                 "Trying to send %u, client will only accept %u, limiting",
+                 dataSz, bound);
+            dataSz = bound;
+        }
+
+        ret = PreparePacket(ssh,
+                MSG_ID_SZ + UINT32_SZ + UINT32_SZ + LENGTH_SZ + dataSz);
+    }
+
+    if (ret == WS_SUCCESS) {
+        output = ssh->outputBuffer.buffer;
+        idx = ssh->outputBuffer.length;
+
+
+        output[idx++] = MSGID_CHANNEL_EXTENDED_DATA;
+        c32toa(channel->peerChannel, output + idx);
+        idx += UINT32_SZ;
+        c32toa(CHANNEL_EXTENDED_DATA_STDERR, output + idx);
+        idx += UINT32_SZ;
+        c32toa(dataSz, output + idx);
+        idx += LENGTH_SZ;
+        WMEMCPY(output + idx, data, dataSz);
+        idx += dataSz;
+
+        ssh->outputBuffer.length = idx;
+
+        ret = BundlePacket(ssh);
+    }
+
+    if (ret == WS_SUCCESS) {
+        WLOG(WS_LOG_INFO, "  dataSz = %u", dataSz);
+        WLOG(WS_LOG_INFO, "  peerWindowSz = %u", channel->peerWindowSz);
+        channel->peerWindowSz -= dataSz;
+        WLOG(WS_LOG_INFO, "  update peerWindowSz = %u", channel->peerWindowSz);
+    }
+
+    /* at this point the data has been loaded into WOLFSSH structure and is
+     * considered consumed */
+    if (ret == WS_SUCCESS)
+        ret = wolfSSH_SendPacket(ssh);
+
+    if (ret == WS_SUCCESS || ret == WS_WANT_WRITE)
+        ret = dataSz;
+
+    if (ssh && ssh->error == WS_WANT_WRITE)
+        ssh->outputBuffer.plainSz = dataSz;
+
+    WLOG(WS_LOG_DEBUG, "Leaving SendChannelExtendedData(), ret = %d", ret);
+    return ret;
+}
+
+
 int SendChannelWindowAdjust(WOLFSSH* ssh, word32 channelId,
                             word32 bytesToAdd)
 {
@@ -14634,7 +14777,9 @@ void AddAssign64(word32* addend1, word32 addend2)
 {
     if (addend1[0] > (WOLFSSL_MAX_32BIT - addend2)) {
         addend1[1]++;
-        addend1[0] = addend2 - (WOLFSSL_MAX_32BIT- addend1[0]);
+
+        /* -1 to account for roll over digit */
+        addend1[0] = addend2 - (WOLFSSL_MAX_32BIT- addend1[0]) - 1;
     }
     else {
         addend1[0] += addend2;

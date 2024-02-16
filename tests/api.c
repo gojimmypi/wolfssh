@@ -746,6 +746,7 @@ static void test_wolfSSH_ReadKey(void)
 #ifndef WOLFSSH_NO_ECDSA_SHA2_NISTP256
 
     /* OpenSSH Format, ecdsa-sha2-nistp256, private, need alloc */
+    (void)keyCheck;
     key = NULL;
     keySz = 0;
     keyType = NULL;
@@ -953,6 +954,7 @@ static void test_wolfSSH_SFTP_SendReadPacket(void)
     func_args ser;
     tcp_ready ready;
     int argsCount;
+    int clientFd;
 
     const char* args[10];
     WOLFSSH_CTX* ctx = NULL;
@@ -1051,7 +1053,19 @@ static void test_wolfSSH_SFTP_SendReadPacket(void)
         /* If the socket is closed on shutdown, peer is gone, this is OK. */
         argsCount = WS_SUCCESS;
     }
+
+#if DEFAULT_HIGHWATER_MARK < 8000
+    if (argsCount == WS_REKEYING) {
+        /* in cases where highwater mark is really small a re-key could happen */
+        argsCount = WS_SUCCESS;
+    }
+#endif
+
     AssertIntEQ(argsCount, WS_SUCCESS);
+
+    /* close client socket down */
+    clientFd = wolfSSH_get_fd(ssh);
+    close(clientFd);
 
     wolfSSH_free(ssh);
     wolfSSH_CTX_free(ctx);

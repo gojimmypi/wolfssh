@@ -256,6 +256,7 @@ WOLFSSH_API int wolfSSH_stream_peek(WOLFSSH*, byte*, word32);
 WOLFSSH_API int wolfSSH_stream_read(WOLFSSH*, byte*, word32);
 WOLFSSH_API int wolfSSH_stream_send(WOLFSSH*, byte*, word32);
 WOLFSSH_API int wolfSSH_stream_exit(WOLFSSH*, int);
+WOLFSSH_API int wolfSSH_extended_data_send(WOLFSSH* ssh, byte* buf, word32 bufSz);
 WOLFSSH_API int wolfSSH_extended_data_read(WOLFSSH*, byte*, word32);
 WOLFSSH_API int wolfSSH_TriggerKeyExchange(WOLFSSH*);
 WOLFSSH_API int wolfSSH_SendIgnore(WOLFSSH*, const byte*, word32);
@@ -293,6 +294,8 @@ typedef int (*WS_CallbackTerminalSize)(WOLFSSH*, word32, word32, word32,
 WOLFSSH_API void wolfSSH_SetTerminalResizeCb(WOLFSSH* ssh,
     WS_CallbackTerminalSize cb);
 WOLFSSH_API void wolfSSH_SetTerminalResizeCtx(WOLFSSH* ssh, void* usrCtx);
+WOLFSSH_API int wolfSSH_GetExitStatus(WOLFSSH* ssh);
+WOLFSSH_API int wolfSSH_SetExitStatus(WOLFSSH* ssh, word32 exitStatus);
 
 
 enum WS_HighwaterSide {

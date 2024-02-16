@@ -718,7 +718,7 @@ struct WOLFSSH {
     word32 defaultPeerChannelId;
     word32 connectChannelId;
     byte channelName[WOLFSSH_MAX_CHN_NAMESZ];
-    byte channelNameSz;
+    word32 channelNameSz;
     word32 lastRxId;
 
     WOLFSSH_BUFFER inputBuffer;
@@ -822,6 +822,9 @@ struct WOLFSSH {
     word32 heightPixels; /* pixel height */
     byte* modes;
     word32 modesSz;
+#endif
+#if defined(WOLFSSH_TERM) || defined(WOLFSSH_SHELL)
+    word32 exitStatus;
 #endif
 };
 
@@ -947,6 +950,7 @@ WOLFSSH_LOCAL int SendChannelEow(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelClose(WOLFSSH*, word32);
 WOLFSSH_LOCAL int SendChannelExit(WOLFSSH*, word32, int);
 WOLFSSH_LOCAL int SendChannelData(WOLFSSH*, word32, byte*, word32);
+WOLFSSH_LOCAL int SendChannelExtendedData(WOLFSSH*, word32, byte*, word32);
 WOLFSSH_LOCAL int SendChannelWindowAdjust(WOLFSSH*, word32, word32);
 WOLFSSH_LOCAL int SendChannelRequest(WOLFSSH*, byte*, word32);
 WOLFSSH_LOCAL int SendChannelTerminalResize(WOLFSSH*, word32, word32, word32,
@@ -954,6 +958,8 @@ WOLFSSH_LOCAL int SendChannelTerminalResize(WOLFSSH*, word32, word32, word32,
 WOLFSSH_LOCAL int SendChannelTerminalRequest(WOLFSSH* ssh);
 WOLFSSH_LOCAL int SendChannelAgentRequest(WOLFSSH* ssh);
 WOLFSSH_LOCAL int SendChannelSuccess(WOLFSSH*, word32, int);
+WOLFSSH_LOCAL int SendChannelExitStatus(WOLFSSH* ssh, word32 channelId,
+    word32 exitStatus);
 WOLFSSH_LOCAL int GenerateKey(byte, byte, byte*, word32, const byte*, word32,
                               const byte*, word32, const byte*, word32, byte doKeyPad);
 
@@ -1200,9 +1206,11 @@ WOLFSSH_LOCAL int wsScpSendCallback(WOLFSSH*, int, const char*, char*, word32,
 
 
 WOLFSSH_LOCAL int wolfSSH_CleanPath(WOLFSSH* ssh, char* in);
+#ifndef WOLFSSH_NO_RSA
 WOLFSSH_LOCAL int wolfSSH_RsaVerify(byte *sig, word32 sigSz,
         const byte* digest, word32 digestSz,
         RsaKey* key, void* heap, const char* loc);
+#endif
 WOLFSSH_LOCAL void DumpOctetString(const byte*, word32);
 WOLFSSH_LOCAL int wolfSSH_oct2dec(WOLFSSH* ssh, byte* oct, word32 octSz);
 WOLFSSH_LOCAL void AddAssign64(word32*, word32);
