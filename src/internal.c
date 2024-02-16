@@ -25,7 +25,7 @@
  */
 
 // #define MY_ZERO_FORCE
-#define MY_FIXED_VALUES
+// #define MY_FIXED_VALUES
 const char* newval = "";
 const char* TAG = "ssh";
 #ifdef HAVE_CONFIG_H
@@ -570,6 +570,10 @@ static HandshakeInfo* HandshakeInfoNew(void* heap)
         newHs->dhGexMaxSz = WOLFSSH_DEFAULT_GEXDH_MAX;
 #endif
     }
+    else {
+        WLOG(WS_LOG_DEBUG, "HandshakeInfoNew: Failed to allocation %d bytes\n",
+                           (int)sizeof(HandshakeInfo));
+    }
 
     return newHs;
 }
@@ -761,6 +765,7 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
     HandshakeInfo* handshake;
     WC_RNG*        rng;
     void*          heap;
+    int            err;
 
     WLOG(WS_LOG_DEBUG, "Entering SshInit()");
 
@@ -770,10 +775,16 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
 
     handshake = HandshakeInfoNew(heap);
     rng = (WC_RNG*)WMALLOC(sizeof(WC_RNG), heap, DYNTYPE_RNG);
-
-    if (handshake == NULL || rng == NULL || wc_InitRng(rng) != 0) {
-
+    if (handshake == NULL || rng == NULL) {
         WLOG(WS_LOG_DEBUG, "SshInit: Cannot allocate memory.\n");
+    }
+
+    err = wc_InitRng(rng);
+    if (err != 0) {
+        WLOG(WS_LOG_DEBUG, "SshInit: wc_InitRng failed. err = %d\n", err);
+    }
+
+    if (handshake == NULL || rng == NULL || err != 0) {
         WFREE(handshake, heap, DYNTYPE_HS);
         WFREE(rng, heap, DYNTYPE_RNG);
         WFREE(ssh, heap, DYNTYPE_SSH);

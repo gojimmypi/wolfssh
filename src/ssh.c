@@ -35,6 +35,10 @@
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssl/wolfcrypt/random.h>
 
+#ifdef DEBUG_WOLFSSL
+    #include <wolfssl/wolfcrypt/logging.h>
+#endif
+
 #ifdef NO_INLINE
     #include <wolfssh/misc.h>
 #else
@@ -154,6 +158,10 @@ WOLFSSH* wolfSSH_new(WOLFSSH_CTX* ctx)
     }
 
     ssh = (WOLFSSH*)WMALLOC(sizeof(WOLFSSH), heap, DYNTYPE_SSH);
+    if (ssh == NULL) {
+        WOLFSSL_MSG_EX("wolfSSH_new failed to allocate %d bytes.",
+                    (int)sizeof(WOLFSSH));
+    }
     ssh = SshInit(ssh, ctx);
 
     WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_new(), ssh = %p", ssh);
