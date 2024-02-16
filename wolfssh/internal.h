@@ -37,7 +37,6 @@
 #include <wolfssl/wolfcrypt/dh.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/rsa.h>
-#include <wolfssl/wolfcrypt/asn_public.h>
 #ifdef WOLFSSH_SCP
     #include <wolfssh/wolfscp.h>
 #endif

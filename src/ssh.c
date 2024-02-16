@@ -35,10 +35,6 @@
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssl/wolfcrypt/random.h>
 
-#ifdef DEBUG_WOLFSSL
-    #include <wolfssl/wolfcrypt/logging.h>
-#endif
-
 #ifdef NO_INLINE
     #include <wolfssh/misc.h>
 #else
@@ -159,8 +155,8 @@ WOLFSSH* wolfSSH_new(WOLFSSH_CTX* ctx)
 
     ssh = (WOLFSSH*)WMALLOC(sizeof(WOLFSSH), heap, DYNTYPE_SSH);
     if (ssh == NULL) {
-        WOLFSSL_MSG_EX("wolfSSH_new failed to allocate %d bytes.",
-                    (int)sizeof(WOLFSSH));
+        WLOG(WS_LOG_ERROR, "wolfSSH_new failed to allocate %d bytes.",
+                           (int)sizeof(WOLFSSH));
     }
     ssh = SshInit(ssh, ctx);
 
@@ -500,7 +496,7 @@ int wolfSSH_accept(WOLFSSH* ssh)
                     if (DoReceive(ssh) < WS_SUCCESS) {
                         WLOG(WS_LOG_DEBUG, acceptError,
                              "SERVER_KEXINIT_SENT", ssh->error);
-                        return WS_FATAL_ERROR; /* sig invalid when we set KEX to zero */
+                        return WS_FATAL_ERROR;
                     }
                 }
                 ssh->acceptState = ACCEPT_KEYED;
