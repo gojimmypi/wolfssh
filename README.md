@@ -396,11 +396,56 @@ or define `WOLFSSH_SHELL`:
     $ ./configure --enable-shell
     $ make
 
+To try out this functionality, you can use the example echoserver and client.
+In a terminal do the following to launch the server:
+
+    $ ./examples/echoserver/echoserver -P <user>:junk
+
+And in another terminal do the following to launch the example client:
+
+    $ ./examples/client/client -t -u <user> -P junk
+
+Note that `<user>` must be the user name of the current user that is logged in.
+
 By default, the echoserver will try to start a shell. To use the echo testing
 behavior, give the echoserver the command line option `-f`.
 
     $ ./examples/echoserver/echoserver -f
 
+To use the shell feature with wolfsshd add `--enable-sshd` to your configure
+command and use the following command:
+
+    $ sudo ./apps/wolfsshd/wolfsshd -D -h keys/gretel-key-ecc.pem -p 11111
+
+If it complains about a bad `sshd_config` file, simply copy it to another file
+and remove the offending line that it complains about and use the `-f` command
+line parameter to point to the new file.
+
+You can then connect to the `wolfsshd` server with ssh:
+
+    $ ssh <user>@localhost -p 11111
+
+Note that `<user>` must be the user name of the current user that is logged in.
+
+CURVE25519
+==========
+
+wolfSSH now supports Curve25519 for key exchange. To enable this support simply
+compile wolfSSL with support for wolfssh and Curve25519.
+
+    $ cd wolfssl
+    $ ./configure --enable-wolfssh --enable-curve25519
+
+After building and installing wolfSSL, you can simply configure with no options.
+
+    $ cd wolfssh
+    $ ./configure
+
+The wolfSSH client and server will automatically negotiate using Curve25519.
+
+    $ ./examples/echoserver/echoserver -f
+
+    $ ./examples/client/client -u jill -P upthehill
 
 POST-QUANTUM
 ============
@@ -473,23 +518,27 @@ authenticating a user.
 To compile wolfSSH with X.509 support, use the `--enable-certs` build option
 or define `WOLFSSH_CERTS`:
 
-    $ ./configure --enable-certs
+    $ ./configure --enable-certs CPPFLAGS=-DWOLFSSH_NO_FPKI
     $ make
+
+For this example, we are disabling the FPKI checking as the included
+certificate for "fred" does not have the required FPKI extensions. If the
+flag WOLFSSH_NO_FPKI is removed, you can see the certificate get rejected.
 
 To provide a CA root certificate to validate a user's certificate, give the
 echoserver the command line option `-a`.
 
     $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem
 
-The echoserver and client have a fake user named "john" whose certificate
+The echoserver and client have a fake user named "fred" whose certificate
 will be used for authentication.
 
 An example echoserver / client connection using the example certificate
-john-cert.der would be:
+fred-cert.der would be:
 
-    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem -K john:./keys/john-cert.der
+    $ ./examples/echoserver/echoserver -a ./keys/ca-cert-ecc.pem -K fred:./keys/fred-cert.der
 
-    $ ./examples/client/client -u john -J ./keys/john-cert.der -i ./keys/john-key.der
+    $ ./examples/client/client -u fred -J ./keys/fred-cert.der -i ./keys/fred-key.der
 
 
 WOLFSSH APPLICATIONS

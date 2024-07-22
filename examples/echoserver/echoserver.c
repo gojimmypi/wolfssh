@@ -1,6 +1,6 @@
 /* echoserver.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -289,6 +289,7 @@ static int callbackReqFailure(WOLFSSH *ssh, void *buf, word32 sz, void *ctx)
     return WS_SUCCESS;
 }
 
+
 static void *global_req(void *ctx)
 {
     int ret;
@@ -326,6 +327,50 @@ static void *global_req(void *ctx)
 }
 
 #endif
+
+
+static void printKeyCompleteText(WOLFSSH* ssh, WS_Text id, const char* tag)
+{
+    char str[200];
+    size_t strSz = sizeof(str);
+    size_t ret;
+
+    ret = wolfSSH_GetText(ssh, id, str, strSz);
+    if (ret == strSz) {
+        printf("\tString size was not large enough for %s\n", tag);
+    }
+    printf("\t%-30s : %s\n", tag, str);
+}
+
+
+static void callbackKeyingComplete(void* ctx)
+{
+    WOLFSSH* ssh = (WOLFSSH*)ctx;
+
+    if (ssh != NULL) {
+        printf("Keying Complete:\n");
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_KEX_ALGO,
+                                    "WOLFSSH_TEXT_KEX_ALGO");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_KEX_CURVE,
+                                    "WOLFSSH_TEXT_KEX_CURVE");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_KEX_HASH,
+                                    "WOLFSSH_TEXT_KEX_HASH");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_CRYPTO_IN_CIPHER,
+                                    "WOLFSSH_TEXT_CRYPTO_IN_CIPHER");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_CRYPTO_IN_MAC,
+                                    "WOLFSSH_TEXT_CRYPTO_IN_MAC");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_CRYPTO_OUT_CIPHER,
+                                    "WOLFSSH_TEXT_CRYPTO_OUT_CIPHER");
+
+        printKeyCompleteText(ssh, WOLFSSH_TEXT_CRYPTO_OUT_MAC,
+                                    "WOLFSSH_TEXT_CRYPTO_OUT_MAC");
+    }
+}
 
 
 #ifdef WOLFSSH_AGENT
@@ -609,6 +654,87 @@ static int termios_show(int fd)
 #endif /* SHELL_DEBUG */
 
 
+#ifdef WOLFSSH_STATIC_MEMORY
+    #ifndef WOLFSSL_STATIC_MEMORY
+        #error Requires the static memory functions from wolfSSL
+    #endif
+    #if defined(WOLFSSH_SCP) || defined(WOLFSSH_SHELL) || defined(WOLFSSH_FWD)
+        #warning Static memory configuration for SFTP, results may vary.
+    #endif
+    typedef WOLFSSL_HEAP_HINT ES_HEAP_HINT;
+
+     /* This static buffer is tuned for building with SFTP only. The static
+      * buffer size is calulated by multiplying the pairs of sizeList items
+      * and distList items and summing (32*64 + 128*118 + ...) and adding
+      * the sum of the distList values times the sizeof wc_Memory (rounded up
+      * to a word, 24). This total was 288kb plus change, rounded up to 289. */
+    #ifndef ES_STATIC_SIZES
+        #define ES_STATIC_SIZES 32,128,384,800,3120,8400,17552,32846,131072
+    #endif
+    #ifndef ES_STATIC_DISTS
+        #define ES_STATIC_DISTS 64,118,3,4,6,2,2,2,1
+    #endif
+    #ifndef ES_STATIC_LISTSZ
+        #define ES_STATIC_LISTSZ 9
+    #endif
+    #ifndef ES_STATIC_BUFSZ
+        #define ES_STATIC_BUFSZ (289*1024)
+    #endif
+    static const word32 static_sizeList[] = {ES_STATIC_SIZES};
+    static const word32 static_distList[] = {ES_STATIC_DISTS};
+    static byte static_buffer[ES_STATIC_BUFSZ];
+
+    static void wolfSSH_MemoryPrintStats(ES_HEAP_HINT* hint)
+    {
+        if (hint != NULL) {
+            word16 i;
+            WOLFSSL_MEM_STATS stats;
+
+            wolfSSL_GetMemStats(hint->memory, &stats);
+
+            /* print to stderr so is on the same pipe as WOLFSSL_DEBUG */
+            fprintf(stderr, "Total mallocs        = %d\n", stats.totalAlloc);
+            fprintf(stderr, "Total frees          = %d\n", stats.totalFr);
+            fprintf(stderr, "Current mallocs      = %d\n", stats.curAlloc);
+            fprintf(stderr, "Available IO         = %d\n", stats.avaIO);
+            fprintf(stderr, "Max con. handshakes  = %d\n", stats.maxHa);
+            fprintf(stderr, "Max con. IO          = %d\n", stats.maxIO);
+            fprintf(stderr, "State of memory blocks: size : available\n");
+            for (i = 0; i < WOLFMEM_MAX_BUCKETS; i++) {
+                fprintf(stderr, "                    %8d : %d\n",
+                        stats.blockSz[i], stats.avaBlock[i]);
+            }
+        }
+    }
+
+    static void wolfSSH_MemoryConnPrintStats(ES_HEAP_HINT* hint)
+    {
+        if (hint != NULL) {
+            WOLFSSL_MEM_CONN_STATS* stats = hint->stats;
+
+            /* fill out statistics if wanted and WOLFMEM_TRACK_STATS flag */
+            if (hint->memory->flag & WOLFMEM_TRACK_STATS
+                    && hint->stats != NULL) {
+                fprintf(stderr, "peak connection memory    = %d\n",
+                        stats->peakMem);
+                fprintf(stderr, "current memory in use     = %d\n",
+                        stats->curMem);
+                fprintf(stderr, "peak connection allocs    = %d\n",
+                        stats->peakAlloc);
+                fprintf(stderr, "current connection allocs = %d\n",
+                        stats->curAlloc);
+                fprintf(stderr, "total connection allocs   = %d\n",
+                        stats->totalAlloc);
+                fprintf(stderr, "total connection frees    = %d\n\n",
+                        stats->totalFr);
+            }
+        }
+    }
+#else
+    typedef void ES_HEAP_HINT;
+#endif
+
+
 int ChildRunning = 0;
 
 #ifdef WOLFSSH_SHELL
@@ -737,6 +863,25 @@ static int ssh_worker(thread_ctx_t* threadCtx)
 #else
         ChildRunning = 1;
 #endif
+
+#if defined(WOLFSSH_TERM) && defined(WOLFSSH_SHELL)
+    /* set initial size of terminal based on saved size */
+#if defined(HAVE_SYS_IOCTL_H)
+    wolfSSH_DoModes(ssh->modes, ssh->modesSz, childFd);
+    {
+        struct winsize s = {0};
+
+        s.ws_col = ssh->widthChar;
+        s.ws_row = ssh->heightRows;
+        s.ws_xpixel = ssh->widthPixels;
+        s.ws_ypixel = ssh->heightPixels;
+
+        ioctl(childFd, TIOCSWINSZ, &s);
+    }
+#endif /* HAVE_SYS_IOCTL_H */
+
+        wolfSSH_SetTerminalResizeCtx(ssh, (void*)&childFd);
+#endif /* WOLFSSH_TERM && WOLFSSH_SHELL */
 
         while (ChildRunning) {
             fd_set readFds;
@@ -1196,11 +1341,8 @@ static int sftp_worker(thread_ctx_t* threadCtx)
         }
         else if (selected == WS_SELECT_TIMEOUT) {
             timeout = TEST_SFTP_TIMEOUT_LONG;
-            continue;
         }
-
-        if (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
-                selected == WS_SELECT_RECV_READY) {
+        else if (selected == WS_SELECT_RECV_READY) {
             ret = wolfSSH_worker(ssh, NULL);
             error = wolfSSH_get_error(ssh);
             if (ret == WS_REKEYING) {
@@ -1213,7 +1355,6 @@ static int sftp_worker(thread_ctx_t* threadCtx)
                 error == WS_WINDOW_FULL) {
                 timeout = TEST_SFTP_TIMEOUT;
                 ret = error;
-                continue;
             }
 
             if (error == WS_EOF) {
@@ -1278,7 +1419,8 @@ static int NonBlockSSH_accept(WOLFSSH* ssh)
 
     while ((ret != WS_SUCCESS
                 && ret != WS_SCP_COMPLETE && ret != WS_SFTP_COMPLETE)
-            && (error == WS_WANT_READ || error == WS_WANT_WRITE)) {
+            && (error == WS_WANT_READ || error == WS_WANT_WRITE ||
+                error == WS_AUTH_PENDING)) {
 
         if (error == WS_WANT_READ)
             printf("... server would read block\n");
@@ -1288,7 +1430,8 @@ static int NonBlockSSH_accept(WOLFSSH* ssh)
         select_ret = tcp_select(sockfd, 1);
         if (select_ret == WS_SELECT_RECV_READY  ||
             select_ret == WS_SELECT_ERROR_READY ||
-            error      == WS_WANT_WRITE)
+            error      == WS_WANT_WRITE ||
+            error      == WS_AUTH_PENDING)
         {
             ret = wolfSSH_accept(ssh);
             error = wolfSSH_get_error(ssh);
@@ -1310,11 +1453,16 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
 
     passwdRetry = MAX_PASSWD_RETRY;
 
-    if (!threadCtx->nonBlock)
+    if (!threadCtx->nonBlock) {
         ret = wolfSSH_accept(threadCtx->ssh);
-    else
+        if (wolfSSH_get_error(threadCtx->ssh) == WS_AUTH_PENDING) {
+            printf("Auth pending error, use -N for non blocking\n");
+            printf("Trying to close down the connection\n");
+        }
+    }
+    else {
         ret = NonBlockSSH_accept(threadCtx->ssh);
-
+    }
 #ifdef WOLFSSH_SCP
     /* finish off SCP operation */
     if (ret == WS_SCP_INIT) {
@@ -1423,6 +1571,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
         threadCtx->fwdCbCtx.originName = NULL;
     }
 #endif
+
+#ifdef WOLFSSH_STATIC_MEMORY
+    wolfSSH_MemoryConnPrintStats(threadCtx->ssh->ctx->heap);
+#endif
+
     wolfSSH_free(threadCtx->ssh);
 
     if (ret != 0) {
@@ -1456,20 +1609,18 @@ static int load_file(const char* fileName, byte* buf, word32* bufSz)
     fileSz = (word32)WFTELL(NULL, file);
     WREWIND(NULL, file);
 
-    if (fileSz > *bufSz) {
-        if (buf == NULL)
-            *bufSz = fileSz;
+    if (buf == NULL || fileSz > *bufSz) {
+        *bufSz = fileSz;
         WFCLOSE(NULL, file);
         return 0;
     }
 
     readSz = (word32)WFREAD(NULL, buf, 1, fileSz, file);
-    if (readSz < fileSz) {
-        WFCLOSE(NULL, file);
-        return 0;
-    }
-
     WFCLOSE(NULL, file);
+
+    if (readSz < fileSz) {
+        fileSz = 0;
+    }
 
     return fileSz;
 }
@@ -1928,6 +2079,7 @@ static int wsUserAuthResult(byte res,
 }
 
 
+static int userAuthWouldBlock = 0;
 static int wsUserAuth(byte authType,
                       WS_UserAuthData* authData,
                       void* ctx)
@@ -1939,6 +2091,12 @@ static int wsUserAuth(byte authType,
     if (ctx == NULL) {
         fprintf(stderr, "wsUserAuth: ctx not set");
         return WOLFSSH_USERAUTH_FAILURE;
+    }
+
+    if (userAuthWouldBlock > 0) {
+        printf("User Auth would block ....\n");
+        userAuthWouldBlock--;
+        return WOLFSSH_USERAUTH_WOULD_BLOCK;
     }
 
     if (authType != WOLFSSH_USERAUTH_PASSWORD &&
@@ -2156,6 +2314,8 @@ static void ShowUsage(void)
 #ifdef WOLFSSH_CERTS
     printf(" -a <file>     load in a root CA certificate file\n");
 #endif
+    printf(" -k            set the list of key algos to use\n");
+    printf(" -b <num>      test user auth would block\n");
 }
 
 
@@ -2194,6 +2354,8 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     WS_SOCKET_T listenFd = WOLFSSH_SOCKET_INVALID;
     word32 defaultHighwater = EXAMPLE_HIGHWATER_MARK;
     word32 threadCount = 0;
+    const char* keyList = NULL;
+    ES_HEAP_HINT* heap = NULL;
     int multipleConnections = 1;
     int userEcc = 0;
     int peerEcc = 0;
@@ -2215,7 +2377,7 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     serverArgs->return_code = EXIT_SUCCESS;
 
     if (argc > 0) {
-        const char* optlist = "?1a:d:efEp:R:Ni:j:I:J:K:P:";
+        const char* optlist = "?1a:d:efEp:R:Ni:j:I:J:K:P:k:b:";
         myoptind = 0;
         while ((ch = mygetopt(argc, argv, optlist)) != -1) {
             switch (ch) {
@@ -2235,6 +2397,10 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
                     break;
                 case 'e' :
                     userEcc = 1;
+                    break;
+
+                case 'k' :
+                    keyList = myoptarg;
                     break;
 
                 case 'E':
@@ -2295,6 +2461,10 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
                     passwdList = StrListAdd(passwdList, myoptarg);
                     break;
 
+                case 'b':
+                    userAuthWouldBlock = atoi(myoptarg);
+                    break;
+
                 default:
                     ShowUsage();
                     serverArgs->return_code = MY_EX_USAGE;
@@ -2327,9 +2497,30 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
         ES_ERROR("Couldn't initialize wolfSSH.\n");
     }
 
-    ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_SERVER, NULL);
+    #ifdef WOLFSSH_STATIC_MEMORY
+    {
+        int ret;
+
+        ret = wc_LoadStaticMemory_ex(&heap,
+                ES_STATIC_LISTSZ, static_sizeList, static_distList,
+                static_buffer, sizeof(static_buffer),
+                WOLFMEM_GENERAL|WOLFMEM_TRACK_STATS, 0);
+        if (ret != 0) {
+            ES_ERROR("Couldn't set up static memory pool.\n");
+        }
+    }
+    #endif /* WOLFSSH_STATIC_MEMORY */
+
+    ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_SERVER, heap);
     if (ctx == NULL) {
         ES_ERROR("Couldn't allocate SSH CTX data.\n");
+    }
+
+    wolfSSH_SetKeyingCompletionCb(ctx, callbackKeyingComplete);
+    if (keyList) {
+        if (wolfSSH_CTX_SetAlgoListKey(ctx, keyList) != WS_SUCCESS) {
+            ES_ERROR("Error setting key list.\n");
+        }
     }
 
     WMEMSET(&pwMapList, 0, sizeof(pwMapList));
@@ -2565,7 +2756,11 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
             WFREE(threadCtx, NULL, 0);
             ES_ERROR("Couldn't allocate SSH data.\n");
         }
+    #ifdef WOLFSSH_STATIC_MEMORY
+        wolfSSH_MemoryConnPrintStats(heap);
+    #endif
         wolfSSH_SetUserAuthCtx(ssh, &pwMapList);
+        wolfSSH_SetKeyingCompletionCbCtx(ssh, (void*)ssh);
         /* Use the session object for its own highwater callback ctx */
         if (defaultHighwater > 0) {
             wolfSSH_SetHighwaterCtx(ssh, (void*)ssh);
@@ -2641,6 +2836,10 @@ THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args)
     wc_FreeMutex(&doneLock);
     PwMapListDelete(&pwMapList);
     wolfSSH_CTX_free(ctx);
+#ifdef WOLFSSH_STATIC_MEMORY
+    wolfSSH_MemoryPrintStats(heap);
+#endif
+
     if (wolfSSH_Cleanup() != WS_SUCCESS) {
         ES_ERROR("Couldn't clean up wolfSSH.\n");
     }

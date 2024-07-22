@@ -1,9 +1,9 @@
 # wolfssh
-# Copyright (C) 2014-2023 wolfSSL Inc.
+# Copyright (C) 2014-2024 wolfSSL Inc.
 # All right reserved.
 
-AC_COPYRIGHT([Copyright (C) 2014-2023 wolfSSL Inc.])
-AC_INIT([wolfssh],[1.4.15],[support@wolfssl.com],[wolfssh],[https://www.wolfssl.com])
+AC_COPYRIGHT([Copyright (C) 2014-2024 wolfSSL Inc.])
+AC_INIT([wolfssh],[1.4.18],[support@wolfssl.com],[wolfssh],[https://www.wolfssl.com])
 AC_PREREQ([2.63])
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -18,18 +18,19 @@ AC_ARG_PROGRAM
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 
-WOLFSSH_LIBRARY_VERSION=15:2:7
-#                       | | |
-#                +------+ | +---+
-#                |        |     |
+WOLFSSH_LIBRARY_VERSION=17:0:10
+#                        | | |
+#                  +-----+ | +----+
+#                  |       |      |
 #               current:revision:age
-#                |        |     |
-#                |        |     +- increment if interfaces have been added
-#                |        |        set to zero if interfaces have been removed
-#                |        |        or changed
-#                |        +- increment if source code has changed
-#                |           set to zero if current is incremented
-#                +- increment if interfaces have been added, removed or changed
+#                  |       |      |
+#                  |       |      +- increment if interfaces have been added
+#                  |       |      +- set to zero if interfaces have been
+#                  |       |           removed or changed
+#                  |       +- increment if source code has changed
+#                  |       +- set to zero if current is incremented
+#                  +- increment if interfaces have been added, removed
+#                       or changed
 AC_SUBST([WOLFSSH_LIBRARY_VERSION])
 
 LT_PREREQ([2.2])
@@ -193,7 +194,7 @@ AC_ARG_ENABLE([fwd],
 # pseudo-terminal
 AC_ARG_ENABLE([term],
     [AS_HELP_STRING([--disable-term],[Disable pseudo-terminal support (default: enabled)])],
-    [ENABLED_PTERM=$enableval],[ENABLED_PTERM=yes])
+    [ENABLED_TERM=$enableval],[ENABLED_TERM=yes])
 
 # shell support
 AC_ARG_ENABLE([shell],
@@ -250,7 +251,7 @@ AS_IF([test "x$ENABLED_SFTP" = "xyes"],
       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_SFTP"])
 AS_IF([test "x$ENABLED_FWD" = "xyes"],
       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_FWD"])
-AS_IF([test "x$ENABLED_PTERM" = "xyes"],
+AS_IF([test "x$ENABLED_TERM" = "xyes"],
       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_TERM"])
 AS_IF([test "x$ENABLED_SHELL" = "xyes"],
       [AM_CPPFLAGS="$AM_CPPFLAGS -DWOLFSSH_SHELL"])
@@ -354,7 +355,7 @@ AS_ECHO(["   Features"])
 AS_ECHO(["   * Inline Code:               $ENABLED_INLINE"])
 AS_ECHO(["   * Small stack:               $ENABLED_SMALLSTACK"])
 AS_ECHO(["   * keygen:                    $ENABLED_KEYGEN"])
-AS_ECHO(["   * psuedo-terminal:           $ENABLED_PTERM"])
+AS_ECHO(["   * psuedo-terminal:           $ENABLED_TERM"])
 AS_ECHO(["   * echoserver shell support:  $ENABLED_SHELL"])
 AS_ECHO(["   * scp:                       $ENABLED_SCP"])
 AS_ECHO(["   * sftp:                      $ENABLED_SFTP"])

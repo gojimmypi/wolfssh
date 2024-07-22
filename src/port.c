@@ -1,6 +1,6 @@
 /* port.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -476,7 +476,8 @@ int WS_DeleteFileA(const char* fileName, void* heap)
 
 #endif /* USE_WINDOWS_API WOLFSSH_SFTP WOLFSSH_SCP */
 
-#if defined(WOLFSSH_ZEPHYR) && (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
+#if !defined(NO_FILESYSTEM) && \
+    defined(WOLFSSH_ZEPHYR) && (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
 
 int wssh_z_fstat(const char *p, struct fs_dirent *b)
 {

@@ -1,6 +1,6 @@
 /* error.h
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -132,8 +132,11 @@ enum WS_ErrorCodes {
     WS_KEY_CHECK_VAL_E      = -1091, /* OpenSSH key check value fail */
     WS_KEY_FORMAT_E         = -1092, /* OpenSSH key format fail */
     WS_SFTP_NOT_FILE_E      = -1093, /* Not a regular file */
-    
-    WS_LAST_E               = -1093  /* Update this to indicate last error */
+    WS_MSGID_NOT_ALLOWED_E  = -1094, /* Message not allowed before userauth */
+    WS_ED25519_E            = -1095, /* Ed25519 failure */
+    WS_AUTH_PENDING         = -1096, /* User authentication still pending */
+
+    WS_LAST_E               = -1096  /* Update this to indicate last error */
 };
 
 

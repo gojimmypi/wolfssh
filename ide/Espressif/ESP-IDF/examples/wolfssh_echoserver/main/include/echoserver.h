@@ -1,6 +1,6 @@
 /* echoserver.h
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -25,7 +25,7 @@
 #include <types.h>
 
 #ifndef WOLFSSH_THREAD
-    #define WOLFSSH_THREAD
+    #define WOLFSSH_THREAD WOLFSSL_THREAD
 #endif
 
 THREAD_RETURN WOLFSSH_THREAD echoserver_test(void* args);

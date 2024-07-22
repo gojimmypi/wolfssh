@@ -1,6 +1,6 @@
 /* client.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -117,6 +117,8 @@ static void ShowUsage(void)
     printf(" -A <filename> filename for DER CA certificate to verify host\n");
     printf(" -X            Ignore IP checks on peer vs peer certificate\n");
 #endif
+    printf(" -E            List all possible algos\n");
+    printf(" -k            set the list of key algos to use\n");
 }
 
 
@@ -365,6 +367,26 @@ static THREAD_RET readPeer(void* in)
     FD_SET(fd, &errSet);
 
 #ifdef USE_WINDOWS_API
+    if (args->rawMode == 0) {
+        DWORD wrd;
+
+        /* get console mode will fail on handles that are not a console,
+         * i.e. if the stdout is being redirected to a file */
+        if (GetConsoleMode(stdoutHandle, &wrd) != FALSE) {
+            /* depend on the terminal to process VT characters */
+            #ifndef _WIN32_WINNT_WIN10
+                /* support for virtual terminal processing was introduced in windows 10 */
+                #define _WIN32_WINNT_WIN10 0x0A00
+            #endif
+            #if defined(WINVER) && (WINVER >= _WIN32_WINNT_WIN10)
+                wrd |= (ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT);
+            #endif
+            if (SetConsoleMode(stdoutHandle, wrd) == FALSE) {
+                err_sys("Unable to set console mode");
+            }
+        }
+    }
+
     /* set handle to use for window resize */
     wc_LockMutex(&args->lock);
     wolfSSH_SetTerminalResizeCtx(args->ssh, stdoutHandle);
@@ -444,29 +466,21 @@ static THREAD_RET readPeer(void* in)
                 }
             }
             else {
+            #ifdef USE_WINDOWS_API
+                DWORD writtn = 0;
+            #endif
                 buf[bufSz - 1] = '\0';
 
             #ifdef USE_WINDOWS_API
-                if (args->rawMode == 0) {
-                    ret = wolfSSH_ConvertConsole(args->ssh, stdoutHandle, buf,
-                            ret);
-                    if (ret != WS_SUCCESS && ret != WS_WANT_READ) {
-                        err_sys("issue with print out");
-                    }
-                    if (ret == WS_WANT_READ) {
-                        ret = 0;
-                    }
-                }
-                else {
-                    printf("%s", buf);
-                    WFFLUSH(stdout);
+                if (WriteFile(stdoutHandle, buf, bufSz, &writtn, NULL) == FALSE) {
+                    err_sys("Failed to write to stdout handle");
                 }
             #else
                 if (write(STDOUT_FILENO, buf, ret) < 0) {
                     perror("write to stdout error ");
                 }
-                WFFLUSH(stdout);
             #endif
+                WFFLUSH(stdout);
             }
             if (wolfSSH_stream_peek(args->ssh, buf, bufSz) <= 0) {
                 bytes = 0; /* read it all */
@@ -624,7 +638,9 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     const char* password = NULL;
     const char* cmd      = NULL;
     const char* privKeyName = NULL;
+    const char* keyList = NULL;
     byte imExit = 0;
+    byte listAlgos = 0;
     byte nonBlock = 0;
     byte keepOpen = 0;
 #ifdef USE_WINDOWS_API
@@ -641,7 +657,7 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
 
     (void)keepOpen;
 
-    while ((ch = mygetopt(argc, argv, "?ac:h:i:j:p:tu:xzNP:RJ:A:Xe")) != -1) {
+    while ((ch = mygetopt(argc, argv, "?ac:h:i:j:p:tu:xzNP:RJ:A:XeEk:")) != -1) {
         switch (ch) {
             case 'h':
                 host = myoptarg;
@@ -701,6 +717,10 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
             #endif
         #endif
 
+            case 'E':
+                listAlgos = 1;
+                break;
+
             case 'x':
                 /* exit after successful connection without read/write */
                 imExit = 1;
@@ -708,6 +728,10 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
 
             case 'N':
                 nonBlock = 1;
+                break;
+
+            case 'k':
+                keyList = myoptarg;
                 break;
 
         #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
@@ -756,7 +780,7 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
         err_sys("If setting priv key, need pub key.");
     }
 
-    ret = ClientSetPrivateKey(privKeyName, userEcc);
+    ret = ClientSetPrivateKey(privKeyName, userEcc, NULL);
     if (ret != 0) {
         err_sys("Error setting private key");
     }
@@ -764,12 +788,12 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
 #ifdef WOLFSSH_CERTS
     /* passed in certificate to use */
     if (certName) {
-        ret = ClientUseCert(certName);
+        ret = ClientUseCert(certName, NULL);
     }
     else
 #endif
     if (pubKeyName) {
-        ret = ClientUsePubKey(pubKeyName, userEcc);
+        ret = ClientUsePubKey(pubKeyName, userEcc, NULL);
     }
     if (ret != 0) {
         err_sys("Error setting public key");
@@ -778,6 +802,12 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_CLIENT, NULL);
     if (ctx == NULL)
         err_sys("Couldn't create wolfSSH client context.");
+
+    if (keyList) {
+        if (wolfSSH_CTX_SetAlgoListKey(ctx, NULL) != WS_SUCCESS) {
+            err_sys("Error setting key list.\n");
+        }
+    }
 
     if (((func_args*)args)->user_auth == NULL)
         wolfSSH_SetUserAuth(ctx, ClientUserAuth);
@@ -825,8 +855,57 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     if (ret != WS_SUCCESS)
         err_sys("Couldn't set the username.");
 
+    if (listAlgos) {
+        word32 idx = 0;
+        const char* current = NULL;
+
+        printf("KEX:\n");
+        do {
+            current = wolfSSH_QueryKex(&idx);
+            if (current) {
+                printf("\t%d: %s\n", idx, current);
+            }
+        } while (current != NULL);
+        printf("Set KEX: %s\n\n", wolfSSH_GetAlgoListKex(ssh));
+
+        idx = 0;
+        printf("Key:\n");
+        do {
+            current = wolfSSH_QueryKey(&idx);
+            if (current) {
+                printf("\t%d: %s\n", idx, current);
+            }
+        } while (current != NULL);
+        printf("Set Key: %s\n\n", wolfSSH_GetAlgoListKey(ssh));
+
+        idx = 0;
+        printf("Cipher:\n");
+        do {
+            current = wolfSSH_QueryCipher(&idx);
+            if (current) {
+                printf("\t%d: %s\n", idx, current);
+            }
+        } while (current != NULL);
+        printf("Set Cipher: %s\n\n", wolfSSH_GetAlgoListCipher(ssh));
+
+        idx = 0;
+        printf("Mac:\n");
+        do {
+            current = wolfSSH_QueryMac(&idx);
+            if (current) {
+                printf("\t%d: %s\n", idx, current);
+            }
+        } while (current != NULL);
+        printf("Set Mac: %s\n", wolfSSH_GetAlgoListMac(ssh));
+
+        wolfSSH_free(ssh);
+        wolfSSH_CTX_free(ctx);
+        WOLFSSL_RETURN_FROM_THREAD(0);
+    }
+
     build_addr(&clientAddr, host, port);
-    tcp_socket(&sockFd);
+    tcp_socket(&sockFd, ((struct sockaddr_in *)&clientAddr)->sin_family);
+
     ret = connect(sockFd, (const struct sockaddr *)&clientAddr, clientAddrSz);
     if (ret != 0)
         err_sys("Couldn't connect to server.");
@@ -977,7 +1056,8 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
     }
     ret = wolfSSH_shutdown(ssh);
     /* do not continue on with shutdown process if peer already disconnected */
-    if (ret != WS_SOCKET_ERROR_E && wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E) {
+    if (ret != WS_SOCKET_ERROR_E && wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E
+            && wolfSSH_get_error(ssh) != WS_CHANNEL_CLOSED) {
         if (ret != WS_SUCCESS) {
             err_sys("Sending the shutdown messages failed.");
         }
@@ -1000,7 +1080,7 @@ THREAD_RETURN WOLFSSH_THREAD client_test(void* args)
         err_sys("Closing client stream failed");
     }
 
-    ClientFreeBuffers(pubKeyName, privKeyName);
+    ClientFreeBuffers(pubKeyName, privKeyName, NULL);
 #if !defined(WOLFSSH_NO_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free();  /* free per thread cache */
 #endif

@@ -1,6 +1,6 @@
 /* wolfsftp.h
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -128,6 +128,7 @@ struct WS_SFTP_FILEATRB_EX {
 
 #define FILEATRB_PER_MASK_TYPE 0770000
 #define FILEATRB_PER_FILE      0100000
+#define FILEATRB_PER_LINK      0120000
 #define FILEATRB_PER_DEV_CHAR  0020000
 #define FILEATRB_PER_DIR       0040000
 #define FILEATRB_PER_DEV_BLOCK 0060000

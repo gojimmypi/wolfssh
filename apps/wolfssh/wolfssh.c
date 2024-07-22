@@ -1,6 +1,6 @@
 /* wolfssh.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -106,14 +106,6 @@ static const char* caCert   = NULL;
 #endif
 
 
-#if defined(WOLFSSH_AGENT)
-static inline void ato32(const byte* c, word32* u32)
-{
-    *u32 = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3];
-}
-#endif
-
-
 static int NonBlockSSH_connect(WOLFSSH* ssh)
 {
     int ret;
@@ -214,6 +206,13 @@ static void modes_reset(void)
 #endif /* HAVE_TERMIOS_H && WOLFSSH_TERM */
 
 #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
+
+#if defined(WOLFSSH_AGENT)
+static inline void ato32(const byte* c, word32* u32)
+{
+    *u32 = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3];
+}
+#endif
 
 typedef struct thread_args {
     WOLFSSH* ssh;
@@ -404,6 +403,26 @@ static THREAD_RET readPeer(void* in)
     FD_SET(fd, &errSet);
 
 #ifdef USE_WINDOWS_API
+    if (args->rawMode == 0) {
+        DWORD wrd;
+
+        /* get console mode will fail on handles that are not a console,
+         * i.e. if the stdout is being redirected to a file */
+        if (GetConsoleMode(stdoutHandle, &wrd) != FALSE) {
+            /* depend on the terminal to process VT characters */
+        #ifndef _WIN32_WINNT_WIN10
+            /* support for virtual terminal processing was introduced in windows 10 */
+            #define _WIN32_WINNT_WIN10 0x0A00
+        #endif
+        #if defined(WINVER) && (WINVER >= _WIN32_WINNT_WIN10)
+            wrd |= (ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT);
+        #endif
+            if (SetConsoleMode(stdoutHandle, wrd) == FALSE) {
+                err_sys("Unable to set console mode");
+            }
+        }
+    }
+
     /* set handle to use for window resize */
     wc_LockMutex(&args->lock);
     wolfSSH_SetTerminalResizeCtx(args->ssh, stdoutHandle);
@@ -482,22 +501,14 @@ static THREAD_RET readPeer(void* in)
                 }
             }
             else {
+            #ifdef USE_WINDOWS_API
+                DWORD writtn = 0;
+            #endif
                 buf[bufSz - 1] = '\0';
 
             #ifdef USE_WINDOWS_API
-                if (args->rawMode == 0) {
-                    ret = wolfSSH_ConvertConsole(args->ssh, stdoutHandle, buf,
-                            ret);
-                    if (ret != WS_SUCCESS && ret != WS_WANT_READ) {
-                        err_sys("issue with print out");
-                    }
-                    if (ret == WS_WANT_READ) {
-                        ret = 0;
-                    }
-                }
-                else {
-                    printf("%s", buf);
-                    fflush(stdout);
+                if (WriteFile(stdoutHandle, buf, bufSz, &writtn, NULL) == FALSE) {
+                    err_sys("Failed to write to stdout handle");
                 }
             #else
                 if (write(STDOUT_FILENO, buf, ret) < 0) {
@@ -782,7 +793,7 @@ static int config_parse_command_line(struct config* config,
                 free(config->user);
             }
             sz = WSTRLEN(cursor);
-            config->user = WMALLOC(sz + 1, NULL, 0);
+            config->user = (char*)WMALLOC(sz + 1, NULL, 0);
             strcpy(config->user, cursor);
             cursor = found + 1;
         }
@@ -979,7 +990,8 @@ static THREAD_RETURN WOLFSSH_THREAD wolfSSH_Client(void* args)
         err_sys("Couldn't set the username.");
 
     build_addr(&clientAddr, config.hostname, config.port);
-    tcp_socket(&sockFd);
+    tcp_socket(&sockFd, ((struct sockaddr_in *)&clientAddr)->sin_family);
+
     ret = connect(sockFd, (const struct sockaddr *)&clientAddr, clientAddrSz);
     if (ret != 0)
         err_sys("Couldn't connect to server.");
@@ -1010,13 +1022,13 @@ static THREAD_RETURN WOLFSSH_THREAD wolfSSH_Client(void* args)
     if (ret != WS_SUCCESS)
         err_sys("Couldn't connect SSH stream.");
 
+    MODES_CLEAR();
+
 #if !defined(SINGLE_THREADED) && !defined(WOLFSSL_NUCLEUS)
 #if 0
     if (keepOpen) /* set up for psuedo-terminal */
         ClientSetEcho(2);
 #endif
-
-    MODES_CLEAR();
 
     if (config.command != NULL || keepOpen == 1) {
     #if defined(_POSIX_THREADS)

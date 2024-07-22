@@ -1,6 +1,6 @@
 /* testsuite.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -22,12 +22,6 @@
     #include <config.h>
 #endif
 
-#define WOLFSSH_TEST_CLIENT
-#define WOLFSSH_TEST_SERVER
-#define WOLFSSH_TEST_THREADING
-#define WOLFSSH_TEST_LOCKING
-
-
 #include <stdio.h>
 
 #ifdef WOLFSSL_USER_SETTINGS
@@ -35,6 +29,13 @@
 #else
     #include <wolfssl/options.h>
 #endif
+
+#define WOLFSSH_TEST_CLIENT
+#define WOLFSSH_TEST_SERVER
+#ifndef SINGLE_THREADED
+    #define WOLFSSH_TEST_THREADING
+#endif
+#define WOLFSSH_TEST_LOCKING
 
 #include <wolfssh/settings.h>
 #include <wolfssh/ssh.h>

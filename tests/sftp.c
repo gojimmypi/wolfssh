@@ -1,6 +1,6 @@
 /* sftp.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -23,6 +23,11 @@
 #endif
 
 #include <stdio.h>
+#ifdef WOLFSSL_USER_SETTINGS
+    #include <wolfssl/wolfcrypt/settings.h>
+#else
+    #include <wolfssl/options.h>
+#endif
 #include <wolfssh/settings.h>
 
 #if defined(WOLFSSH_SFTP) && !defined(SINGLE_THREADED)
@@ -181,7 +186,9 @@ int wolfSSH_SftpTest(int flag)
     int argsCount;
 
     const char* args[10];
+#ifndef USE_WINDOWS_API
     char  portNumber[8];
+#endif
 
     THREAD_TYPE serThread;
 

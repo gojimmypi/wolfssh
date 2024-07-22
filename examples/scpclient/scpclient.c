@@ -1,6 +1,6 @@
 /* scpclient.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -217,7 +217,7 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
         err_sys("Empty path values");
     }
 
-    ret = ClientSetPrivateKey(privKeyName, 0);
+    ret = ClientSetPrivateKey(privKeyName, 0, NULL);
     if (ret != 0) {
         err_sys("Error setting private key");
     }
@@ -225,12 +225,12 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
 #ifdef WOLFSSH_CERTS
     /* passed in certificate to use */
     if (certName) {
-        ret = ClientUseCert(certName);
+        ret = ClientUseCert(certName, NULL);
     }
     else
 #endif
     {
-        ret = ClientUsePubKey(pubKeyName, 0);
+        ret = ClientUsePubKey(pubKeyName, 0, NULL);
     }
     if (ret != 0) {
         err_sys("Error setting public key");
@@ -253,12 +253,12 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
 #endif /* WOLFSSH_CERTS */
 
     wolfSSH_CTX_SetPublicKeyCheck(ctx, ClientPublicKeyCheck);
-    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)host);
-
 
     ssh = wolfSSH_new(ctx);
     if (ssh == NULL)
         err_sys("Couldn't create wolfSSH session.");
+
+    wolfSSH_SetPublicKeyCheckCtx(ssh, (void*)host);
 
     if (password != NULL)
         wolfSSH_SetUserAuthCtx(ssh, (void*)password);
@@ -280,8 +280,9 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
     {
         printf("IPV4 address\n");
         build_addr(&clientAddr, host, port);
-        tcp_socket(&sockFd);
-        ret = connect(sockFd, (const struct sockaddr *)&clientAddr, clientAddrSz);
+        tcp_socket(&sockFd, ((struct sockaddr_in *)&clientAddr)->sin_family);
+        ret = connect(sockFd, (const struct sockaddr *)&clientAddr,
+                      clientAddrSz);
     }
 
     if (ret != 0)
@@ -312,7 +313,9 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
 
     ret = wolfSSH_shutdown(ssh);
     /* do not continue on with shutdown process if peer already disconnected */
-    if (ret != WS_SOCKET_ERROR_E && wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E) {
+    if (ret != WS_CHANNEL_CLOSED && ret != WS_SOCKET_ERROR_E &&
+            wolfSSH_get_error(ssh) != WS_SOCKET_ERROR_E &&
+            wolfSSH_get_error(ssh) != WS_CHANNEL_CLOSED) {
         if (ret != WS_SUCCESS) {
             err_sys("Sending the shutdown messages failed.");
         }
@@ -324,10 +327,12 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
     WCLOSESOCKET(sockFd);
     wolfSSH_free(ssh);
     wolfSSH_CTX_free(ctx);
-    if (ret != WS_SUCCESS && ret != WS_SOCKET_ERROR_E)
+    if (ret != WS_SUCCESS && ret != WS_SOCKET_ERROR_E &&
+            ret != WS_CHANNEL_CLOSED) {
         err_sys("Closing scp stream failed. Connection could have been closed by peer");
+    }
 
-    ClientFreeBuffers(pubKeyName, privKeyName);
+    ClientFreeBuffers(pubKeyName, privKeyName, NULL);
 #if !defined(WOLFSSH_NO_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free();  /* free per thread cache */
 #endif

@@ -1,3 +1,117 @@
+# wolfSSH v1.4.18 (July 22, 2024)
+
+## New Features
+
+- Add wolfSSL style static memory pool allocation support.
+- Add Ed25519 public key support.
+- Add Banner option to wolfSSHd configuration.
+- Add non-blocking socket support to the example SCP client.
+
+## Improvements
+
+- Documentation updates.
+- Update the Zephyr test action.
+- Add a no-filesystem build to the Zephyr port.
+- Update the macOS test action.
+- Refactor certificate processing. Only verify certificates when a signature
+  is present.
+- Update the Kyber test action.
+- Refactor the Curve25519 Key Agreement support.
+- Update the STM32Cube Pack.
+- Increase the memory that Zephyr uses for a heap for testing.
+- Add a macro wrapper to replace the ReadDir function.
+- Add callback hook for keying completion.
+- Add function to return strings for the names of algorithms.
+- Add asynchronous server side user authentication.
+- Add ssh-rsa (SHA-1) to the default user auth algorithm list when
+  sha1-soft-disable is disabled.
+- Update Espressif examples using Managed Components.
+- Add SCP test case.
+- Refactor RSA sign and verify.
+- Refresh the example echoserver with updates from wolfSSHd.
+- Add callback hooks for most channel messages including open, close, success,
+  fail, and requests.
+- Reduce the number of memory allocations SCP makes.
+- Improve wolfSSHd’s behavior on closing a connection. It closes channels and
+  waits for the peer to close the channels.
+
+## Fixes
+
+- Refactor wolfSSHd service support for Windows to fix PowerShell
+  Write-Progress.
+- Fix partial success case with public key user authentication.
+- Fix the build guards with respect to cannedKeyAlgoNames.
+- Error if unable to open the local file when doing a SCP send.
+- Fix some IPv6 related build issues.
+- Add better checks for SCP error returns for closed channels.
+- In the example SCP client, move the public key check context after the
+  WOLFSSH object is created.
+- Fix error reporting for wolfSSH_SFTP_STAT.
+- In the example SCP client, fix error code checking on shutdown.
+- Change return from wolfSSH_shutdown() to WS_CHANNEL_CLOSED.
+- Fix SFTP symlink handling.
+- Fix variable initialization warnings for Zephyr builds.
+- Fix wolfSSHd case of non-console output handles.
+- Fix testsuite for single threaded builds. Add single threaded test action.
+- Fix wolfSSHd shutting down on fcntl() failure.
+- Fix wolfSSHd on Windows handling virtual terminal sequences using exec
+  commands.
+- Fix possible null dereference when matching MAC algos during key exchange.
+
+---
+
+# wolfSSH v1.4.17 (March 25, 2024)
+
+## Vulnerabilities
+
+* Fixes a vulnerability where a properly crafted SSH client can bypass user
+  authentication in the wolfSSH server code. The added fix filters the
+  messages that are allowed during different operational states.
+
+## Notes
+
+* When building wolfSSL/wolfCrypt versions before v5.6.6 with CMake,
+  wolfSSH may have a problem with RSA keys. This is due to wolfSSH not
+  checking on the size of `___uint128_t`. wolfSSH sees the RSA structure
+  as the wrong size. You will have to define `HAVE___UINT128_T` if you
+  know you have it and are using it in wolfSSL. wolfSSL v5.6.6 exports that
+  define in options.h when using CMake.
+* The example server in directory examples/server/server.c has been removed.
+  It was never kept up to date, the echoserver did its job as an example and
+  test server.
+
+## New Features
+
+* Added functions to set algorithms lists for KEX at run-time, and some
+  functions to inspect which algorithms are set or are available to use.
+* In v1.4.15, we had disabled SHA-1 in the build by default. SHA-1 has been
+  re-enabled in the build and is now "soft" disabled, where algorithms using
+  it can be configured for KEX.
+* Add Curve25519 KEX support for server/client key agreement.
+
+## Improvements
+
+* Clean up some issues when building for Nucleus.
+* Clean up some issues when building for Windows.
+* Clean up some issues when building for QNX.
+* Added more wolfSSHd testing.
+* Added more appropriate build option guard checking.
+* General improvements for the ESP32 builds.
+* Better terminal support in Windows.
+* Better I/O pipes and return codes when running commands or scripts over an
+  SSH connection.
+
+## Fixes
+
+* Fix shell terminal window resizing and it sets up the environment better.
+* Fix some corner cases with the SFTP testing.
+* Fix some corner cases with SFTP in general.
+* Fix verifying RSA signatures.
+* Add masking of file mode bits for Zephyr.
+* Fix leak of terminal modes cache.
+
+---
+
 # wolfSSH v1.4.15 (December 22, 2023)
 
 ## Vulnerabilities

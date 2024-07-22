@@ -1,6 +1,6 @@
 /* wolfssh_test.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -47,8 +47,10 @@ void wolfSSHTest(const void* argument)
 
     printf("Running wolfSSH Tests...\n");
 
-    if (wolfSSH_TestsuiteTest(0, NULL))
-        ret = -1;
+    /* TODO: Uncomment once proper threading abstractions have been implemented
+     * in wolfSSL */
+    /* if (wolfSSH_TestsuiteTest(0, NULL))
+        ret = -1; */
     if (wolfSSH_UnitTest(0, NULL))
         ret = -1;
     if (wolfSSH_ApiTest(0, NULL))

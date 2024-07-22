@@ -1,6 +1,6 @@
 /* ssh.c
  *
- * Copyright (C) 2014-2023 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -75,7 +75,8 @@ int wolfSSH_Init(void)
 #ifdef WC_RNG_SEED_CB
     wc_SetSeed_Cb(wc_GenerateSeed);
 #endif
-#if defined(WOLFSSH_ZEPHYR) && (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
+#if !defined(NO_FILESYSTEM) && defined(WOLFSSH_ZEPHYR) && \
+        (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
     if (wssh_z_fds_init() != 0)
         ret = WS_CRYPTO_FAILED;
 #endif
@@ -93,7 +94,8 @@ int wolfSSH_Cleanup(void)
 
     if (wolfCrypt_Cleanup() != 0)
         ret = WS_CRYPTO_FAILED;
-#if defined(WOLFSSH_ZEPHYR) && (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
+#if !defined(NO_FILESYSTEM) && defined(WOLFSSH_ZEPHYR) && \
+        (defined(WOLFSSH_SFTP) || defined(WOLFSSH_SCP))
     if (wssh_z_fds_cleanup() != 0)
         ret = WS_CRYPTO_FAILED;
 #endif
@@ -416,7 +418,7 @@ int wolfSSH_accept(WOLFSSH* ssh)
         return WS_BAD_ARGUMENT;
 
     /* clear want read/writes for retry */
-    if (ssh->error == WS_WANT_READ || ssh->error == WS_WANT_WRITE)
+    if (ssh->error == WS_WANT_READ || ssh->error == WS_WANT_WRITE || ssh->error == WS_AUTH_PENDING)
         ssh->error = 0;
 
     if (ssh->error != 0) {
@@ -1002,7 +1004,7 @@ int wolfSSH_shutdown(WOLFSSH* ssh)
 
     if (ssh != NULL && ssh->channelList == NULL) {
         WLOG(WS_LOG_DEBUG, "channel list was already removed");
-        ret = WS_SUCCESS;
+        ret = WS_CHANNEL_CLOSED;
     }
 
     WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_shutdown(), ret = %d", ret);
@@ -1691,7 +1693,7 @@ static int DoAsn1Key(const byte* in, word32 inSz, byte** out,
         ret = WS_SUCCESS;
     }
     else {
-        WLOG(WS_LOG_DEBUG, "unable to identify key");
+        WLOG(WS_LOG_DEBUG, "Unable to identify ASN.1 key");
         if (*out == NULL) {
             WFREE(newKey, heap, DYNTYPE_PRIVKEY);
         }
@@ -1748,7 +1750,7 @@ static int DoPemKey(const byte* in, word32 inSz, byte** out,
         ret = WS_SUCCESS;
     }
     else {
-        WLOG(WS_LOG_DEBUG, "unable to identify key");
+        WLOG(WS_LOG_DEBUG, "Unable to identify PEM key");
         if (*out == NULL) {
             WFREE(newKey, heap, DYNTYPE_PRIVKEY);
         }
@@ -1804,7 +1806,7 @@ static int DoOpenSshKey(const byte* in, word32 inSz, byte** out,
         ret = WS_SUCCESS;
     }
     else {
-        WLOG(WS_LOG_DEBUG, "unable to identify key");
+        WLOG(WS_LOG_DEBUG, "Unable to identify key");
         if (*out == NULL) {
             WFREE(newKey, heap, DYNTYPE_PRIVKEY);
         }
@@ -1899,18 +1901,15 @@ int wolfSSH_ReadKey_file(const char* name,
         ret = WS_BAD_FILE_E;
     }
     else {
-        if (WSTRNSTR((const char*)in,
-                    "ssh-rsa", inSz) == (const char*)in ||
-                WSTRNSTR((const char*)in,
-                    "ecdsa-sha2-nistp", inSz) == (const char*)in) {
+        if (WSTRNSTR((const char*)in, "ssh-rsa", inSz) == (const char*)in
+                || WSTRNSTR((const char*)in,
+                    "ecdsa-sha2-nistp", inSz) == (const char*)in
+                || WSTRNSTR((const char*)in,
+                    "ssh-ed25519", inSz) == (const char*)in) {
             *isPrivate = 0;
             format = WOLFSSH_FORMAT_SSH;
             in[inSz] = 0;
         }
-#if 0
-        else if (WSTRNSTR((const char*)in, PrivBeginOpenSSH, inSz) != NULL &&
-                WSTRNSTR((const char*)in, PrivEndOpenSSH, inSz) != NULL) {
-#endif
         else if (WSTRNSTR((const char*)in, PrivBeginOpenSSH, inSz) != NULL) {
             *isPrivate = 1;
             format = WOLFSSH_FORMAT_OPENSSH;
@@ -1938,6 +1937,296 @@ int wolfSSH_ReadKey_file(const char* name,
 }
 
 #endif
+
+
+int wolfSSH_CTX_SetAlgoListKex(WOLFSSH_CTX* ctx, const char* list)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx) {
+        ctx->algoListKex = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_CTX_GetAlgoListKex(WOLFSSH_CTX* ctx)
+{
+    const char* list = NULL;
+
+    if (ctx) {
+        list = ctx->algoListKex;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_SetAlgoListKex(WOLFSSH* ssh, const char* list)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh) {
+        ssh->algoListKex = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_GetAlgoListKex(WOLFSSH* ssh)
+{
+    const char* list = NULL;
+
+    if (ssh) {
+        list = ssh->algoListKex;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_CTX_SetAlgoListKey(WOLFSSH_CTX* ctx, const char* list)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx) {
+        ctx->algoListKey = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_CTX_GetAlgoListKey(WOLFSSH_CTX* ctx)
+{
+    const char* list = NULL;
+
+    if (ctx) {
+        list = ctx->algoListKey;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_SetAlgoListKey(WOLFSSH* ssh, const char* list)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh) {
+        ssh->algoListKey = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_GetAlgoListKey(WOLFSSH* ssh)
+{
+    const char* list = NULL;
+
+    if (ssh) {
+        list = ssh->algoListKey;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_CTX_SetAlgoListCipher(WOLFSSH_CTX* ctx, const char* list)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx) {
+        ctx->algoListCipher = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_CTX_GetAlgoListCipher(WOLFSSH_CTX* ctx)
+{
+    const char* list = NULL;
+
+    if (ctx) {
+        list = ctx->algoListCipher;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_SetAlgoListCipher(WOLFSSH* ssh, const char* list)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh) {
+        ssh->algoListCipher = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_GetAlgoListCipher(WOLFSSH* ssh)
+{
+    const char* list = NULL;
+
+    if (ssh) {
+        list = ssh->algoListCipher;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_CTX_SetAlgoListMac(WOLFSSH_CTX* ctx, const char* list)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx) {
+        ctx->algoListMac = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_CTX_GetAlgoListMac(WOLFSSH_CTX* ctx)
+{
+    const char* list = NULL;
+
+    if (ctx) {
+        list = ctx->algoListMac;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_SetAlgoListMac(WOLFSSH* ssh, const char* list)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh) {
+        ssh->algoListMac = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_GetAlgoListMac(WOLFSSH* ssh)
+{
+    const char* list = NULL;
+
+    if (ssh) {
+        list = ssh->algoListMac;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_CTX_SetAlgoListKeyAccepted(WOLFSSH_CTX* ctx, const char* list)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx) {
+        ctx->algoListKeyAccepted = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_CTX_GetAlgoListKeyAccepted(WOLFSSH_CTX* ctx)
+{
+    const char* list = NULL;
+
+    if (ctx) {
+        list = ctx->algoListKeyAccepted;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_SetAlgoListKeyAccepted(WOLFSSH* ssh, const char* list)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh) {
+        ssh->algoListKeyAccepted = list;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_GetAlgoListKeyAccepted(WOLFSSH* ssh)
+{
+    const char* list = NULL;
+
+    if (ssh) {
+        list = ssh->algoListKeyAccepted;
+    }
+
+    return list;
+}
+
+
+int wolfSSH_CheckAlgoName(const char* name)
+{
+    int ret = WS_INVALID_ALGO_ID;
+
+    if (name) {
+        word32 nameSz = (word32)WSTRLEN(name);
+        if (NameToId(name, nameSz) != ID_UNKNOWN) {
+            ret = WS_SUCCESS;
+        }
+    }
+
+    return ret;
+}
+
+
+const char* wolfSSH_QueryKex(word32* index)
+{
+    return NameByIndexType(TYPE_KEX, index);
+}
+
+
+const char* wolfSSH_QueryKey(word32* index)
+{
+    return NameByIndexType(TYPE_KEY, index);
+}
+
+
+const char* wolfSSH_QueryCipher(word32* index)
+{
+    return NameByIndexType(TYPE_CIPHER, index);
+}
+
+
+const char* wolfSSH_QueryMac(word32* index)
+{
+    return NameByIndexType(TYPE_MAC, index);
+}
+
 
 int wolfSSH_CTX_SetBanner(WOLFSSH_CTX* ctx,
                           const char* newBanner)
@@ -2547,6 +2836,444 @@ int wolfSSH_ChannelGetEof(WOLFSSH_CHANNEL* channel)
     WLOG(WS_LOG_DEBUG, "Leaving wolfSSH_ChannelGetEof(), %s",
             eof ? "true" : "false");
     return eof;
+}
+
+static const char* HashNameForId(byte id)
+{
+    enum wc_HashType hash = HashForId(id);
+
+    if (hash == WC_HASH_TYPE_SHA)
+        return "SHA-1";
+
+    if (hash == WC_HASH_TYPE_SHA256)
+        return "SHA-256";
+
+    if (hash == WC_HASH_TYPE_SHA384)
+        return "SHA-384";
+
+    if (hash == WC_HASH_TYPE_SHA512)
+        return "SHA-512";
+
+    return "";
+}
+
+static const char* CurveNameForId(byte id)
+{
+#if !defined(WOLFSSH_NO_ECDSA) || !defined(WOLFSSH_NO_ECDH)
+    switch (wcPrimeForId(id)) {
+        case ECC_SECP256R1:
+            return "nistp256";
+
+        case ECC_SECP384R1:
+            return "nistp384";
+
+        case ECC_SECP521R1:
+            return "nistp521";
+
+#ifdef HAVE_CURVE25519
+        case ECC_X25519:
+            return "Curve25519";
+#endif
+    }
+#endif
+    return "";
+}
+
+static const char* CipherNameForId(byte id)
+{
+    switch (id) {
+        case ID_AES128_CBC:
+            return "AES-128 CBC";
+
+        case ID_AES192_CBC:
+            return "AES-192 CBC";
+
+        case ID_AES256_CBC:
+            return "AES-256 CBC";
+
+        case ID_AES128_CTR:
+            return "AES-128 SDCTR";
+
+        case ID_AES192_CTR:
+            return "AES-192 SDCTR";
+
+        case ID_AES256_CTR:
+            return "AES-256 SDCTR";
+
+        case ID_AES128_GCM:
+            return "AES-128 GCM";
+
+        case ID_AES192_GCM:
+            return "AES-192 GCM";
+
+        case ID_AES256_GCM:
+            return "AES-256 GCM";
+    }
+
+    return "";
+}
+
+static const char* MacNameForId(byte macid, byte cipherid)
+{
+    if (macid != ID_NONE) {
+        switch (macid) {
+            case ID_HMAC_SHA1:
+                return "HMAC-SHA-1";
+
+            case ID_HMAC_SHA1_96:
+                return "HMAC-SHA-1-96";
+
+            case ID_HMAC_SHA2_256:
+                return "HMAC-SHA-256";
+        }
+    }
+    else {
+        switch (cipherid) {
+            case ID_AES128_GCM:
+                return "AES128 GCM (in ETM mode)";
+
+            case ID_AES192_GCM:
+                return "AES192 GCM (in ETM mode)";
+
+            case ID_AES256_GCM:
+                return "AES256 GCM (in ETM mode)";
+        }
+    }
+
+    return "";
+}
+
+size_t wolfSSH_GetText(WOLFSSH *ssh, WS_Text id, char *str, size_t strSz)
+{
+    int ret = 0;
+
+#ifndef WOLFSSH_NO_DH
+    static const char standard_dh_format[] =
+        "%d-bit Diffie-Hellman with standard group %d";
+#endif
+
+    if (!ssh || str == NULL || strSz <= 0)
+        return 0;
+
+    switch (id) {
+        case WOLFSSH_TEXT_KEX_HASH:
+            ret = WSNPRINTF(str, strSz, "%s", HashNameForId(ssh->kexId));
+            break;
+
+        case WOLFSSH_TEXT_KEX_CURVE:
+            ret = WSNPRINTF(str, strSz, "%s", CurveNameForId(ssh->kexId));
+            break;
+
+        case WOLFSSH_TEXT_CRYPTO_IN_CIPHER:
+            ret = WSNPRINTF(str, strSz, "%s",
+                CipherNameForId(ssh->peerEncryptId));
+            break;
+
+        case WOLFSSH_TEXT_CRYPTO_OUT_CIPHER:
+            ret = WSNPRINTF(str, strSz, "%s", CipherNameForId(ssh->encryptId));
+            break;
+
+        case WOLFSSH_TEXT_CRYPTO_IN_MAC:
+            ret = WSNPRINTF(str, strSz, "%s", MacNameForId(ssh->peerMacId,
+                ssh->peerEncryptId));
+            break;
+
+        case WOLFSSH_TEXT_CRYPTO_OUT_MAC:
+            ret = WSNPRINTF(str, strSz, "%s", MacNameForId(ssh->macId,
+                ssh->encryptId));
+            break;
+
+        case WOLFSSH_TEXT_KEX_ALGO:
+            switch (ssh->kexId) {
+                case ID_ECDH_SHA2_NISTP256:
+                case ID_ECDH_SHA2_NISTP384:
+                case ID_ECDH_SHA2_NISTP521:
+                case ID_ECDH_SHA2_ED25519:
+                case ID_ECDH_SHA2_ED25519_LIBSSH:
+            #ifndef WOLFSSH_NO_CURVE25519_SHA256
+                case ID_CURVE25519_SHA256:
+            #endif
+                    ret = WSNPRINTF(str, strSz, "%s", "ECDH");
+                    break;
+
+            #ifndef WOLFSSH_NO_ECDH_NISTP256_KYBER_LEVEL1_SHA256
+                case ID_ECDH_NISTP256_KYBER_LEVEL1_SHA256:
+                    ret = WSNPRINTF(str, strSz, "%s", "Kyber1");
+                    break;
+            #endif
+
+            #ifndef WOLFSSH_NO_DH
+                case ID_DH_GROUP1_SHA1:
+                    ret = WSNPRINTF(str, strSz, standard_dh_format,
+                        ssh->primeGroupSz*8, 1);
+                    break;
+
+                case ID_DH_GROUP14_SHA1:
+                case ID_DH_GROUP14_SHA256:
+                    ret = WSNPRINTF(str, strSz, standard_dh_format,
+                        ssh->primeGroupSz*8, 14);
+                    break;
+
+                case ID_DH_GEX_SHA256:
+                    ret = WSNPRINTF(str, strSz,
+                        "%d-bit Diffie-Hellman with server-supplied group",
+                        ssh->primeGroupSz*8);
+                    break;
+            #endif /* !WOLFSSH_NO_DH */
+
+                case ID_EXTINFO_S:
+                    ret = WSNPRINTF(str, strSz, "Server extensions KEX");
+                    break;
+
+                case ID_EXTINFO_C:
+                    ret = WSNPRINTF(str, strSz, "Client extensions KEX");
+                    break;
+
+            }
+            break;
+    }
+
+    return ret < 0 ? 0 : (size_t)ret;
+}
+
+void wolfSSH_SetKeyingCompletionCb(WOLFSSH_CTX* ctx, WS_CallbackKeyingCompletion cb)
+{
+    WLOG(WS_LOG_DEBUG, "Entering wolfSSH_SetKeyingCompletionCb()");
+
+    if (ctx)
+        ctx->keyingCompletionCb = cb;
+}
+
+void wolfSSH_SetKeyingCompletionCbCtx(WOLFSSH* ssh, void* ctx)
+{
+    WLOG(WS_LOG_DEBUG, "Entering wolfSSH_SetKeyingCompletionCbCtx()");
+
+    if (ssh)
+        ssh->keyingCompletionCtx = ctx;
+}
+
+
+WS_SessionType wolfSSH_ChannelGetSessionType(const WOLFSSH_CHANNEL* channel)
+{
+    WS_SessionType type = WOLFSSH_SESSION_UNKNOWN;
+
+    WLOG(WS_LOG_DEBUG, "Entering wolfSSH_ChannelGetType()");
+
+    if (channel) {
+        type = (WS_SessionType)channel->sessionType;
+    }
+
+    return type;
+}
+
+
+const char* wolfSSH_ChannelGetSessionCommand(const WOLFSSH_CHANNEL* channel)
+{
+    const char* cmd = NULL;
+
+    WLOG(WS_LOG_DEBUG, "Entering wolfSSH_ChannelGetCommand()");
+
+    if (channel) {
+        cmd = channel->command;
+    }
+
+    return cmd;
+}
+
+
+int wolfSSH_CTX_SetChannelOpenCb(WOLFSSH_CTX* ctx, WS_CallbackChannelOpen cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelOpenCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_CTX_SetChannelOpenRespCb(WOLFSSH_CTX* ctx,
+        WS_CallbackChannelOpen confCb, WS_CallbackChannelOpen failCb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelOpenConfCb = confCb;
+        ctx->channelOpenFailCb = failCb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_CTX_SetChannelReqShellCb(WOLFSSH_CTX* ctx,
+        WS_CallbackChannelReq cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelReqShellCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_CTX_SetChannelReqExecCb(WOLFSSH_CTX* ctx,
+        WS_CallbackChannelReq cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelReqExecCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_CTX_SetChannelReqSubsysCb(WOLFSSH_CTX* ctx,
+        WS_CallbackChannelReq cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelReqSubsysCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_SetChannelOpenCtx(WOLFSSH* ssh, void* ctx)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh != NULL) {
+        ssh->channelOpenCtx = ctx;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+void* wolfSSH_GetChannelOpenCtx(WOLFSSH* ssh)
+{
+    void* ctx = NULL;
+
+    if (ssh != NULL) {
+        ctx = ssh->channelOpenCtx;
+    }
+
+    return ctx;
+}
+
+
+int wolfSSH_SetChannelReqCtx(WOLFSSH* ssh, void* ctx)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh != NULL) {
+        ssh->channelReqCtx = ctx;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+void* wolfSSH_GetChannelReqCtx(WOLFSSH* ssh)
+{
+    void* ctx = NULL;
+
+    if (ssh != NULL) {
+        ctx = ssh->channelReqCtx;
+    }
+
+    return ctx;
+}
+
+
+int wolfSSH_CTX_SetChannelEofCb(WOLFSSH_CTX* ctx, WS_CallbackChannelEof cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelEofCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_SetChannelEofCtx(WOLFSSH* ssh, void* ctx)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh != NULL) {
+        ssh->channelEofCtx = ctx;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+void* wolfSSH_GetChannelEofCtx(WOLFSSH* ssh)
+{
+    void* ctx = NULL;
+
+    if (ssh != NULL) {
+        ctx = ssh->channelEofCtx;
+    }
+
+    return ctx;
+}
+
+
+int wolfSSH_CTX_SetChannelCloseCb(WOLFSSH_CTX* ctx, WS_CallbackChannelClose cb)
+{
+    int ret = WS_SSH_CTX_NULL_E;
+
+    if (ctx != NULL) {
+        ctx->channelCloseCb = cb;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+int wolfSSH_SetChannelCloseCtx(WOLFSSH* ssh, void* ctx)
+{
+    int ret = WS_SSH_NULL_E;
+
+    if (ssh != NULL) {
+        ssh->channelCloseCtx = ctx;
+        ret = WS_SUCCESS;
+    }
+
+    return ret;
+}
+
+
+void* wolfSSH_GetChannelCloseCtx(WOLFSSH* ssh)
+{
+    void* ctx = NULL;
+
+    if (ssh != NULL) {
+        ctx = ssh->channelCloseCtx;
+    }
+
+    return ctx;
 }
 
 
